@@ -163,5 +163,10 @@
         "key": "hyg",
         "source": "yahoo",
         "ticker": "HYG"
+    },
+    {
+        "key": "xlu",
+        "source": "yahoo",
+        "ticker": "XLU"
     }
 ]
