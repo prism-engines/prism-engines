@@ -1,0 +1,67 @@
+# PRISM Engine Configuration
+# Global settings for the analysis pipeline
+
+# Pipeline settings
+pipeline:
+  default_domain: financial
+  checkpoint_enabled: true
+  log_level: INFO
+
+# Data settings
+data:
+  raw_dir: 02_data_raw
+  clean_dir: 04_data_clean
+  default_frequency: daily
+  date_column: date
+
+# Fetch settings
+fetch:
+  retry_attempts: 3
+  retry_delay_seconds: 2
+  timeout_seconds: 30
+
+# Cleaning settings
+cleaning:
+  default_nan_strategy: ffill
+  max_nan_pct: 10.0
+  outlier_detection: true
+  outlier_method: iqr
+  outlier_threshold: 3.0
+
+# Engine settings
+engine:
+  default_mode: basic
+  basic_lenses:
+    - magnitude
+    - pca
+    - influence
+    - clustering
+    - decomposition
+  advanced_lenses:
+    - granger
+    - mutual_info
+    - wavelet
+    - network
+    - regime
+    - anomaly
+  consensus_method: borda
+
+# Output settings
+output:
+  dir: 06_output
+  archive_enabled: true
+  formats:
+    - json
+    - csv
+
+# Visualization settings
+visualization:
+  figure_format: png
+  figure_dpi: 150
+  default_figsize: [12, 8]
+  color_scheme: viridis
+
+# Validation settings
+validation:
+  n_trials: 5
+  min_accuracy: 0.6

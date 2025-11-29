@@ -1,0 +1,50 @@
+# Climate Data Cleaning Configuration
+# Defines NaN strategies for climate data
+
+strategies:
+  # Temperature data - spline for smooth seasonal patterns
+  temperature:
+    method: spline
+    order: 3
+    max_gap: 6  # months
+    fallback: seasonal
+
+  # CO2 data - linear (steady trend)
+  co2:
+    method: linear
+    max_gap: 3
+    fallback: ffill
+
+  # Sea level - linear (slow change)
+  sea_level:
+    method: linear
+    max_gap: 12
+    fallback: ffill
+
+  # Ice extent - seasonal decomposition
+  ice:
+    method: seasonal
+    period: 12
+    max_gap: 6
+
+# Column-to-strategy mapping
+column_strategies:
+  temp_anomaly: temperature
+  co2_ppm: co2
+  co2_deseasonalized: co2
+  sea_level_mm: sea_level
+  ice_extent: ice
+
+  # Default
+  default: linear
+
+# Outlier handling - more conservative for climate
+outlier_config:
+  detection_method: mad  # Robust to natural variability
+  mad_threshold: 4.0
+  action: flag
+
+# Quality thresholds
+quality:
+  max_nan_pct: 15.0
+  min_observations: 60  # 5 years of monthly data

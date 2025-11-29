@@ -1,0 +1,179 @@
+# Financial Data Sources Configuration
+# Defines what data to fetch for financial engine
+
+sources:
+  fred:
+    # Interest Rates
+    - ticker: DFF
+      name: Federal Funds Rate
+      category: rates
+    - ticker: DGS10
+      name: 10-Year Treasury Yield
+      category: rates
+    - ticker: DGS2
+      name: 2-Year Treasury Yield
+      category: rates
+    - ticker: T10Y2Y
+      name: 10Y-2Y Treasury Spread
+      category: rates
+    - ticker: T10Y3M
+      name: 10Y-3M Treasury Spread
+      category: rates
+
+    # Inflation & Prices
+    - ticker: CPIAUCSL
+      name: Consumer Price Index
+      category: inflation
+    - ticker: PCEPI
+      name: PCE Price Index
+      category: inflation
+    - ticker: CPILFESL
+      name: Core CPI
+      category: inflation
+
+    # Employment
+    - ticker: UNRATE
+      name: Unemployment Rate
+      category: employment
+    - ticker: PAYEMS
+      name: Nonfarm Payrolls
+      category: employment
+    - ticker: ICSA
+      name: Initial Jobless Claims
+      category: employment
+
+    # Economic Activity
+    - ticker: GDP
+      name: Gross Domestic Product
+      category: activity
+    - ticker: INDPRO
+      name: Industrial Production
+      category: activity
+    - ticker: RSAFS
+      name: Retail Sales
+      category: activity
+
+    # Money & Credit
+    - ticker: M2SL
+      name: M2 Money Supply
+      category: money
+    - ticker: BOGMBASE
+      name: Monetary Base
+      category: money
+    - ticker: TOTRESNS
+      name: Total Bank Reserves
+      category: money
+
+    # Credit Spreads
+    - ticker: BAMLH0A0HYM2
+      name: High Yield OAS
+      category: credit
+    - ticker: BAMLC0A4CBBB
+      name: BBB Corporate Spread
+      category: credit
+    - ticker: TEDRATE
+      name: TED Spread
+      category: credit
+
+    # Housing
+    - ticker: CSUSHPINSA
+      name: Case-Shiller Home Price Index
+      category: housing
+    - ticker: HOUST
+      name: Housing Starts
+      category: housing
+    - ticker: MORTGAGE30US
+      name: 30-Year Mortgage Rate
+      category: housing
+
+    # Consumer
+    - ticker: UMCSENT
+      name: Consumer Sentiment
+      category: consumer
+    - ticker: PCE
+      name: Personal Consumption
+      category: consumer
+
+  yahoo:
+    # Major Indices
+    - ticker: ^GSPC
+      name: S&P 500
+      category: equities
+    - ticker: ^DJI
+      name: Dow Jones Industrial
+      category: equities
+    - ticker: ^IXIC
+      name: NASDAQ Composite
+      category: equities
+    - ticker: ^RUT
+      name: Russell 2000
+      category: equities
+
+    # Volatility
+    - ticker: ^VIX
+      name: VIX Volatility Index
+      category: volatility
+
+    # Sector ETFs
+    - ticker: XLF
+      name: Financial Select Sector
+      category: sectors
+    - ticker: XLK
+      name: Technology Select Sector
+      category: sectors
+    - ticker: XLE
+      name: Energy Select Sector
+      category: sectors
+    - ticker: XLV
+      name: Health Care Select Sector
+      category: sectors
+    - ticker: XLI
+      name: Industrial Select Sector
+      category: sectors
+    - ticker: XLU
+      name: Utilities Select Sector
+      category: sectors
+    - ticker: XLP
+      name: Consumer Staples Select Sector
+      category: sectors
+    - ticker: XLY
+      name: Consumer Discretionary Select Sector
+      category: sectors
+
+    # Commodities
+    - ticker: GC=F
+      name: Gold Futures
+      category: commodities
+    - ticker: CL=F
+      name: Crude Oil WTI Futures
+      category: commodities
+    - ticker: SI=F
+      name: Silver Futures
+      category: commodities
+
+    # Currency
+    - ticker: DX-Y.NYB
+      name: US Dollar Index
+      category: currency
+
+    # Bonds
+    - ticker: TLT
+      name: 20+ Year Treasury Bond ETF
+      category: bonds
+    - ticker: IEF
+      name: 7-10 Year Treasury Bond ETF
+      category: bonds
+    - ticker: HYG
+      name: High Yield Corporate Bond ETF
+      category: bonds
+    - ticker: LQD
+      name: Investment Grade Corporate Bond ETF
+      category: bonds
+
+# Fetch settings
+settings:
+  start_date: "2000-01-01"
+  end_date: null  # null = today
+  frequency: daily
+  retry_attempts: 3
+  retry_delay_seconds: 2
