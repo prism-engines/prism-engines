@@ -14,30 +14,67 @@ Usage:
 
 __version__ = "0.1.0"
 
-# Re-export main components for easy imports
-# These will be available after the package structure is finalized
+# Import subpackages - they reference the numbered directories
+# via sys.path manipulation in each subpackage __init__
 
-# For now, provide import paths
-PACKAGE_STRUCTURE = """
-prism_engine/
-├── fetch/          -> from prism_engine.fetch import FREDFetcher, YahooFetcher
-├── cleaning/       -> from prism_engine.cleaning import NaNAnalyzer, get_strategy
-├── engine/
-│   ├── lenses/     -> from prism_engine.engine.lenses import PCALens, GrangerLens
-│   └── orchestration/ -> from prism_engine.engine import IndicatorEngine
-├── validation/     -> from prism_engine.validation import LensValidator
-└── utils/          -> from prism_engine.utils import setup_logging
-"""
+import sys
+from pathlib import Path
 
-# Lazy imports to avoid circular dependencies
+# Add parent directory to path for importing numbered directories
+_pkg_root = Path(__file__).parent.parent
+if str(_pkg_root) not in sys.path:
+    sys.path.insert(0, str(_pkg_root))
+
+
+# Lazy loading to avoid circular imports
 def __getattr__(name):
-    if name == "IndicatorEngine":
-        from .engine.orchestration import IndicatorEngine
-        return IndicatorEngine
+    """Lazy load submodules and classes."""
+
+    if name == "fetch":
+        from importlib import import_module
+        return import_module("01_fetch")
+
+    elif name == "cleaning":
+        from importlib import import_module
+        return import_module("03_cleaning")
+
+    elif name == "engine":
+        from importlib import import_module
+        return import_module("05_engine")
+
+    elif name == "validation":
+        from importlib import import_module
+        return import_module("validation")
+
+    elif name == "utils":
+        from importlib import import_module
+        return import_module("utils")
+
+    elif name == "IndicatorEngine":
+        from importlib import import_module
+        engine = import_module("05_engine")
+        return engine.IndicatorEngine
+
     elif name == "LensComparator":
-        from .engine.orchestration import LensComparator
-        return LensComparator
+        from importlib import import_module
+        engine = import_module("05_engine")
+        return engine.LensComparator
+
     elif name == "get_lens":
-        from .engine import get_lens
-        return get_lens
+        from importlib import import_module
+        engine = import_module("05_engine")
+        return engine.get_lens
+
     raise AttributeError(f"module 'prism_engine' has no attribute '{name}'")
+
+
+__all__ = [
+    'fetch',
+    'cleaning',
+    'engine',
+    'validation',
+    'utils',
+    'IndicatorEngine',
+    'LensComparator',
+    'get_lens',
+]
