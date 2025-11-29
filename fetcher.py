@@ -12,11 +12,14 @@ Downloads a comprehensive market universe covering:
 - Volatility
 - Macro indicators (from FRED)
 
-Usage in Colab:
-    exec(open('/content/drive/MyDrive/prism-engine/prism-engine/fetcher.py').read())
-    fetch_all()  # Downloads everything
-    
-Or selectively:
+Usage:
+    # Import directly
+    from fetcher import fetch_all, fetch_equities, fetch_macro
+
+    # Or run the file
+    panel = fetch_all()  # Downloads everything
+
+Selective fetching:
     fetch_equities()
     fetch_fixed_income()
     fetch_macro()
@@ -399,24 +402,35 @@ def quick_fetch(save: bool = True) -> pd.DataFrame:
     Quick fetch with sensible defaults.
     Saves to data/raw/master_panel.csv in PRISM folder.
     """
-    # Try to find PRISM path
-    possible_paths = [
-        '/content/drive/MyDrive/prism-engine/prism-engine',
-        '/content/drive/MyDrive/prism-engine',
-        '.',
+    from pathlib import Path
+
+    # Find PRISM root relative to this file
+    if '__file__' in dir():
+        script_dir = Path(__file__).parent.resolve()
+    else:
+        script_dir = Path('.').resolve()
+
+    # Look for data/raw directory relative to script location
+    possible_roots = [
+        script_dir,  # If fetcher.py is in prism-engine root
+        script_dir.parent,  # If fetcher.py is in a subdirectory
+        Path('.').resolve(),  # Current working directory
     ]
-    
+
     save_path = None
     if save:
-        for path in possible_paths:
-            raw_dir = os.path.join(path, 'data', 'raw')
-            if os.path.exists(raw_dir):
-                save_path = os.path.join(raw_dir, 'master_panel.csv')
+        for root in possible_roots:
+            raw_dir = root / 'data' / 'raw'
+            if raw_dir.exists():
+                save_path = str(raw_dir / 'master_panel.csv')
                 break
-        
+
         if save_path is None:
-            save_path = 'master_panel.csv'
-    
+            # Create data/raw in script directory if it doesn't exist
+            raw_dir = script_dir / 'data' / 'raw'
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            save_path = str(raw_dir / 'master_panel.csv')
+
     return fetch_all(start='2010-01-01', save_path=save_path)
 
 

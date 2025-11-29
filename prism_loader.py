@@ -4,15 +4,18 @@ PRISM Lens Loader - Bulletproof Edition
 
 Handles all the Python import nonsense so you can just run lenses.
 
-Usage in Colab:
-    # First, run this cell:
-    exec(open('/content/drive/MyDrive/prism-engine/prism-engine/prism_loader.py').read())
-    
-    # Then use lenses:
+Usage:
+    # Import the loader
+    from prism_loader import run_lens, run_all_lenses, quick_analysis
+
+    # Run a single lens
     result = run_lens('magnitude', panel_clean)
-    
-    # Or run all:
+
+    # Or run all lenses
     results = run_all_lenses(panel_clean)
+
+    # Quick consensus analysis
+    consensus = quick_analysis(panel_clean)
 """
 
 import sys
@@ -25,26 +28,36 @@ from pathlib import Path
 # SETUP PATHS
 # ============================================================================
 
-# Try to find the prism-engine folder
-POSSIBLE_PATHS = [
-    '/content/drive/MyDrive/prism-engine/prism-engine',
-    '/content/drive/MyDrive/prism-engine',
-    '/content/prism-engine',
-    os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else '.',
-]
+def _find_prism_root():
+    """Find the prism-engine root directory relative to this file."""
+    # Start from this file's location
+    if '__file__' in dir():
+        script_dir = Path(os.path.abspath(__file__)).parent
+    else:
+        script_dir = Path('.').resolve()
 
-PRISM_ROOT = None
-for path in POSSIBLE_PATHS:
-    if os.path.exists(os.path.join(path, '05_engine', 'lenses')):
-        PRISM_ROOT = path
-        break
+    # Check possible locations relative to script
+    candidates = [
+        script_dir,  # prism_loader.py is in root
+        script_dir.parent,  # prism_loader.py is in a subdirectory
+        Path('.').resolve(),  # Current working directory
+    ]
+
+    for candidate in candidates:
+        if (candidate / '05_engine' / 'lenses').exists():
+            return str(candidate)
+
+    return None
+
+
+PRISM_ROOT = _find_prism_root()
 
 if PRISM_ROOT is None:
-    print("⚠️  Could not find prism-engine folder!")
+    print("Warning: Could not find prism-engine folder!")
     print("    Set PRISM_ROOT manually:")
     print("    PRISM_ROOT = '/your/path/to/prism-engine'")
 else:
-    print(f"✓ PRISM_ROOT = {PRISM_ROOT}")
+    print(f"PRISM_ROOT = {PRISM_ROOT}")
     sys.path.insert(0, PRISM_ROOT)
 
 LENSES_PATH = os.path.join(PRISM_ROOT, '05_engine', 'lenses') if PRISM_ROOT else None

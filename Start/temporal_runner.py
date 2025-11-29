@@ -5,16 +5,19 @@ PRISM Temporal Analysis Runner
 Easy-to-use script for running temporal (rolling window) analysis
 and generating visualizations of how indicator rankings change over time.
 
-Usage in Colab:
-    # Run this cell
-    exec(open('/content/drive/MyDrive/prism-engine/prism-engine/Start/temporal_runner.py').read())
+Usage:
+    # Import and run
+    from Start.temporal_runner import run_temporal_analysis, generate_all_plots
 
-    # Then:
     results = run_temporal_analysis(panel_clean)
     generate_all_plots(results)
 
-Usage in Python:
-    python temporal_runner.py
+    # Or use quick_start for everything at once
+    from Start.temporal_runner import quick_start
+    results, summary = quick_start(panel_clean)
+
+CLI Usage:
+    python Start/temporal_runner.py
 
 Performance Notes for 50-60+ Indicators:
 ----------------------------------------
