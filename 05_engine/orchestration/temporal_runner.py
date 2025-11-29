@@ -19,6 +19,7 @@ Usage (Python):
 Output Files (in 06_output/temporal/):
     - temporal_results_{increment}yr.csv : Long format with all windows
     - rank_evolution_{increment}yr.csv   : Pivot table (indicators × windows)
+    - regime_stability_{increment}yr.csv : Spearman correlation between adjacent windows
 """
 
 import sys
@@ -33,6 +34,7 @@ warnings.filterwarnings('ignore')
 
 import pandas as pd
 import numpy as np
+from scipy.stats import spearmanr
 
 # Ensure project root is in path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -322,6 +324,68 @@ class TemporalRunner:
 
         return consensus_df.reset_index(drop=True)
 
+    def compute_regime_stability(
+        self,
+        window_rankings: Dict[str, pd.DataFrame],
+        windows: List[Tuple[int, int]]
+    ) -> pd.DataFrame:
+        """
+        Compute Spearman correlation between adjacent time windows.
+
+        This measures how stable the indicator rankings are across regime transitions.
+        Dips in correlation indicate potential regime changes in market structure.
+
+        Args:
+            window_rankings: Dict mapping window_label -> consensus DataFrame
+            windows: List of (start_year, end_year) tuples
+
+        Returns:
+            DataFrame with columns: transition_year, window_from, window_to, spearman_corr, p_value
+        """
+        stability_scores = []
+
+        # Get window labels in order
+        window_labels = [f"{start}-{end}" for start, end in windows]
+
+        for i in range(len(window_labels) - 1):
+            label_t0 = window_labels[i]
+            label_t1 = window_labels[i + 1]
+
+            if label_t0 not in window_rankings or label_t1 not in window_rankings:
+                continue
+
+            consensus_t0 = window_rankings[label_t0]
+            consensus_t1 = window_rankings[label_t1]
+
+            # Get common indicators
+            indicators_t0 = set(consensus_t0['indicator'].tolist())
+            indicators_t1 = set(consensus_t1['indicator'].tolist())
+            common_indicators = indicators_t0 & indicators_t1
+
+            if len(common_indicators) < 5:
+                continue
+
+            # Build aligned rank vectors
+            ranks_t0 = consensus_t0.set_index('indicator').loc[list(common_indicators), 'consensus_rank']
+            ranks_t1 = consensus_t1.set_index('indicator').loc[list(common_indicators), 'consensus_rank']
+
+            # Compute Spearman correlation
+            corr, p_value = spearmanr(ranks_t0.values, ranks_t1.values)
+
+            # Transition year is the end of first window / start of second
+            transition_year = windows[i][1]
+
+            stability_scores.append({
+                'transition_year': transition_year,
+                'window_from': label_t0,
+                'window_to': label_t1,
+                'spearman_corr': corr,
+                'p_value': p_value,
+                'n_indicators': len(common_indicators),
+            })
+
+        return pd.DataFrame(stability_scores)
+
     def run(self, verbose: bool = True) -> Dict[str, Any]:
         """
         Run the full temporal analysis.
@@ -414,10 +478,19 @@ class TemporalRunner:
         else:
             rank_evolution = pd.DataFrame()
 
+        # Compute regime stability (Spearman correlation between adjacent windows)
+        if verbose:
+            print("\nComputing regime stability...")
+        regime_stability = self.compute_regime_stability(window_rankings, windows)
+
+        if verbose and not regime_stability.empty:
+            print(f"  Computed {len(regime_stability)} transition correlations")
+
         # Store results
         self.results = {
             'long_format': results_df,
             'rank_evolution': rank_evolution,
+            'regime_stability': regime_stability,
             'window_rankings': window_rankings,
             'windows': windows,
             'metadata': {
@@ -460,10 +533,15 @@ class TemporalRunner:
         evolution_path = self.output_dir / f"rank_evolution_{increment}yr.csv"
         self.results['rank_evolution'].to_csv(evolution_path)
 
+        # Regime stability
+        stability_path = self.output_dir / f"regime_stability_{increment}yr.csv"
+        self.results['regime_stability'].to_csv(stability_path, index=False)
+
         if verbose:
             print(f"\nSaved results to:")
             print(f"  {long_path}")
             print(f"  {evolution_path}")
+            print(f"  {stability_path}")
 
 
 # =============================================================================

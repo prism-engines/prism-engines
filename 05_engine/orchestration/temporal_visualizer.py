@@ -19,6 +19,7 @@ Output (in 06_output/temporal/plots/):
     - rank_trajectory_{increment}yr.png  : Line plot of top 15 indicator ranks
     - rank_heatmap_{increment}yr.png     : Heatmap of ranks over time
     - rank_stability_{increment}yr.png   : Scatter plot (avg rank vs std rank)
+    - regime_stability_{increment}yr.png : Spearman correlation between adjacent windows
 """
 
 import sys
@@ -67,6 +68,7 @@ class TemporalVisualizer:
         # Data
         self.rank_evolution: Optional[pd.DataFrame] = None
         self.long_format: Optional[pd.DataFrame] = None
+        self.regime_stability: Optional[pd.DataFrame] = None
 
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Load the temporal results files."""
@@ -78,6 +80,13 @@ class TemporalVisualizer:
         self.rank_evolution = pd.read_csv(evolution_path, index_col=0)
         print(f"Loaded: {evolution_path}")
         print(f"  Shape: {self.rank_evolution.shape}")
+
+        # Regime stability file
+        stability_path = self.input_dir / f"regime_stability_{self.increment}yr.csv"
+        if stability_path.exists():
+            self.regime_stability = pd.read_csv(stability_path)
+            print(f"Loaded: {stability_path}")
+            print(f"  Shape: {self.regime_stability.shape}")
 
         # Long format file
         long_path = self.input_dir / f"temporal_results_{self.increment}yr.csv"
@@ -313,6 +322,89 @@ class TemporalVisualizer:
         else:
             plt.show()
 
+    def plot_regime_stability(
+        self,
+        figsize: Tuple[int, int] = (12, 6),
+        save: bool = True
+    ) -> None:
+        """
+        Plot regime stability over time (Spearman correlation between adjacent windows).
+
+        Dips in the line indicate potential regime changes in market structure.
+        This provides a single defensible metric per transition point.
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print("matplotlib required: pip install matplotlib")
+            return
+
+        if self.regime_stability is None or self.regime_stability.empty:
+            print("No regime stability data available")
+            return
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Extract data
+        transitions = self.regime_stability['transition_year'].values
+        correlations = self.regime_stability['spearman_corr'].values
+
+        # Plot line
+        ax.plot(transitions, correlations, 'b-o', linewidth=2, markersize=8, label='Spearman ρ')
+
+        # Add horizontal reference lines
+        ax.axhline(y=1.0, color='green', linestyle='--', alpha=0.3, label='Perfect stability')
+        ax.axhline(y=0.8, color='orange', linestyle='--', alpha=0.3, label='High stability (0.8)')
+        ax.axhline(y=0.6, color='red', linestyle='--', alpha=0.3, label='Moderate stability (0.6)')
+
+        # Highlight potential regime changes (low correlation)
+        for i, (year, corr) in enumerate(zip(transitions, correlations)):
+            if corr < 0.7:
+                ax.annotate(
+                    f'{corr:.2f}',
+                    (year, corr),
+                    xytext=(0, -15),
+                    textcoords='offset points',
+                    fontsize=9,
+                    ha='center',
+                    color='red',
+                    fontweight='bold'
+                )
+            else:
+                ax.annotate(
+                    f'{corr:.2f}',
+                    (year, corr),
+                    xytext=(0, 10),
+                    textcoords='offset points',
+                    fontsize=9,
+                    ha='center',
+                    alpha=0.7
+                )
+
+        ax.set_xlabel('Transition Year', fontsize=12)
+        ax.set_ylabel('Spearman Correlation (ρ)', fontsize=12)
+        ax.set_title(
+            f'Regime Stability: Ranking Correlation Between Adjacent Windows\n'
+            f'({self.increment}-Year Windows)',
+            fontsize=14, fontweight='bold'
+        )
+
+        ax.set_ylim(0, 1.05)
+        ax.set_xticks(transitions)
+        ax.legend(loc='lower right')
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+
+        if save:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            save_path = self.output_dir / f"regime_stability_{self.increment}yr.png"
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f"Saved: {save_path}")
+            plt.close()
+        else:
+            plt.show()
+
     def generate_all(self, save: bool = True) -> None:
         """Generate all visualizations."""
         print("\n" + "=" * 60)
@@ -334,6 +426,9 @@ class TemporalVisualizer:
 
         print("\n3. Rank stability (scatter)...")
         self.plot_rank_stability(save=save)
+
+        print("\n4. Regime stability (Spearman correlation)...")
+        self.plot_regime_stability(save=save)
 
         print("\n" + "=" * 60)
         print(f"All plots saved to: {self.output_dir}")
