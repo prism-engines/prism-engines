@@ -7,14 +7,22 @@ Run all 14 PRISM lenses across discrete time windows to track how
 indicator importance changes over different periods.
 
 Usage (command line):
-    python temporal_runner.py --start 2005 --end 2025 --increment 5
-    python temporal_runner.py --increment 8
+    # Uses default panel (data/panels/master_panel.csv)
+    python temporal_runner.py --increment 1
+
+    # Uses specific panel
+    python temporal_runner.py --increment 1 --panel climate
+    python temporal_runner.py --increment 1 --panel global
+    python temporal_runner.py --increment 1 --panel test1
+
+    # Other options
+    python temporal_runner.py --start 2005 --end 2025 --increment 1
     python temporal_runner.py --start 2010 --end 2024 --increment 2 --parallel
-    python temporal_runner.py --increment 5 --export-csv  # Also export CSV files
+    python temporal_runner.py --increment 1 --export-csv  # Also export CSV files
 
 Usage (Python):
     from temporal_runner import TemporalRunner
-    runner = TemporalRunner(start_year=2005, end_year=2025, increment=5)
+    runner = TemporalRunner(start_year=2005, end_year=2025, increment=1)
     results = runner.run()
 
 Output (in 06_output/temporal/):
@@ -156,8 +164,8 @@ class TemporalRunner:
         Args:
             start_year: First year to include (default 2005)
             end_year: Last year to include (default: current year)
-            increment: Years per window (default 5)
-            data_path: Path to master_panel.csv (default: data/raw/master_panel.csv)
+            increment: Years per window (default 1)
+            data_path: Path to master_panel.csv (default: data/panels/master_panel.csv)
             output_dir: Output directory (default: 06_output/temporal/)
             lenses: List of lenses to run (default: all 14)
             parallel: Use parallel processing for lenses
@@ -173,7 +181,7 @@ class TemporalRunner:
 
         # Paths
         self.project_root = PROJECT_ROOT
-        self.data_path = Path(data_path) if data_path else self.project_root / "data" / "raw" / "master_panel.csv"
+        self.data_path = Path(data_path) if data_path else self.project_root / "data" / "panels" / "master_panel.csv"
         self.output_dir = Path(output_dir) if output_dir else self.project_root / "06_output" / "temporal"
 
         # Lenses
@@ -623,10 +631,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python temporal_runner.py --increment 5
-  python temporal_runner.py --start 2005 --end 2025 --increment 5
-  python temporal_runner.py --increment 8 --parallel
-  python temporal_runner.py --increment 5 --export-csv
+  # Uses default panel (data/panels/master_panel.csv)
+  python temporal_runner.py --increment 1
+
+  # Uses specific panel
+  python temporal_runner.py --increment 1 --panel climate
+  python temporal_runner.py --increment 1 --panel global
+  python temporal_runner.py --increment 1 --panel test1
+
+  # Other options
+  python temporal_runner.py --start 2005 --end 2025 --increment 1
+  python temporal_runner.py --increment 5 --parallel
+  python temporal_runner.py --increment 1 --export-csv
   python temporal_runner.py --start 2010 --end 2024 --increment 2 --lenses magnitude pca influence
 
 Output:
@@ -652,8 +668,15 @@ Output:
     parser.add_argument(
         '--increment', '-i',
         type=int,
-        default=5,
-        help='Years per window (default: 5)'
+        default=1,
+        help='Years per window (default: 1)'
+    )
+
+    parser.add_argument(
+        '--panel',
+        type=str,
+        default=None,
+        help='Panel name to use (e.g., climate, global, test1). Maps to data/panels/master_panel_{name}.csv'
     )
 
     parser.add_argument(
@@ -711,12 +734,22 @@ Output:
             print(f"  - {lens}")
         return
 
+    # Determine data path from panel argument
+    data_path = args.data
+    if data_path is None:
+        if args.panel:
+            # Use named panel: data/panels/master_panel_{name}.csv
+            data_path = PROJECT_ROOT / "data" / "panels" / f"master_panel_{args.panel}.csv"
+        else:
+            # Use default panel: data/panels/master_panel.csv
+            data_path = PROJECT_ROOT / "data" / "panels" / "master_panel.csv"
+
     # Create runner
     runner = TemporalRunner(
         start_year=args.start,
         end_year=args.end,
         increment=args.increment,
-        data_path=args.data,
+        data_path=str(data_path),
         output_dir=args.output,
         lenses=args.lenses,
         parallel=args.parallel,
