@@ -10,16 +10,21 @@ Usage (command line):
     python temporal_runner.py --start 2005 --end 2025 --increment 5
     python temporal_runner.py --increment 8
     python temporal_runner.py --start 2010 --end 2024 --increment 2 --parallel
+    python temporal_runner.py --increment 5 --export-csv  # Also export CSV files
 
 Usage (Python):
     from temporal_runner import TemporalRunner
     runner = TemporalRunner(start_year=2005, end_year=2025, increment=5)
     results = runner.run()
 
-Output Files (in 06_output/temporal/):
-    - temporal_results_{increment}yr.csv : Long format with all windows
-    - rank_evolution_{increment}yr.csv   : Pivot table (indicators × windows)
-    - regime_stability_{increment}yr.csv : Spearman correlation between adjacent windows
+Output (in 06_output/temporal/):
+    Primary:
+        - prism_temporal.db : SQLite database with full results
+
+    Optional (with --export-csv):
+        - temporal_results_{increment}yr.csv : Long format with all windows
+        - rank_evolution_{increment}yr.csv   : Pivot table (indicators × windows)
+        - regime_stability_{increment}yr.csv : Spearman correlation between adjacent windows
 """
 
 import sys
@@ -143,6 +148,7 @@ class TemporalRunner:
         lenses: List[str] = None,
         parallel: bool = False,
         max_workers: int = None,
+        export_csv: bool = False,
     ):
         """
         Initialize temporal runner.
@@ -156,12 +162,14 @@ class TemporalRunner:
             lenses: List of lenses to run (default: all 14)
             parallel: Use parallel processing for lenses
             max_workers: Max parallel workers (default: CPU count)
+            export_csv: Also export CSV files (default: False, SQLite only)
         """
         self.start_year = start_year
         self.end_year = end_year or datetime.now().year
         self.increment = increment
         self.parallel = parallel
         self.max_workers = max_workers
+        self.export_csv = export_csv
 
         # Paths
         self.project_root = PROJECT_ROOT
@@ -175,6 +183,7 @@ class TemporalRunner:
         self.panel: Optional[pd.DataFrame] = None
         self.windows: List[Tuple[int, int]] = []
         self.results: Dict[str, Any] = {}
+        self.db = None  # Database manager
 
     def generate_windows(self) -> List[Tuple[int, int]]:
         """Generate time windows based on increment."""
@@ -420,6 +429,7 @@ class TemporalRunner:
         # Process each window
         all_results = []
         window_rankings = {}
+        lens_results_by_window = {}  # Store raw lens results for database
 
         for i, (start, end) in enumerate(windows):
             window_label = f"{start}-{end}"
@@ -449,6 +459,7 @@ class TemporalRunner:
 
             # Store results
             window_rankings[window_label] = consensus
+            lens_results_by_window[window_label] = rankings  # Store raw lens results
 
             # Add to long-format results
             for _, row in consensus.iterrows():
@@ -492,6 +503,7 @@ class TemporalRunner:
             'rank_evolution': rank_evolution,
             'regime_stability': regime_stability,
             'window_rankings': window_rankings,
+            'lens_results_by_window': lens_results_by_window,  # Raw lens results
             'windows': windows,
             'metadata': {
                 'start_year': self.start_year,
@@ -520,28 +532,85 @@ class TemporalRunner:
         return self.results
 
     def save_results(self, verbose: bool = True):
-        """Save results to CSV files."""
+        """Save results to SQLite database (primary) and optionally CSV files."""
+        from utils.db_manager import TemporalDB
+
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         increment = self.increment
 
-        # Long format
-        long_path = self.output_dir / f"temporal_results_{increment}yr.csv"
-        self.results['long_format'].to_csv(long_path, index=False)
-
-        # Rank evolution pivot
-        evolution_path = self.output_dir / f"rank_evolution_{increment}yr.csv"
-        self.results['rank_evolution'].to_csv(evolution_path)
-
-        # Regime stability
-        stability_path = self.output_dir / f"regime_stability_{increment}yr.csv"
-        self.results['regime_stability'].to_csv(stability_path, index=False)
+        # =================================================================
+        # PRIMARY OUTPUT: SQLite Database
+        # =================================================================
+        db_path = self.output_dir / "prism_temporal.db"
+        self.db = TemporalDB(str(db_path))
+        self.db.init_schema()
 
         if verbose:
-            print(f"\nSaved results to:")
-            print(f"  {long_path}")
-            print(f"  {evolution_path}")
-            print(f"  {stability_path}")
+            print(f"\nSaving to database: {db_path}")
+
+        # Insert windows and track IDs
+        window_ids = {}
+        for start, end in self.results['windows']:
+            window_label = f"{start}-{end}"
+            window_id = self.db.insert_window(start, end, increment)
+            window_ids[window_label] = window_id
+
+        # Insert consensus rankings for each window
+        for window_label, consensus_df in self.results['window_rankings'].items():
+            window_id = window_ids[window_label]
+            count = self.db.insert_consensus(window_id, consensus_df)
+            if verbose:
+                print(f"  {window_label}: {count} consensus rankings")
+
+        # Insert lens results for each window
+        for window_label, lens_results in self.results['lens_results_by_window'].items():
+            window_id = window_ids[window_label]
+            count = self.db.insert_lens_results(window_id, lens_results)
+            if verbose:
+                print(f"  {window_label}: {count} lens results")
+
+        # Insert regime stability
+        if not self.results['regime_stability'].empty:
+            count = self.db.insert_regime_stability(
+                self.results['regime_stability'],
+                window_ids
+            )
+            if verbose:
+                print(f"  Regime stability: {count} transitions")
+
+        if verbose:
+            stats = self.db.get_stats()
+            print(f"\nDatabase statistics:")
+            for table, count in stats.items():
+                print(f"  {table}: {count} rows")
+
+        # =================================================================
+        # OPTIONAL: CSV Export (for compatibility)
+        # =================================================================
+        if self.export_csv:
+            if verbose:
+                print(f"\nExporting CSV files...")
+
+            # Long format
+            long_path = self.output_dir / f"temporal_results_{increment}yr.csv"
+            self.results['long_format'].to_csv(long_path, index=False)
+
+            # Rank evolution pivot
+            evolution_path = self.output_dir / f"rank_evolution_{increment}yr.csv"
+            self.results['rank_evolution'].to_csv(evolution_path)
+
+            # Regime stability
+            stability_path = self.output_dir / f"regime_stability_{increment}yr.csv"
+            self.results['regime_stability'].to_csv(stability_path, index=False)
+
+            if verbose:
+                print(f"  {long_path}")
+                print(f"  {evolution_path}")
+                print(f"  {stability_path}")
+
+        if verbose:
+            print(f"\nPrimary output: {db_path}")
 
 
 # =============================================================================
@@ -557,7 +626,12 @@ Examples:
   python temporal_runner.py --increment 5
   python temporal_runner.py --start 2005 --end 2025 --increment 5
   python temporal_runner.py --increment 8 --parallel
+  python temporal_runner.py --increment 5 --export-csv
   python temporal_runner.py --start 2010 --end 2024 --increment 2 --lenses magnitude pca influence
+
+Output:
+  Primary: prism_temporal.db (SQLite database)
+  Optional: CSV files (with --export-csv flag)
         """
     )
 
@@ -622,6 +696,12 @@ Examples:
         help='List available lenses and exit'
     )
 
+    parser.add_argument(
+        '--export-csv',
+        action='store_true',
+        help='Also export CSV files (default: SQLite only)'
+    )
+
     args = parser.parse_args()
 
     # List lenses option
@@ -641,6 +721,7 @@ Examples:
         lenses=args.lenses,
         parallel=args.parallel,
         max_workers=args.workers,
+        export_csv=args.export_csv,
     )
 
     # Run
