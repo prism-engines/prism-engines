@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM Engine - Launcher</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card: #16213e;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --text: #eee;
+            --dim: #888;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--highlight), #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            color: var(--dim);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--highlight);
+        }
+        
+        .card h2 {
+            color: var(--highlight);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .command {
+            background: #0a0a15;
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95rem;
+            margin: 0.75rem 0;
+            position: relative;
+            overflow-x: auto;
+        }
+        
+        .command::before {
+            content: '$';
+            color: var(--highlight);
+            margin-right: 0.5rem;
+        }
+        
+        .command.windows::before {
+            content: '>';
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .quick-ref {
+            background: var(--accent);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .quick-ref h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        
+        .quick-ref code {
+            display: block;
+            color: #7bed9f;
+            font-size: 0.85rem;
+            margin: 0.25rem 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--accent);
+        }
+        
+        th { color: var(--highlight); }
+        
+        .note {
+            background: #2d2d44;
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .note::before {
+            content: '💡 ';
+        }
+        
+        a {
+            color: #74b9ff;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .os-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .os-tab {
+            padding: 0.5rem 1rem;
+            background: var(--accent);
+            border: none;
+            color: var(--text);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .os-tab.active {
+            background: var(--highlight);
+        }
+        
+        .linux-cmd, .windows-cmd {
+            display: none;
+        }
+        
+        .linux-cmd.show, .windows-cmd.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔷 PRISM Engine</h1>
+        <p class="subtitle">Quick reference & launcher commands</p>
+        
+        <!-- Quick Launch -->
+        <div class="card">
+            <h2>🚀 Quick Launch</h2>
+            
+            <div class="os-tabs">
+                <button class="os-tab active" onclick="showOS('linux')">Linux/Mac</button>
+                <button class="os-tab" onclick="showOS('windows')">Windows</button>
+            </div>
+            
+            <div class="linux-cmd show">
+                <p>Navigate to project and activate venv:</p>
+                <div class="command">cd ~/projects/prism-engine</div>
+                <div class="command">source venv/bin/activate</div>
+                <p style="margin-top: 1rem;">Or use the launcher script:</p>
+                <div class="command">./launchers/launch_prism.sh</div>
+            </div>
+            
+            <div class="windows-cmd">
+                <p>Navigate to project and activate venv:</p>
+                <div class="command windows">cd C:\projects\prism-engine</div>
+                <div class="command windows">venv\Scripts\activate</div>
+                <p style="margin-top: 1rem;">Or double-click: <code>launchers\launch_prism.bat</code></p>
+            </div>
+        </div>
+        
+        <!-- Common Commands -->
+        <div class="card">
+            <h2>📋 Common Commands</h2>
+            <div class="grid">
+                <div class="quick-ref">
+                    <h3>Virtual Environment</h3>
+                    <code>python -m venv venv</code>
+                    <code>source venv/bin/activate</code>
+                    <code>pip install -r requirements.txt</code>
+                    <code>deactivate</code>
+                </div>
+                <div class="quick-ref">
+                    <h3>Git Basics</h3>
+                    <code>git status</code>
+                    <code>git add .</code>
+                    <code>git commit -m "message"</code>
+                    <code>git push origin main</code>
+                </div>
+                <div class="quick-ref">
+                    <h3>Jupyter</h3>
+                    <code>jupyter notebook</code>
+                    <code>jupyter lab</code>
+                    <code>pip install notebook</code>
+                </div>
+                <div class="quick-ref">
+                    <h3>Navigation</h3>
+                    <code>ls -la &nbsp;&nbsp;&nbsp;# list files</code>
+                    <code>cd ..  &nbsp;&nbsp;&nbsp;# go up</code>
+                    <code>pwd &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# where am I?</code>
+                    <code>cat file.py # view file</code>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Relative vs Absolute -->
+        <div class="card">
+            <h2>📁 Path Reference</h2>
+            <table>
+                <tr>
+                    <th>Type</th>
+                    <th>Example</th>
+                    <th>Portable?</th>
+                </tr>
+                <tr>
+                    <td>Absolute (avoid)</td>
+                    <td><code>/home/jason/projects/prism/data.csv</code></td>
+                    <td>❌ Breaks on other machines</td>
+                </tr>
+                <tr>
+                    <td>Relative (use this!)</td>
+                    <td><code>./data/data.csv</code></td>
+                    <td>✅ Works everywhere</td>
+                </tr>
+                <tr>
+                    <td>Parent folder</td>
+                    <td><code>../other_folder/file.py</code></td>
+                    <td>✅ Goes up, then into folder</td>
+                </tr>
+            </table>
+            
+            <div class="note">
+                The dot <code>.</code> means "current folder". Two dots <code>..</code> means "parent folder".
+                Always use these in your Python scripts for portability!
+            </div>
+        </div>
+        
+        <!-- Project Structure -->
+        <div class="card">
+            <h2>📂 Recommended Structure</h2>
+            <pre style="background: #0a0a15; padding: 1rem; border-radius: 6px; font-family: monospace; line-height: 1.6;">
+prism-engine/
+├── venv/                  # Virtual environment (don't commit!)
+├── data/                  # Your data files
+│   ├── raw/
+│   └── processed/
+├── src/                   # Source code
+│   ├── __init__.py
+│   ├── fetchers/
+│   └── lenses/
+├── notebooks/             # Jupyter notebooks
+├── launchers/             # These launcher scripts
+│   ├── launch_prism.sh
+│   └── launch_prism.bat
+├── requirements.txt       # Dependencies
+├── .gitignore            # Files Git should ignore
+└── README.md
+            </pre>
+        </div>
+        
+        <!-- .gitignore reminder -->
+        <div class="card">
+            <h2>🙈 Essential .gitignore</h2>
+            <div class="command" style="white-space: pre;">venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.csv
+*.xlsx</div>
+            <div class="note">
+                Never commit your venv folder - it's huge and machine-specific. 
+                Just commit requirements.txt and recreate venv on each machine.
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showOS(os) {
+            // Update tabs
+            document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Show/hide commands
+            document.querySelectorAll('.linux-cmd, .windows-cmd').forEach(el => {
+                el.classList.remove('show');
+            });
+            document.querySelectorAll('.' + os + '-cmd').forEach(el => {
+                el.classList.add('show');
+            });
+        }
+    </script>
+</body>
+</html>

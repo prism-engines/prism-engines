@@ -1,0 +1,96 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                     PRISM ENGINE - QUICK REFERENCE               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│  DAILY USE                                                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Put data in:     data/clean/prism_data_clean.csv            │
+│                                                                  │
+│  2. Run:             python run.py                               │
+│                                                                  │
+│  3. Read:            results/latest/summary.txt                  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  COMMAND OPTIONS                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  python run.py                    Full analysis                  │
+│  python run.py --quick            Fast (3 windows)               │
+│  python run.py --since 2020       Filter by year                 │
+│  python run.py --focus monetary   One category only              │
+│  python run.py --report           Generate HTML                  │
+│  python run.py --weights equal    Override weighting             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  READING COHERENCE                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  0.0 - 0.3    LOW         Lenses disagree (often healthy)       │
+│  0.3 - 0.5    MODERATE    Normal range                           │
+│  0.5 - 0.7    ELEVATED    Pay attention                          │
+│  0.7 - 1.0    HIGH        ⚠️  Investigate!                        │
+│                                                                  │
+│  Key insight: CHANGE matters more than level                     │
+│               A spike from 0.3 → 0.7 is the signal              │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  WEIGHTING OPTIONS                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  auto       PRISM picks best method (recommended)                │
+│  equal      All indicators same weight                           │
+│  variance   Stable indicators weighted higher                    │
+│  entropy    High information = higher weight                     │
+│  pca        Weight by principal component contribution           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  INDICATOR CATEGORIES                                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  monetary      M2, Fed balance, rates                            │
+│  employment    Payrolls, unemployment, claims                    │
+│  housing       Starts, permits, prices                           │
+│  inflation     CPI, PCE, PPI                                     │
+│  sentiment     VIX, financial conditions                         │
+│  real_economy  GDP, production, retail                           │
+│  markets       SP500, DXY, sectors                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  FILES YOU CARE ABOUT                                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  run.py                          The only file you run           │
+│  data/clean/*.csv                Your input data                 │
+│  results/latest/summary.txt      Human-readable results          │
+│  results/latest/coherence.csv    Coherence over time             │
+│  results/latest/rankings.csv     Indicator rankings              │
+│  reports/latest_report.html      Visual report (if --report)     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  THE BIG IDEA                                                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  "It's not what any one lens says.                              │
+│   It's when they ALL start saying the same thing."              │
+│                                                                  │
+│  When independent signals become correlated:                     │
+│    → Markets: Herd behavior, crash risk                          │
+│    → Ecosystems: Fragility, cascade risk                         │
+│    → Chemistry: Runaway reaction                                 │
+│    → Any system: Something is forcing alignment                  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
