@@ -68,6 +68,7 @@ def run_prism(
     if use_sql:
         try:
             from data.sql import SQLDataManager
+            import sqlite3
             db = SQLDataManager()
             panel = db.load_cleaned_panel()
             if panel.empty:
@@ -75,6 +76,14 @@ def run_prism(
                 panel = db.load_panel('master_panel')
             if not panel.empty and verbose:
                 print(f"  Loaded from SQL database")
+        except ImportError as e:
+            if verbose:
+                print(f"  SQL module not available: {e}")
+            panel = None
+        except sqlite3.Error as e:
+            if verbose:
+                print(f"  Database error: {e}")
+            panel = None
         except Exception as e:
             if verbose:
                 print(f"  Could not load from SQL: {e}")

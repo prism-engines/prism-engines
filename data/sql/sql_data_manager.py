@@ -280,7 +280,7 @@ class SQLDataManager:
                         float(volume_val) if volume_val is not None and not pd.isna(volume_val) else None,
                     ))
                     count += 1
-                except Exception as e:
+                except (sqlite3.Error, ValueError, TypeError) as e:
                     logger.warning(f"Error inserting row for {ticker}: {e}")
 
             # Update data source metadata
@@ -401,10 +401,13 @@ class SQLDataManager:
                     break
 
             if value_col is None:
-                # Use first numeric column
+                # Use first numeric column - log which column was selected
                 numeric_cols = df.select_dtypes(include=[np.number]).columns
                 if len(numeric_cols) > 0:
                     value_col = numeric_cols[0]
+                    logger.debug(f"Auto-selected column '{value_col}' for ticker '{ticker}'")
+                else:
+                    logger.warning(f"No numeric columns found for ticker '{ticker}'")
 
             for _, row in df.iterrows():
                 date_val = row.get('date', row.name)
@@ -425,7 +428,7 @@ class SQLDataManager:
                         cleaning_method
                     ))
                     count += 1
-                except Exception as e:
+                except (sqlite3.Error, ValueError, TypeError) as e:
                     logger.warning(f"Error inserting cleaned data for {ticker}: {e}")
 
             # Update quality metrics
@@ -661,10 +664,12 @@ class SQLDataManager:
         Returns:
             DataFrame with indicator data
         """
+        # Whitelist validation to prevent SQL injection
         valid_tables = ['raw_data', 'cleaned_data']
         if table not in valid_tables:
             raise ValueError(f"Invalid table: {table}. Valid: {valid_tables}")
 
+        # Safe to use table name in query since it's validated against whitelist
         with self.connection() as conn:
             df = pd.read_sql_query(
                 f"SELECT * FROM {table} WHERE ticker = ? ORDER BY date",
@@ -687,10 +692,12 @@ class SQLDataManager:
         Returns:
             List of ticker symbols
         """
+        # Whitelist validation to prevent SQL injection
         valid_tables = ['raw_data', 'cleaned_data', 'data_sources']
         if table not in valid_tables:
             raise ValueError(f"Invalid table: {table}. Valid: {valid_tables}")
 
+        # Safe to use table name in query since it's validated against whitelist
         with self.connection() as conn:
             cursor = conn.execute(f"SELECT DISTINCT ticker FROM {table} ORDER BY ticker")
             return [row['ticker'] for row in cursor.fetchall()]
@@ -706,11 +713,13 @@ class SQLDataManager:
     def get_stats(self) -> Dict[str, Any]:
         """Get database statistics."""
         stats = {}
-        tables = ['raw_data', 'cleaned_data', 'data_sources', 'data_quality', 'panels', 'panel_data']
+        # Hardcoded whitelist of known tables - safe from SQL injection
+        known_tables = ['raw_data', 'cleaned_data', 'data_sources', 'data_quality', 'panels', 'panel_data']
 
         with self.connection() as conn:
-            for table in tables:
+            for table in known_tables:
                 try:
+                    # Safe: table name comes from hardcoded whitelist above
                     cursor = conn.execute(f"SELECT COUNT(*) as count FROM {table}")
                     stats[table] = cursor.fetchone()['count']
                 except sqlite3.OperationalError:
