@@ -306,13 +306,14 @@ def fetch_macro(start: str = '2000-01-01') -> pd.DataFrame:
     return fetch_fred(series, start=start)
 
 
-def fetch_all(start: str = '2005-01-01', save_path: str = None) -> pd.DataFrame:
+def fetch_all(start: str = '2005-01-01', save_path: str = None, save_to_sql: bool = False) -> pd.DataFrame:
     """
     Fetch everything and combine into one panel.
     
     Args:
         start: Start date (2005 default for better ETF coverage)
         save_path: Path to save CSV (optional)
+        save_to_sql: Whether to store data in SQL database
     
     Returns:
         Combined DataFrame with all data
@@ -351,7 +352,81 @@ def fetch_all(start: str = '2005-01-01', save_path: str = None) -> pd.DataFrame:
         combined.to_csv(save_path)
         print(f"\n✓ Saved to {save_path}")
     
+    # Save to SQL if requested
+    if save_to_sql:
+        _save_to_sql(combined, market_data, macro)
+    
     return combined
+
+
+def _save_to_sql(combined: pd.DataFrame, market_data: pd.DataFrame, macro: pd.DataFrame) -> None:
+    """
+    Save fetched data to SQL database.
+    
+    Args:
+        combined: Combined panel DataFrame
+        market_data: Market data (equities, fixed income, commodities, currencies)
+        macro: Macro data from FRED
+    """
+    from pathlib import Path
+    import sys
+    
+    # Add project root to path for imports
+    script_dir = Path(__file__).parent.resolve() if '__file__' in dir() else Path('.').resolve()
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+    
+    try:
+        from data.sql import SQLDataManager
+        
+        db = SQLDataManager()
+        db.init_schema()
+        
+        print("\nSaving to SQL database...")
+        
+        # Store market data (Yahoo source)
+        for col in market_data.columns:
+            df_col = market_data[[col]].dropna().reset_index()
+            df_col.columns = ['date', col.lower()]
+            
+            # Determine category
+            ticker_upper = col.upper()
+            category = 'equity'
+            for cat, tickers in UNIVERSE.items():
+                if ticker_upper in tickers:
+                    category = cat
+                    break
+            
+            db.store_raw_data(
+                df_col, 
+                source='yahoo', 
+                ticker=col, 
+                name=UNIVERSE.get(category, {}).get(ticker_upper, col),
+                category=category
+            )
+        
+        # Store macro data (FRED source)
+        for col in macro.columns:
+            df_col = macro[[col]].dropna().reset_index()
+            df_col.columns = ['date', col.lower()]
+            db.store_raw_data(
+                df_col, 
+                source='fred', 
+                ticker=col,
+                name=FRED_SERIES.get(col.upper(), col),
+                category='macro'
+            )
+        
+        # Store cleaned panel
+        db.store_panel(combined, name='master_panel', description='Full combined panel from fetch_all')
+        
+        stats = db.get_stats()
+        print(f"✓ Saved to SQL: {stats['raw_data']} raw records, {stats['panel_data']} panel records")
+        
+    except ImportError as e:
+        print(f"⚠ Could not save to SQL: {e}")
+    except Exception as e:
+        print(f"⚠ Error saving to SQL: {e}")
 
 
 def fetch_custom(tickers: list, start: str = '2000-01-01') -> pd.DataFrame:
@@ -397,10 +472,14 @@ def add_ticker(category: str, ticker: str, name: str):
     print(f"✓ Added {ticker} ({name}) to {category}")
 
 
-def quick_fetch(save: bool = True) -> pd.DataFrame:
+def quick_fetch(save: bool = True, save_to_sql: bool = False) -> pd.DataFrame:
     """
     Quick fetch with sensible defaults.
     Saves to data/raw/master_panel.csv in PRISM folder.
+    
+    Args:
+        save: Whether to save to CSV
+        save_to_sql: Whether to save to SQL database
     """
     from pathlib import Path
 
@@ -431,7 +510,7 @@ def quick_fetch(save: bool = True) -> pd.DataFrame:
             raw_dir.mkdir(parents=True, exist_ok=True)
             save_path = str(raw_dir / 'master_panel.csv')
 
-    return fetch_all(start='2010-01-01', save_path=save_path)
+    return fetch_all(start='2010-01-01', save_path=save_path, save_to_sql=save_to_sql)
 
 
 # =============================================================================

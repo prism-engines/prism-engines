@@ -68,3 +68,6 @@ venv.bak/
 02_data_raw/
 04_data_clean/
 06_output/
+
+# SQLite databases (generated data)
+data/sql/*.db

@@ -417,6 +417,102 @@ def quick_analysis(panel: pd.DataFrame) -> pd.DataFrame:
     return consensus
 
 
+def load_panel_from_sql(
+    tickers: list = None,
+    start_date: str = None,
+    end_date: str = None
+) -> pd.DataFrame:
+    """
+    Load panel data from SQL database.
+    
+    Args:
+        tickers: List of tickers to load (optional, defaults to all)
+        start_date: Start date filter (optional)
+        end_date: End date filter (optional)
+    
+    Returns:
+        DataFrame with date index and ticker columns
+    
+    Usage:
+        panel = load_panel_from_sql()
+        panel = load_panel_from_sql(tickers=['spy', 'qqq', 'gld'])
+    """
+    try:
+        from data.sql import SQLDataManager
+        db = SQLDataManager()
+        panel = db.load_cleaned_panel(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date
+        )
+        if panel.empty:
+            # Try loading from stored panel
+            panel = db.load_panel('master_panel')
+        return panel
+    except ImportError as e:
+        print(f"Warning: Could not import SQL module: {e}")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"Warning: Could not load from SQL: {e}")
+        return pd.DataFrame()
+
+
+def load_panel_from_csv(path: str = None) -> pd.DataFrame:
+    """
+    Load panel data from CSV file.
+    
+    Args:
+        path: Path to CSV file (optional, defaults to data/raw/master_panel.csv)
+    
+    Returns:
+        DataFrame with date index
+    
+    Usage:
+        panel = load_panel_from_csv()
+        panel = load_panel_from_csv('data/raw/custom_panel.csv')
+    """
+    if path is None:
+        if ENGINE_ROOT:
+            path = ENGINE_ROOT / 'data' / 'raw' / 'master_panel.csv'
+        else:
+            path = Path('data/raw/master_panel.csv')
+    
+    path = Path(path)
+    if not path.exists():
+        print(f"Warning: File not found: {path}")
+        return pd.DataFrame()
+    
+    return pd.read_csv(path, index_col=0, parse_dates=True)
+
+
+def load_panel(use_sql: bool = True, **kwargs) -> pd.DataFrame:
+    """
+    Load panel data, trying SQL first then falling back to CSV.
+    
+    Args:
+        use_sql: Try to load from SQL first
+        **kwargs: Additional arguments passed to load functions
+    
+    Returns:
+        DataFrame with panel data
+    
+    Usage:
+        panel = load_panel()                    # Try SQL, fall back to CSV
+        panel = load_panel(use_sql=False)       # Load from CSV only
+        panel = load_panel(tickers=['spy'])     # Load specific tickers from SQL
+    """
+    panel = pd.DataFrame()
+    
+    if use_sql:
+        panel = load_panel_from_sql(**kwargs)
+    
+    if panel.empty:
+        csv_path = kwargs.pop('path', None) if kwargs else None
+        panel = load_panel_from_csv(csv_path)
+    
+    return panel
+
+
 # ============================================================================
 # PRINT STATUS
 # ============================================================================
@@ -424,6 +520,9 @@ def quick_analysis(panel: pd.DataFrame) -> pd.DataFrame:
 print(f"✓ Loaded {len(BUILTIN_LENSES)} builtin lenses: {list(BUILTIN_LENSES.keys())}")
 print()
 print("Usage:")
-print("  result = run_lens('magnitude', panel_clean)")
-print("  results = run_all_lenses(panel_clean)")
-print("  consensus = quick_analysis(panel_clean)")
+print("  panel = load_panel()                    # Load data (SQL or CSV)")
+print("  panel = load_panel_from_sql()           # Load from SQL only")
+print("  panel = load_panel_from_csv()           # Load from CSV only")
+print("  result = run_lens('magnitude', panel)")
+print("  results = run_all_lenses(panel)")
+print("  consensus = quick_analysis(panel)")

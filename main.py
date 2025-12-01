@@ -32,7 +32,8 @@ def run_prism(
     data_path: str = None,
     output_dir: str = None,
     lenses: list = None,
-    verbose: bool = True
+    verbose: bool = True,
+    use_sql: bool = False
 ):
     """
     Run the full PRISM analysis pipeline.
@@ -42,6 +43,7 @@ def run_prism(
         output_dir: Where to save results (default: 06_output/latest/)
         lenses: List of lens names to run (default: all)
         verbose: Print progress
+        use_sql: Load data from SQL database instead of CSV
         
     Returns:
         dict with all results
@@ -60,24 +62,44 @@ def run_prism(
     if verbose:
         print("[1/5] Loading data...")
     
-    if data_path is None:
-        data_path = PROJECT_ROOT / "data" / "raw" / "master_panel.csv"
+    panel = None
     
-    data_path = Path(data_path)
-    
-    if not data_path.exists():
-        # Try to find any CSV in data/raw
-        raw_dir = PROJECT_ROOT / "data" / "raw"
-        csvs = list(raw_dir.glob("*.csv"))
-        if csvs:
+    # Try SQL first if requested
+    if use_sql:
+        try:
+            from data.sql import SQLDataManager
+            db = SQLDataManager()
+            panel = db.load_cleaned_panel()
+            if panel.empty:
+                # Try loading from panel storage
+                panel = db.load_panel('master_panel')
+            if not panel.empty and verbose:
+                print(f"  Loaded from SQL database")
+        except Exception as e:
             if verbose:
-                print(f"  master_panel.csv not found, using: {csvs[0].name}")
-            data_path = csvs[0]
-        else:
-            raise FileNotFoundError(f"No data found in {raw_dir}")
+                print(f"  Could not load from SQL: {e}")
+            panel = None
     
-    # Load the data
-    panel = pd.read_csv(data_path, index_col=0, parse_dates=True)
+    # Fall back to CSV if SQL didn't work
+    if panel is None or panel.empty:
+        if data_path is None:
+            data_path = PROJECT_ROOT / "data" / "raw" / "master_panel.csv"
+        
+        data_path = Path(data_path)
+        
+        if not data_path.exists():
+            # Try to find any CSV in data/raw
+            raw_dir = PROJECT_ROOT / "data" / "raw"
+            csvs = list(raw_dir.glob("*.csv"))
+            if csvs:
+                if verbose:
+                    print(f"  master_panel.csv not found, using: {csvs[0].name}")
+                data_path = csvs[0]
+            else:
+                raise FileNotFoundError(f"No data found in {raw_dir}")
+        
+        # Load the data
+        panel = pd.read_csv(data_path, index_col=0, parse_dates=True)
     
     if verbose:
         print(f"  Loaded: {panel.shape[0]} rows, {panel.shape[1]} columns")
