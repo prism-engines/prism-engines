@@ -19,7 +19,6 @@ Usage:
 """
 
 import sys
-import os
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -32,7 +31,7 @@ def _find_engine_root():
     """Find the engine root directory relative to this file."""
     # Start from this file's location
     if '__file__' in dir():
-        script_dir = Path(os.path.abspath(__file__)).parent
+        script_dir = Path(__file__).resolve().parent
     else:
         script_dir = Path('.').resolve()
 
@@ -45,7 +44,7 @@ def _find_engine_root():
 
     for candidate in candidates:
         if (candidate / '05_engine' / 'lenses').exists():
-            return str(candidate)
+            return candidate
 
     return None
 
@@ -54,13 +53,12 @@ ENGINE_ROOT = _find_engine_root()
 
 if ENGINE_ROOT is None:
     print("Warning: Could not find engine folder!")
-    print("    Set ENGINE_ROOT manually:")
-    print("    ENGINE_ROOT = '/your/path/to/engine'")
+    print("    Set ENGINE_ROOT manually or ensure you're in the project directory")
 else:
     print(f"ENGINE_ROOT = {ENGINE_ROOT}")
-    sys.path.insert(0, ENGINE_ROOT)
+    sys.path.insert(0, str(ENGINE_ROOT))
 
-LENSES_PATH = os.path.join(ENGINE_ROOT, '05_engine', 'lenses') if ENGINE_ROOT else None
+LENSES_PATH = ENGINE_ROOT / '05_engine' / 'lenses' if ENGINE_ROOT else None
 
 
 # ============================================================================
@@ -295,35 +293,34 @@ BUILTIN_LENSES = {
 def get_available_lenses():
     """List all available lenses."""
     available = list(BUILTIN_LENSES.keys())
-    
+
     # Check for additional lenses in the lenses folder
-    if LENSES_PATH and os.path.exists(LENSES_PATH):
-        for f in os.listdir(LENSES_PATH):
-            if f.endswith('_lens.py') and f != 'base_lens.py':
-                name = f.replace('_lens.py', '')
+    if LENSES_PATH and LENSES_PATH.exists():
+        for f in LENSES_PATH.iterdir():
+            if f.name.endswith('_lens.py') and f.name != 'base_lens.py':
+                name = f.name.replace('_lens.py', '')
                 if name not in available:
                     available.append(name + ' (file)')
-    
+
     return available
 
 
 def load_lens(name: str):
     """
     Load a lens by name.
-    
+
     First tries builtin lenses, then tries to load from file.
     """
     # Try builtin first
     if name in BUILTIN_LENSES:
         return BUILTIN_LENSES[name]()
-    
+
     # Try loading from file
     if LENSES_PATH:
-        lens_file = os.path.join(LENSES_PATH, f'{name}_lens.py')
-        if os.path.exists(lens_file):
+        lens_file = LENSES_PATH / f'{name}_lens.py'
+        if lens_file.exists():
             # Read the file and extract the class
-            with open(lens_file, 'r') as f:
-                content = f.read()
+            content = lens_file.read_text()
             
             # Create a namespace and exec
             namespace = {

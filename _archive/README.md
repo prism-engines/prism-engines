@@ -36,8 +36,8 @@ Synthetic benchmark datasets with known ground truth for testing:
 
 ### `alternative-entry-points/`
 Alternative scripts that duplicate functionality in main modules:
-- `main.py` - Alternative entry point (use `prism_loader.py` instead)
-- `prism_sql_helper.py` - Database query helper utility
+- `main.py` - Alternative entry point (use `loader.py` instead)
+- `sql_helper.py` - Database query helper utility
 
 ## Main Pipeline (NOT archived)
 
@@ -50,9 +50,9 @@ The integrated pipeline remains in place:
 ```
 
 Entry points:
-- `prism_loader.py` - Import helper and lens runner
+- `loader.py` - Import helper and lens runner
 - `fetcher.py` - Data fetching
-- `Start/temporal_runner.py` - Temporal analysis
+- `start/temporal_runner.py` - Temporal analysis
 - `PRISM.ipynb` / `PRISM_14lens.ipynb` - Notebooks
 
 ## Restoration

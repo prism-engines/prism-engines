@@ -1,7 +1,7 @@
 """
 SQL Helper
 ========================
-Drop this in your Start/ folder.
+Drop this in your start/ folder.
 Import functions or run standalone to explore the database.
 
 Usage:

@@ -1,12 +1,12 @@
 """
-PRISM Data Fetcher (Start/ entry point)
+Data Fetcher (start/ entry point)
 =======================================
 
 This is a convenience wrapper that imports from the main fetcher module.
 All functionality is in the root fetcher.py file.
 
 Usage:
-    from Start.fetcher import fetch_all, fetch_equities, quick_fetch
+    from start.fetcher import fetch_all, fetch_equities, quick_fetch
 
     panel = fetch_all()
     equities = fetch_equities()
