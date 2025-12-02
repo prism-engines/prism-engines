@@ -1,0 +1,50 @@
+{
+    "version": "1.0.0",
+    "description": "PRISM Engine System Registry - Centralized configuration for panel paths and metadata",
+
+    "panel_master_path": "data/panels/master_panel.csv",
+    "panel_cleaned_path": "data/cleaned/master_panel_cleaned.csv",
+
+    "data_directories": {
+        "raw": "data/raw",
+        "cleaned": "data/cleaned",
+        "panels": "data/panels",
+        "fetch": "data/fetch",
+        "registry": "data/registry"
+    },
+
+    "output_directories": {
+        "engine_output": "06_output",
+        "reports": "07_interpretation",
+        "visualizations": "08_visualization"
+    },
+
+    "registry_files": {
+        "metric_registry": "data/registry/metric_registry.json",
+        "system_registry": "data/registry/system_registry.json"
+    },
+
+    "column_metadata": {
+        "date_column": "date",
+        "index_column": null,
+        "series_types": {
+            "economic": {
+                "description": "FRED economic indicators",
+                "source": "fred",
+                "columns": ["dgs10", "dgs2", "dgs3mo", "t10y2y", "t10y3m", "cpiaucsl", "cpilfesl", "ppiaco", "unrate", "payems", "indpro", "houst", "permit", "m2sl", "walcl", "anfci", "nfci"]
+            },
+            "market": {
+                "description": "Yahoo Finance market data",
+                "source": "yahoo",
+                "columns": ["spy_spy", "qqq_qqq", "iwm_iwm", "gld_gld", "slv_slv", "uso_uso", "bnd_bnd", "tlt_tlt", "shy_shy", "ief_ief", "tip_tip", "lqd_lqd", "hyg_hyg", "xlu_xlu"]
+            }
+        }
+    },
+
+    "engine_config": {
+        "default_lookback_years": 5,
+        "default_frequency": "monthly",
+        "nan_threshold": 0.5,
+        "min_observations": 60
+    }
+}
