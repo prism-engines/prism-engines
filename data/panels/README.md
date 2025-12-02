@@ -3,6 +3,11 @@
 This directory contains analysis-ready master panel datasets for different analysis scenarios.
 Each panel is a consolidated CSV with indicators aligned on a common date index.
 
+> **Terminology Note**: In this context, "panel" refers to a data file (consolidated CSV).
+> This is distinct from the SQL database concept where **`system`** refers to the top-level
+> domain for indicators (e.g., `finance`, `climate`, `chemistry`). See `data/sql/README_SQL.md`
+> for SQL database documentation.
+
 ## Panel Naming Convention
 
 - `master_panel.csv` - Default panel (current US markets)
