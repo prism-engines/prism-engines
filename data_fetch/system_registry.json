@@ -1,0 +1,21 @@
+{
+  "paths": {
+    "data_raw": "data/raw",
+    "data_clean": "data/clean",
+    "data_fetch": "data/fetch",
+    "db_path": "data/sql/prism.db",
+    "logs_dir": "logs"
+  },
+  "registries": {
+    "market": "data_fetch/market_registry.json",
+    "economic": "data_fetch/economic_registry.json"
+  },
+  "panel": {
+    "master_panel_path": "data/panels/panel_master.csv"
+  },
+  "settings": {
+    "default_frequency": "daily",
+    "date_format": "%Y-%m-%d",
+    "timezone": "America/New_York"
+  }
+}

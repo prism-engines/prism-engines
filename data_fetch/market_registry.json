@@ -1,0 +1,217 @@
+{
+  "SPY": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Core S&P 500 ETF"
+  },
+  "QQQ": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Nasdaq 100 ETF"
+  },
+  "IWM": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Russell 2000 Small Cap ETF"
+  },
+  "DXY": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices"
+    },
+    "use_column": "close",
+    "required_fields": ["price"],
+    "notes": "US Dollar Index"
+  },
+  "VIX": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices"
+    },
+    "use_column": "close",
+    "required_fields": ["price"],
+    "notes": "CBOE Volatility Index"
+  },
+  "GLD": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price"],
+    "notes": "Gold ETF"
+  },
+  "SLV": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price"],
+    "notes": "Silver ETF"
+  },
+  "USO": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price"],
+    "notes": "Oil ETF"
+  },
+  "BCOM": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices"
+    },
+    "use_column": "close",
+    "required_fields": ["price"],
+    "notes": "Bloomberg Commodity Index"
+  },
+  "BND": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Total Bond Market ETF"
+  },
+  "TLT": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "20+ Year Treasury Bond ETF"
+  },
+  "SHY": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "1-3 Year Treasury Bond ETF"
+  },
+  "IEF": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "7-10 Year Treasury Bond ETF"
+  },
+  "TIP": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Treasury Inflation-Protected Securities ETF"
+  },
+  "LQD": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Investment Grade Corporate Bond ETF"
+  },
+  "HYG": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "High Yield Corporate Bond ETF"
+  },
+  "XLU": {
+    "fetch_type": "yahoo",
+    "enabled": true,
+    "frequency": "daily",
+    "tables": {
+      "prices": "market_prices",
+      "dividends": "market_dividends",
+      "tri": "market_tri"
+    },
+    "use_column": "tri_value",
+    "required_fields": ["price", "dividend"],
+    "notes": "Utilities Select Sector ETF"
+  }
+}
