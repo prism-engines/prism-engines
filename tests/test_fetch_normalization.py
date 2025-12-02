@@ -106,8 +106,8 @@ class TestDateNormalization:
             "value": [1, 2, 3]
         })
 
-        # pandas can infer these formats
-        df["date"] = pd.to_datetime(df["date"])
+        # pandas can infer these formats with format='mixed'
+        df["date"] = pd.to_datetime(df["date"], format="mixed")
 
         assert df["date"].iloc[0].year == 2020
         assert df["date"].iloc[1].month == 2
