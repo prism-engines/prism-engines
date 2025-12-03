@@ -25,7 +25,7 @@ Usage (Python):
     runner = TemporalRunner(start_year=2005, end_year=2025, increment=1)
     results = runner.run()
 
-Output (in 06_output/temporal/):
+Output (in output/temporal/):
     Primary:
         - temporal.db : SQLite database with full results
 
@@ -102,12 +102,12 @@ def load_lens_class(lens_name: str):
 
     try:
         from importlib import import_module
-        module = import_module(f"05_engine.lenses.{module_name}")
+        module = import_module(f"engine_core.lenses.{module_name}")
         return getattr(module, class_name)
     except ImportError as e:
         # Try alternate import path
         try:
-            lenses_path = PROJECT_ROOT / "05_engine" / "lenses"
+            lenses_path = PROJECT_ROOT / "engine_core" / "lenses"
             sys.path.insert(0, str(lenses_path))
             module = import_module(module_name)
             return getattr(module, class_name)
@@ -166,7 +166,7 @@ class TemporalRunner:
             end_year: Last year to include (default: current year)
             increment: Years per window (default 1)
             data_path: Path to master_panel.csv (default: data/panels/master_panel.csv)
-            output_dir: Output directory (default: 06_output/temporal/)
+            output_dir: Output directory (default: output/temporal/)
             lenses: List of lenses to run (default: all 14)
             parallel: Use parallel processing for lenses
             max_workers: Max parallel workers (default: CPU count)
@@ -182,7 +182,7 @@ class TemporalRunner:
         # Paths
         self.project_root = PROJECT_ROOT
         self.data_path = Path(data_path) if data_path else self.project_root / "data" / "panels" / "master_panel.csv"
-        self.output_dir = Path(output_dir) if output_dir else self.project_root / "06_output" / "temporal"
+        self.output_dir = Path(output_dir) if output_dir else self.project_root / "output" / "temporal"
 
         # Lenses
         self.lenses = lenses or ALL_LENSES

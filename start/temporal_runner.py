@@ -36,8 +36,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 
 # Add to Python path
 sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / '05_engine' / 'orchestration'))
-sys.path.insert(0, str(PROJECT_ROOT / '08_visualization' / 'plotters'))
+sys.path.insert(0, str(PROJECT_ROOT / 'engine_core' / 'orchestration'))
+sys.path.insert(0, str(PROJECT_ROOT / 'visualization' / 'plotters'))
 
 import pandas as pd
 import numpy as np

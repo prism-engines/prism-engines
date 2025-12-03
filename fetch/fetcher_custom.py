@@ -11,7 +11,7 @@ from .fetcher_base import BaseFetcher
 
 logger = logging.getLogger(__name__)
 
-# Get project root (01_fetch -> project root)
+# Get project root (fetch -> project root)
 _SCRIPT_DIR = Path(__file__).parent.resolve()
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 

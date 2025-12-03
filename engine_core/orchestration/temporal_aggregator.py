@@ -19,11 +19,11 @@ Usage (command line):
 
 Usage (Python):
     from temporal_aggregator import TemporalAggregator
-    agg = TemporalAggregator(db_path='06_output/temporal/temporal.db')
+    agg = TemporalAggregator(db_path='output/temporal/temporal.db')
     regime_summary = agg.aggregate_by_regime()
     decade_avg = agg.aggregate_by_period(period=10)
 
-Output (in 06_output/temporal/summary/):
+Output (in output/temporal/summary/):
     - regime_summary.csv     : Average ranks by regime period
     - decade_averages.csv    : Average ranks by decade
     - 5year_averages.csv     : Average ranks by 5-year period
@@ -97,8 +97,8 @@ class TemporalAggregator:
             regimes: Custom regime definitions (default: REGIMES constant)
         """
         self.project_root = PROJECT_ROOT
-        self.db_path = Path(db_path) if db_path else self.project_root / "06_output" / "temporal" / "temporal.db"
-        self.output_dir = Path(output_dir) if output_dir else self.project_root / "06_output" / "temporal" / "summary"
+        self.db_path = Path(db_path) if db_path else self.project_root / "output" / "temporal" / "temporal.db"
+        self.output_dir = Path(output_dir) if output_dir else self.project_root / "output" / "temporal" / "summary"
         self.regimes = regimes or REGIMES
 
         # Storage
@@ -589,7 +589,7 @@ Examples:
   python temporal_aggregator.py --group regime --db path/to/temporal.db
 
 Output:
-  Saved to 06_output/temporal/summary/
+  Saved to output/temporal/summary/
         """
     )
 
@@ -604,14 +604,14 @@ Output:
         '--db',
         type=str,
         default=None,
-        help='Path to temporal.db (default: 06_output/temporal/temporal.db)'
+        help='Path to temporal.db (default: output/temporal/temporal.db)'
     )
 
     parser.add_argument(
         '--output', '-o',
         type=str,
         default=None,
-        help='Output directory (default: 06_output/temporal/summary/)'
+        help='Output directory (default: output/temporal/summary/)'
     )
 
     parser.add_argument(

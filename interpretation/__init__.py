@@ -1,6 +1,5 @@
 """
 PRISM AI Interpretation Layer
-==============================
 
 Bridges mathematical outputs and human-interpretable insights.
 

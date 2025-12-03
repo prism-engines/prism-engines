@@ -28,7 +28,11 @@ Selective fetching:
 import pandas as pd
 import numpy as np
 import os
+import warnings
 from datetime import datetime, timedelta
+
+# Suppress yfinance FutureWarnings
+warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 
 # Try to import yfinance
 try:
@@ -210,7 +214,12 @@ def fetch_yahoo(tickers: list, start: str = '2000-01-01', end: str = None) -> pd
         try:
             df = yf.download(ticker, start=start, end=end, progress=False)
             if len(df) > 0:
-                data[ticker] = df['Adj Close']
+                # Handle new yfinance MultiIndex format (v0.2.40+)
+                # auto_adjust is now True by default, so use 'Close' instead of 'Adj Close'
+                if isinstance(df.columns, pd.MultiIndex):
+                    data[ticker] = df['Close'][ticker]
+                else:
+                    data[ticker] = df['Close']
                 print(f"  ✓ {ticker} ({len(df)} days)", end='\r')
             else:
                 failed.append(ticker)

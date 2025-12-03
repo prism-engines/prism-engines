@@ -1,5 +1,5 @@
 """
-Fetch submodule - re-exports from 01_fetch
+Fetch submodule - re-exports from fetch
 """
 import sys
 from pathlib import Path
@@ -9,10 +9,10 @@ _pkg_root = Path(__file__).parent.parent
 if str(_pkg_root) not in sys.path:
     sys.path.insert(0, str(_pkg_root))
 
-# Re-export everything from 01_fetch
+# Re-export everything from fetch
 from importlib import import_module as _import
 
-_fetch = _import("01_fetch")
+_fetch = _import("fetch")
 
 BaseFetcher = _fetch.BaseFetcher
 FREDFetcher = _fetch.FREDFetcher

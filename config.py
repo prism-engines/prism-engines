@@ -59,7 +59,7 @@ PROJECT_ROOT = get_project_root()
 
 # Standard project directories
 DATA_DIR = PROJECT_ROOT / 'data'
-OUTPUT_DIR = PROJECT_ROOT / '06_output'
+OUTPUT_DIR = PROJECT_ROOT / 'output'
 LOGS_DIR = PROJECT_ROOT / 'logs'
 
 

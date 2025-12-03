@@ -1,5 +1,5 @@
 """
-Lenses submodule - re-exports from 05_engine/lenses
+Lenses submodule - re-exports from engine_core/lenses
 """
 import sys
 from pathlib import Path
@@ -9,10 +9,10 @@ _pkg_root = Path(__file__).parent.parent.parent.parent
 if str(_pkg_root) not in sys.path:
     sys.path.insert(0, str(_pkg_root))
 
-# Re-export from 05_engine.lenses
+# Re-export from engine_core.lenses
 from importlib import import_module as _import
 
-_lenses = _import("05_engine.lenses")
+_lenses = _import("engine_core.lenses")
 
 BaseLens = _lenses.BaseLens
 MagnitudeLens = _lenses.MagnitudeLens

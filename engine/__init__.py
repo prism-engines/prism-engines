@@ -23,8 +23,7 @@ Usage:
 
 __version__ = "0.1.0"
 
-# Import subpackages - they reference the numbered directories
-# via sys.path manipulation in each subpackage __init__
+# Import subpackages
 
 import sys
 from pathlib import Path
@@ -41,15 +40,15 @@ def __getattr__(name):
 
     if name == "fetch":
         from importlib import import_module
-        return import_module("01_fetch")
+        return import_module("fetch")
 
     elif name == "cleaning":
         from importlib import import_module
-        return import_module("03_cleaning")
+        return import_module("cleaning")
 
     elif name == "engine":
         from importlib import import_module
-        return import_module("05_engine")
+        return import_module("engine_core")
 
     elif name == "validation":
         from importlib import import_module
@@ -61,17 +60,17 @@ def __getattr__(name):
 
     elif name == "IndicatorEngine":
         from importlib import import_module
-        engine = import_module("05_engine")
+        engine = import_module("engine_core")
         return engine.IndicatorEngine
 
     elif name == "LensComparator":
         from importlib import import_module
-        engine = import_module("05_engine")
+        engine = import_module("engine_core")
         return engine.LensComparator
 
     elif name == "get_lens":
         from importlib import import_module
-        engine = import_module("05_engine")
+        engine = import_module("engine_core")
         return engine.get_lens
 
     # Domain-specific engines (registry-driven)

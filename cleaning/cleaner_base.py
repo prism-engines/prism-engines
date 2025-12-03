@@ -27,7 +27,7 @@ class BaseCleaner(ABC):
         Args:
             checkpoint_dir: Directory to save cleaning checkpoints
         """
-        self.checkpoint_dir = checkpoint_dir or Path("03_cleaning/checkpoints")
+        self.checkpoint_dir = checkpoint_dir or Path("cleaning/checkpoints")
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.cleaning_log: List[Dict[str, Any]] = []
 

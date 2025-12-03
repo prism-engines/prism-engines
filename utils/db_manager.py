@@ -9,7 +9,7 @@ window comparisons, and regime stability analysis.
 Usage:
     from utils.db_manager import TemporalDB
 
-    db = TemporalDB('06_output/temporal/temporal.db')
+    db = TemporalDB('output/temporal/temporal.db')
     db.init_schema()
 
     # Insert results

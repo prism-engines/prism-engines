@@ -7,7 +7,7 @@ Reads output from temporal_runner.py and generates visualizations.
 
 Usage (command line):
     python temporal_visualizer.py --increment 5
-    python temporal_visualizer.py --input 06_output/temporal/rank_evolution_5yr.csv
+    python temporal_visualizer.py --input output/temporal/rank_evolution_5yr.csv
     python temporal_visualizer.py --increment 8 --top 20
 
 Usage (Python):
@@ -15,7 +15,7 @@ Usage (Python):
     viz = TemporalVisualizer(increment=5)
     viz.generate_all()
 
-Output (in 06_output/temporal/plots/):
+Output (in output/temporal/plots/):
     - rank_trajectory_{increment}yr.png  : Line plot of top 15 indicator ranks
     - rank_heatmap_{increment}yr.png     : Heatmap of ranks over time
     - rank_stability_{increment}yr.png   : Scatter plot (avg rank vs std rank)
@@ -62,7 +62,7 @@ class TemporalVisualizer:
 
         # Paths
         self.project_root = PROJECT_ROOT
-        self.input_dir = Path(input_dir) if input_dir else self.project_root / "06_output" / "temporal"
+        self.input_dir = Path(input_dir) if input_dir else self.project_root / "output" / "temporal"
         self.output_dir = Path(output_dir) if output_dir else self.input_dir / "plots"
 
         # Data

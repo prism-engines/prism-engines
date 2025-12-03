@@ -41,7 +41,7 @@ class CheckpointManager:
         Save checkpoint data.
 
         Args:
-            stage: Pipeline stage (e.g., "01_fetch", "05_engine")
+            stage: Pipeline stage (e.g., "fetch", "engine_core")
             name: Checkpoint name
             data: Data to save
             format: 'auto', 'json', 'parquet', 'csv'

@@ -35,7 +35,7 @@ class BaseLens(ABC):
         Args:
             checkpoint_dir: Directory for saving checkpoints
         """
-        self.checkpoint_dir = checkpoint_dir or Path("05_engine/checkpoints/lens_outputs")
+        self.checkpoint_dir = checkpoint_dir or Path("engine_core/checkpoints/lens_outputs")
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self._last_result: Optional[Dict] = None
         self._computation_time: float = 0.0

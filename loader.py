@@ -43,7 +43,7 @@ def _find_engine_root():
     ]
 
     for candidate in candidates:
-        if (candidate / '05_engine' / 'lenses').exists():
+        if (candidate / 'engine_core' / 'lenses').exists():
             return candidate
 
     return None
@@ -58,7 +58,7 @@ else:
     print(f"ENGINE_ROOT = {ENGINE_ROOT}")
     sys.path.insert(0, str(ENGINE_ROOT))
 
-LENSES_PATH = ENGINE_ROOT / '05_engine' / 'lenses' if ENGINE_ROOT else None
+LENSES_PATH = ENGINE_ROOT / 'engine_core' / 'lenses' if ENGINE_ROOT else None
 
 
 # ============================================================================

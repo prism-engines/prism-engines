@@ -1,5 +1,5 @@
 """
-Engine submodule - re-exports from 05_engine
+Engine submodule - re-exports from engine_core
 """
 import sys
 from pathlib import Path
@@ -9,10 +9,10 @@ _pkg_root = Path(__file__).parent.parent.parent
 if str(_pkg_root) not in sys.path:
     sys.path.insert(0, str(_pkg_root))
 
-# Re-export everything from 05_engine
+# Re-export everything from engine_core
 from importlib import import_module as _import
 
-_engine = _import("05_engine")
+_engine = _import("engine_core")
 
 # Lenses
 BaseLens = _engine.BaseLens
