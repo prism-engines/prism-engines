@@ -7,23 +7,27 @@ This file replaces all previous versions and removes:
 ✓ broken class names
 ✓ duplicate loaders
 
-It integrates cleanly with FetcherBase and the new registry format.
+It integrates cleanly with BaseFetcher and the new registry format.
 """
 
+import json
 import os
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 import pandas as pd
 import requests
 
-from fetch.fetcher_base import FetcherBase
+from fetch.fetcher_base import BaseFetcher
 
 logger = logging.getLogger(__name__)
 
+# Project root for finding registries
+PROJECT_ROOT = Path(__file__).parent.parent
 
-class FREDFetcher(FetcherBase):
+
+class FREDFetcher(BaseFetcher):
     """
     Fetch economic data from FRED (Federal Reserve Bank of St. Louis).
 
@@ -93,13 +97,89 @@ class FREDFetcher(FetcherBase):
         return df
 
     # ----------------------------------------------------------------------
-    # Helper to save raw data
+    # Abstract method implementations
     # ----------------------------------------------------------------------
-    def save_raw(self, key: str, df: pd.DataFrame, folder: Path):
+    def fetch_single(self, ticker: str, **kwargs) -> Optional[pd.DataFrame]:
         """
-        Save raw CSV files into data/raw
+        Fetch data for a single FRED series.
+
+        Args:
+            ticker: The FRED series ID (e.g., 'DGS10')
+
+        Returns:
+            DataFrame with 'date' column and ticker data
         """
-        folder.mkdir(parents=True, exist_ok=True)
-        out_path = folder / f"{key}.csv"
-        df.to_csv(out_path)
-        logger.info(f"Saved raw FRED CSV: {out_path}")
+        config = {"ticker": ticker}
+        try:
+            df = self.fetch(config)
+            # Reset index to get date as column
+            df = df.reset_index()
+            df = df.rename(columns={"timestamp": "date"})
+            return df
+        except Exception as e:
+            logger.error(f"Error fetching {ticker}: {e}")
+            return None
+
+    def validate_response(self, response: Any) -> bool:
+        """Validate FRED API response."""
+        if response is None:
+            return False
+        if isinstance(response, pd.DataFrame) and response.empty:
+            return False
+        return True
+
+    # ----------------------------------------------------------------------
+    # Registry and database integration
+    # ----------------------------------------------------------------------
+    def load_economic_registry(self) -> List[Dict[str, Any]]:
+        """Load the economic registry."""
+        registry_path = PROJECT_ROOT / "data" / "registry" / "economic_registry.json"
+        with open(registry_path, "r") as f:
+            reg = json.load(f)
+        return reg.get("series", [])
+
+    def fetch_all(self) -> Dict[str, pd.DataFrame]:
+        """
+        Fetch all enabled series from the economic registry and write to database.
+
+        Returns:
+            Dictionary mapping indicator keys to DataFrames
+        """
+        from data.sql import prism_db
+
+        series_list = self.load_economic_registry()
+        results = {}
+
+        for series_config in series_list:
+            if not series_config.get("enabled", True):
+                logger.debug(f"Skipping disabled series: {series_config.get('key')}")
+                continue
+
+            key = series_config.get("key")
+            ticker = series_config.get("ticker")
+            frequency = series_config.get("frequency", "daily")
+
+            logger.info(f"Fetching economic series: {key} ({ticker})")
+
+            try:
+                df = self.fetch(series_config)
+
+                if df is not None and not df.empty:
+                    # Reset index to get date as column
+                    df = df.reset_index()
+                    df = df.rename(columns={"timestamp": "date", ticker: "value"})
+
+                    # Register indicator and write to database
+                    prism_db.add_indicator(key, system="economic", frequency=frequency)
+                    prism_db.write_dataframe(df, indicator=key, system="economic")
+
+                    results[key] = df
+                    logger.info(f"  -> Wrote {len(df)} rows to database for {key}")
+                else:
+                    logger.warning(f"  -> No data returned for {key}")
+
+            except Exception as e:
+                logger.error(f"  -> Error fetching {key}: {e}")
+
+        logger.info(f"Completed: {len(results)} economic series fetched and stored")
+        return results

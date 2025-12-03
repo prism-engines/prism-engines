@@ -1,16 +1,22 @@
 """
 Yahoo Finance Fetcher - Stock, ETF, and market data
+
+Uses yfinance library for fetching market data.
 """
 
+import json
 from pathlib import Path
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 import pandas as pd
 import logging
 
-from fetch.fetcher_yahoo import YahooFetcher
+from fetch.fetcher_base import BaseFetcher
 
 
 logger = logging.getLogger(__name__)
+
+# Project root for finding registries
+PROJECT_ROOT = Path(__file__).parent.parent
 
 
 class YahooFetcher(BaseFetcher):
@@ -180,6 +186,68 @@ class YahooFetcher(BaseFetcher):
         except Exception as e:
             logger.error(f"Yahoo batch error: {e}")
             return pd.DataFrame()
+
+    # ----------------------------------------------------------------------
+    # Registry and database integration
+    # ----------------------------------------------------------------------
+    def load_market_registry(self) -> List[Dict[str, Any]]:
+        """Load the market registry."""
+        registry_path = PROJECT_ROOT / "data" / "registry" / "market_registry.json"
+        with open(registry_path, "r") as f:
+            reg = json.load(f)
+        return reg.get("instruments", [])
+
+    def fetch_all(self) -> Dict[str, pd.DataFrame]:
+        """
+        Fetch all enabled instruments from the market registry and write to database.
+
+        Returns:
+            Dictionary mapping instrument keys to DataFrames
+        """
+        from data.sql import prism_db
+
+        instruments = self.load_market_registry()
+        results = {}
+
+        for instrument in instruments:
+            if not instrument.get("enabled", True):
+                logger.debug(f"Skipping disabled instrument: {instrument.get('key')}")
+                continue
+
+            key = instrument.get("key")
+            ticker = instrument.get("ticker")
+            frequency = instrument.get("frequency", "daily")
+
+            logger.info(f"Fetching market instrument: {key} ({ticker})")
+
+            try:
+                df = self.fetch_single_close_only(ticker)
+
+                if df is not None and not df.empty:
+                    # Prepare data for database: need [date, value] columns
+                    db_df = df.copy()
+                    # Column is lowercase ticker, rename to 'value'
+                    value_col = ticker.lower()
+                    if value_col in db_df.columns:
+                        db_df = db_df.rename(columns={value_col: "value"})
+                    elif len(db_df.columns) == 2:  # date + one value column
+                        value_col = [c for c in db_df.columns if c != "date"][0]
+                        db_df = db_df.rename(columns={value_col: "value"})
+
+                    # Register indicator and write to database
+                    prism_db.add_indicator(key, system="market", frequency=frequency)
+                    prism_db.write_dataframe(db_df, indicator=key, system="market")
+
+                    results[key] = df
+                    logger.info(f"  -> Wrote {len(df)} rows to database for {key}")
+                else:
+                    logger.warning(f"  -> No data returned for {key}")
+
+            except Exception as e:
+                logger.error(f"  -> Error fetching {key}: {e}")
+
+        logger.info(f"Completed: {len(results)} market instruments fetched and stored")
+        return results
 
 
 # Common Yahoo Finance tickers for financial analysis

@@ -153,31 +153,38 @@ def query_market_series(
     """
     series_dict = {}
 
-    for ticker, config in market_registry.items():
+    # Registry has "instruments" key with a list of instrument configs
+    instruments = market_registry.get("instruments", [])
+
+    for config in instruments:
+        key = config.get("key")
         if not config.get("enabled", True):
-            logger.debug(f"Skipping disabled market series: {ticker}")
+            logger.debug(f"Skipping disabled market series: {key}")
             continue
 
-        indicator_name = config.get("indicator_name", ticker)
-        use_column = config.get("use_column", "value")
+        indicator_name = config.get("indicator_name", key)
 
         try:
             df = db_module.load_indicator(
-                name=indicator_name,
-                start_date=start_date,
-                end_date=end_date,
+                indicator=indicator_name,
+                system="market",
             )
 
             if df.empty:
                 logger.warning(f"No data for market series: {indicator_name}")
                 continue
 
-            # Rename value column to ticker name
-            df = df.rename(columns={"value": ticker})
-            series_dict[ticker] = df
+            # Set date as index if it's a column
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date")
+
+            # Rename value column to key name
+            df = df.rename(columns={"value": key})
+            series_dict[key] = df
 
             logger.info(
-                f"Loaded market series {ticker}: {len(df)} rows"
+                f"Loaded market series {key}: {len(df)} rows"
             )
 
         except ValueError as e:
@@ -208,31 +215,38 @@ def query_economic_series(
     """
     series_dict = {}
 
-    for code, config in econ_registry.items():
+    # Registry has "series" key with a list of series configs
+    series_list = econ_registry.get("series", [])
+
+    for config in series_list:
+        key = config.get("key")
         if not config.get("enabled", True):
-            logger.debug(f"Skipping disabled economic series: {code}")
+            logger.debug(f"Skipping disabled economic series: {key}")
             continue
 
-        indicator_name = config.get("indicator_name", code.lower())
-        use_column = config.get("use_column", "value")
+        indicator_name = config.get("indicator_name", key)
 
         try:
             df = db_module.load_indicator(
-                name=indicator_name,
-                start_date=start_date,
-                end_date=end_date,
+                indicator=indicator_name,
+                system="economic",
             )
 
             if df.empty:
                 logger.warning(f"No data for economic series: {indicator_name}")
                 continue
 
-            # Rename value column to indicator name
-            df = df.rename(columns={"value": indicator_name})
-            series_dict[indicator_name] = df
+            # Set date as index if it's a column
+            if "date" in df.columns:
+                df["date"] = pd.to_datetime(df["date"])
+                df = df.set_index("date")
+
+            # Rename value column to key name
+            df = df.rename(columns={"value": key})
+            series_dict[key] = df
 
             logger.info(
-                f"Loaded economic series {indicator_name}: {len(df)} rows"
+                f"Loaded economic series {key}: {len(df)} rows"
             )
 
         except ValueError as e:

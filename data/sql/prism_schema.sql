@@ -26,9 +26,33 @@ CREATE TABLE IF NOT EXISTS indicators (
 );
 
 -- -----------------------------------------------------------------------------
--- Time Series Table
+-- Indicator Values Table (simplified storage)
 -- -----------------------------------------------------------------------------
 -- Stores the actual observations for each indicator.
+-- Uses indicator name + system as composite key for simpler queries.
+
+CREATE TABLE IF NOT EXISTS indicator_values (
+    indicator TEXT NOT NULL,
+    system TEXT NOT NULL,
+    date TEXT NOT NULL,
+    value REAL NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (indicator, system, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_indicator_values_indicator
+    ON indicator_values(indicator);
+
+CREATE INDEX IF NOT EXISTS idx_indicator_values_system
+    ON indicator_values(system);
+
+CREATE INDEX IF NOT EXISTS idx_indicator_values_date
+    ON indicator_values(date);
+
+-- -----------------------------------------------------------------------------
+-- Time Series Table (legacy/normalized storage)
+-- -----------------------------------------------------------------------------
+-- Stores the actual observations for each indicator with foreign key.
 
 CREATE TABLE IF NOT EXISTS timeseries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +78,8 @@ CREATE TABLE IF NOT EXISTS systems (
 -- Preload default systems
 INSERT OR IGNORE INTO systems(system) VALUES
     ('finance'),
+    ('market'),
+    ('economic'),
     ('climate'),
     ('biology'),
     ('chemistry'),

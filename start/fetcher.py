@@ -6,7 +6,7 @@ Uses modern fetchers from fetch/ directory
 import argparse
 import logging
 from fetch.fetcher_yahoo import YahooFetcher
-from fetch.fetcher_fred import FredFetcher
+from fetch.fetcher_fred import FREDFetcher
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def fetch_market():
 
 def fetch_economic():
     logger.info("=== Fetching ECONOMIC data ===")
-    ff = FredFetcher()
+    ff = FREDFetcher()
     ff.fetch_all()
 
 
