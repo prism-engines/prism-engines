@@ -37,37 +37,6 @@ This defines how raw inputs become ranked, geometric signals.
 
 ---
 
-## Folder Structure
-
-
-
-prism-engine/
-│
-├── data/
-│ ├── raw/ # Raw source input files
-│ ├── registry/ # Indicator registry JSON files
-│ └── sql/
-│ ├── prism_schema.sql # SQL schema v2 (core model)
-│ └── prism_db.py # Database interface layer
-│
-├── engine/
-│ ├── orchestration/ # Window runners and workflow logic
-│ ├── lenses/ # 14 analytical lens modules
-│ ├── geometry/ # Geometric transforms & behavioral metrics
-│ └── stress_controls/ # MVSS, throttles, dampeners
-│
-├── visualization/
-│ ├── plotters/ # Time-series & regime visualizations
-│ └── dashboards/ # Prism dashboards and UI parts
-│
-├── system_tests/ # Engine and data validation suite
-│
-└── Start/
-└── prism_runner.py # Main entry point to run Prism Engines
-
-
----
-
 ## SQL Schema v2 (Summary)
 
 The SQL schema is structured into clear layers:
@@ -160,14 +129,7 @@ from data.sql.prism_db import write_dataframe
 
 df = pd.read_csv("nyc_temp.csv")  # or any API source
 write_dataframe(df, "temperature_nyc", system="climate", units="celsius")
-
-MVSS (Market Vector Sensitivity Score)
-
-MVSS is Prism’s sensitivity metric:
-
-> 1.0 → healthy signal responsiveness
-
-< 1.0 → overly reactive; needs damping
+---
 
 Used in Prism’s Stress Controls Block to stabilize transitions and suppress false positives.
 
