@@ -212,3 +212,8 @@ COMMON_YAHOO_TICKERS = {
     "IEF": "7-10 Year Treasury ETF",
     "HYG": "High Yield Bond ETF",
 }
+
+# ---------------------------------------------------------------------
+# Backward compatibility for older imports
+# ---------------------------------------------------------------------
+FetcherYahoo = YahooFetcher

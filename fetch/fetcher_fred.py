@@ -164,3 +164,8 @@ COMMON_FRED_SERIES = {
     "INDPRO": "Industrial Production",
     "UMCSENT": "Consumer Sentiment",
 }
+
+# ---------------------------------------------------------------------
+# Backward compatibility for older imports
+# ---------------------------------------------------------------------
+FetcherFRED = FREDFetcher
