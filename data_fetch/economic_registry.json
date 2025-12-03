@@ -1,0 +1,189 @@
+{
+  "DGS10": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "daily",
+    "table": "econ_values",
+    "code": "DGS10",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "10-Year Treasury Constant Maturity Rate"
+  },
+  "DGS2": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "daily",
+    "table": "econ_values",
+    "code": "DGS2",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "2-Year Treasury Constant Maturity Rate"
+  },
+  "DGS3MO": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "daily",
+    "table": "econ_values",
+    "code": "DGS3MO",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "3-Month Treasury Constant Maturity Rate"
+  },
+  "T10Y2Y": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "daily",
+    "table": "econ_values",
+    "code": "T10Y2Y",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "10-Year Treasury Minus 2-Year Treasury Spread"
+  },
+  "T10Y3M": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "daily",
+    "table": "econ_values",
+    "code": "T10Y3M",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "10-Year Treasury Minus 3-Month Treasury Spread"
+  },
+  "CPIAUCSL": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "CPIAUCSL",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Headline CPI, All Urban Consumers, seasonally adjusted"
+  },
+  "CPILFESL": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "CPILFESL",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Core CPI (less food and energy), seasonally adjusted"
+  },
+  "PPIACO": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "PPIACO",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Producer Price Index, All Commodities"
+  },
+  "UNRATE": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "UNRATE",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["zscore"],
+    "notes": "Unemployment Rate, seasonally adjusted"
+  },
+  "PAYEMS": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "PAYEMS",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["mom", "zscore"],
+    "notes": "Total Nonfarm Payrolls, seasonally adjusted"
+  },
+  "INDPRO": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "INDPRO",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Industrial Production Index"
+  },
+  "HOUST": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "HOUST",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Housing Starts, Total"
+  },
+  "PERMIT": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "PERMIT",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Building Permits, Total"
+  },
+  "M2SL": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "monthly",
+    "table": "econ_values",
+    "code": "M2SL",
+    "use_column": "value_z",
+    "revision_tracking": true,
+    "transformations": ["yoy", "zscore"],
+    "notes": "M2 Money Stock, seasonally adjusted"
+  },
+  "WALCL": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "weekly",
+    "table": "econ_values",
+    "code": "WALCL",
+    "use_column": "value_z",
+    "revision_tracking": false,
+    "transformations": ["yoy", "zscore"],
+    "notes": "Federal Reserve Total Assets (Balance Sheet)"
+  },
+  "ANFCI": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "weekly",
+    "table": "econ_values",
+    "code": "ANFCI",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "Chicago Fed Adjusted National Financial Conditions Index"
+  },
+  "NFCI": {
+    "fetch_type": "fred",
+    "enabled": true,
+    "frequency": "weekly",
+    "table": "econ_values",
+    "code": "NFCI",
+    "use_column": "value",
+    "revision_tracking": false,
+    "transformations": [],
+    "notes": "Chicago Fed National Financial Conditions Index"
+  }
+}
