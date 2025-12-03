@@ -6,6 +6,8 @@
 --   `system` = top-level domain for an indicator (e.g., finance, climate, chemistry).
 --   A single database can store multiple systems side by side.
 
+PRAGMA foreign_keys = ON;
+
 -- -----------------------------------------------------------------------------
 -- Indicators Table
 -- -----------------------------------------------------------------------------
@@ -13,67 +15,47 @@
 
 CREATE TABLE IF NOT EXISTS indicators (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    system TEXT NOT NULL,              -- Domain: finance, climate, chemistry, etc.
-    frequency TEXT NOT NULL,           -- daily, weekly, monthly, quarterly, yearly
-    source TEXT,                       -- Data source (FRED, Yahoo, etc.)
-    units TEXT,                        -- Unit of measurement
-    description TEXT,                  -- Human-readable description
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    name TEXT NOT NULL UNIQUE,             -- e.g., 'SPY', 'DXY', 'M2SL'
+    system TEXT NOT NULL,                  -- e.g., 'finance', 'climate'
+    frequency TEXT NOT NULL DEFAULT 'daily',
+    source TEXT,
+    units TEXT,
+    description TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Index for fast lookups by system (domain)
-CREATE INDEX IF NOT EXISTS idx_indicators_system ON indicators(system);
-
--- Index for fast lookups by name
-CREATE INDEX IF NOT EXISTS idx_indicators_name ON indicators(name);
-
-
 -- -----------------------------------------------------------------------------
--- Indicator Values Table
+-- Time Series Table
 -- -----------------------------------------------------------------------------
--- Stores the actual time series data points.
+-- Stores the actual observations for each indicator.
 
-CREATE TABLE IF NOT EXISTS indicator_values (
+CREATE TABLE IF NOT EXISTS timeseries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     indicator_id INTEGER NOT NULL,
-    date TEXT NOT NULL,                -- ISO format: YYYY-MM-DD
+    date TEXT NOT NULL,
     value REAL NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (indicator_id) REFERENCES indicators(id) ON DELETE CASCADE,
-    UNIQUE(indicator_id, date)         -- One value per indicator per date
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (indicator_id) REFERENCES indicators(id) ON DELETE CASCADE
 );
 
--- Index for fast date range queries
-CREATE INDEX IF NOT EXISTS idx_indicator_values_date ON indicator_values(date);
-
--- Index for fast lookups by indicator
-CREATE INDEX IF NOT EXISTS idx_indicator_values_indicator_id ON indicator_values(indicator_id);
-
+CREATE INDEX IF NOT EXISTS idx_timeseries_indicator_date
+    ON timeseries(indicator_id, date);
 
 -- -----------------------------------------------------------------------------
--- Trigger: Update timestamps
+-- System Registry Table
 -- -----------------------------------------------------------------------------
--- Automatically update `updated_at` when an indicator is modified.
+-- Tracks the valid systems (domains) available for PRISM.
 
-CREATE TRIGGER IF NOT EXISTS update_indicator_timestamp
-    AFTER UPDATE ON indicators
-    FOR EACH ROW
-BEGIN
-    UPDATE indicators SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-END;
+CREATE TABLE IF NOT EXISTS systems (
+    system TEXT PRIMARY KEY
+);
 
-
--- -----------------------------------------------------------------------------
--- Valid System Types (for reference)
--- -----------------------------------------------------------------------------
--- These are the allowed values for the `system` column:
---   - finance
---   - climate
---   - chemistry
---   - anthropology
---   - biology
---   - physics
---
--- Note: Validation is enforced at the application layer (prism_db.py).
+-- Preload default systems
+INSERT OR IGNORE INTO systems(system) VALUES
+    ('finance'),
+    ('climate'),
+    ('biology'),
+    ('chemistry'),
+    ('anthropology'),
+    ('physics');
