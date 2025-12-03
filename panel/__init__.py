@@ -16,6 +16,7 @@ from panel.build_panel import build_panel
 from panel.validators import validate_panel
 from panel.transforms_market import align_market_series, compute_returns
 from panel.transforms_econ import align_econ_series, forward_fill_to_daily
+from panel.transforms_tri import compute_total_return
 
 __all__ = [
     "build_panel",
@@ -24,4 +25,5 @@ __all__ = [
     "compute_returns",
     "align_econ_series",
     "forward_fill_to_daily",
+    "compute_total_return",
 ]
