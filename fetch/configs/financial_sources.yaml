@@ -1,7 +1,10 @@
 # Financial Data Sources Configuration
-# Defines what data to fetch for financial engine
+# Primary source: Stooq (US-tickers .US)
 
 sources:
+  # ============================================================
+  # FRED – Economics (kept exactly the same, already perfect)
+  # ============================================================
   fred:
     # Interest Rates
     - ticker: DFF
@@ -77,13 +80,13 @@ sources:
 
     # Housing
     - ticker: CSUSHPINSA
-      name: Case-Shiller Home Price Index
+      name: Case-Shiller Home Price
       category: housing
     - ticker: HOUST
       name: Housing Starts
       category: housing
     - ticker: MORTGAGE30US
-      name: 30-Year Mortgage Rate
+      name: Mortgage Rate 30Y
       category: housing
 
     # Consumer
@@ -94,86 +97,47 @@ sources:
       name: Personal Consumption
       category: consumer
 
-  yahoo:
-    # Major Indices
-    - ticker: ^GSPC
-      name: S&P 500
+
+  # ============================================================
+  # STOOQ – PRIMARY EQUITY, ETF, BOND, CURRENCY, SECTOR SOURCE
+  # ============================================================
+  stooq:
+    # Major indices (Stooq uses .US)
+    - ticker: SPY.US
+      name: S&P 500 ETF
       category: equities
-    - ticker: ^DJI
-      name: Dow Jones Industrial
+    - ticker: QQQ.US
+      name: NASDAQ 100 ETF
       category: equities
-    - ticker: ^IXIC
-      name: NASDAQ Composite
+    - ticker: IWM.US
+      name: Russell 2000 ETF
       category: equities
-    - ticker: ^RUT
-      name: Russell 2000
+    - ticker: DIA.US
+      name: Dow Jones ETF
       category: equities
 
-    # Volatility
-    - ticker: ^VIX
+    # Volatility (Stooq VIX)
+    - ticker: VIX.US
       name: VIX Volatility Index
       category: volatility
 
     # Sector ETFs
-    - ticker: XLF
+    - ticker: XLF.US
       name: Financial Select Sector
       category: sectors
-    - ticker: XLK
+    - ticker: XLK.US
       name: Technology Select Sector
       category: sectors
-    - ticker: XLE
+    - ticker: XLE.US
       name: Energy Select Sector
       category: sectors
-    - ticker: XLV
+    - ticker: XLV.US
       name: Health Care Select Sector
       category: sectors
-    - ticker: XLI
+    - ticker: XLI.US
       name: Industrial Select Sector
       category: sectors
-    - ticker: XLU
+    - ticker: XLU.US
       name: Utilities Select Sector
       category: sectors
-    - ticker: XLP
-      name: Consumer Staples Select Sector
-      category: sectors
-    - ticker: XLY
-      name: Consumer Discretionary Select Sector
-      category: sectors
-
-    # Commodities
-    - ticker: GC=F
-      name: Gold Futures
-      category: commodities
-    - ticker: CL=F
-      name: Crude Oil WTI Futures
-      category: commodities
-    - ticker: SI=F
-      name: Silver Futures
-      category: commodities
-
-    # Currency
-    - ticker: DX-Y.NYB
-      name: US Dollar Index
-      category: currency
-
-    # Bonds
-    - ticker: TLT
-      name: 20+ Year Treasury Bond ETF
-      category: bonds
-    - ticker: IEF
-      name: 7-10 Year Treasury Bond ETF
-      category: bonds
-    - ticker: HYG
-      name: High Yield Corporate Bond ETF
-      category: bonds
-    - ticker: LQD
-      name: Investment Grade Corporate Bond ETF
-      category: bonds
-
-# Fetch settings
-settings:
-  start_date: "2000-01-01"
-  end_date: null  # null = today
-  frequency: daily
-  retry_attempts: 3
-  retry_delay_seconds: 2
+    - ticker

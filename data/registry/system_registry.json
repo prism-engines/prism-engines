@@ -1,10 +1,10 @@
 {
-    "version": "1.0.0",
-    "description": "PRISM System Registry - Global configuration for all data systems",
+    "version": "2.0.0",
+    "description": "PRISM System Registry - Global configuration",
     "systems": {
         "finance": {
             "enabled": true,
-            "description": "Financial market data including equities, bonds, commodities, and currencies",
+            "description": "Financial market and economic data",
             "default_frequency": "daily",
             "registries": [
                 "market_registry.json",
@@ -16,12 +16,6 @@
             "description": "Climate and environmental data",
             "default_frequency": "monthly",
             "registries": []
-        },
-        "chemistry": {
-            "enabled": false,
-            "description": "Chemical and materials science data",
-            "default_frequency": "daily",
-            "registries": []
         }
     },
     "data_sources": {
@@ -32,14 +26,31 @@
             "rate_limit_per_minute": 2000,
             "requires_api_key": false
         },
+        "stooq": {
+            "name": "Stooq",
+            "type": "market",
+            "enabled": true,
+            "rate_limit_per_minute": 100,
+            "requires_api_key": false
+        },
         "fred": {
             "name": "Federal Reserve Economic Data",
             "type": "economic",
             "enabled": true,
             "rate_limit_per_minute": 120,
             "requires_api_key": true,
-            "api_key_env_var": "FRED_API"
+            "api_key_env_var": "FRED_API_KEY"
         }
+    },
+    "paths": {
+        "database": {
+            "default": "data/sql/engine.db",
+            "dropbox": "~/Dropbox/prism-data/engine.db",
+            "colab": "/content/drive/MyDrive/prism-data/engine.db"
+        },
+        "active_db_path": "default",
+        "panels": "data/panels/",
+        "registries": "data/registry/"
     },
     "defaults": {
         "start_date": "2000-01-01",
