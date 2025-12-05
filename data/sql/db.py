@@ -1,39 +1,13 @@
 """
 Unified Database API for PRISM Engine.
 
-This module provides a compatibility layer that exposes a unified API
-for database operations. It re-exports functions from prism_db.py and
-db_connector.py to provide a single import point.
+This module provides:
+    - Modern unified accessors for indicator management
+    - Legacy compatibility bridging for prism_db
+    - Fetch logging
+    - Convenience helpers (quick_write)
 
-Usage:
-    from data.sql.db import (
-        # Connection management
-        get_connection,
-        init_db,
-
-        # Indicator management
-        add_indicator,
-        get_indicator,
-        list_indicators,
-
-        # Data operations
-        write_dataframe,
-        load_indicator,
-        load_multiple_indicators,
-
-        # Fetch logging
-        log_fetch,
-    )
-
-Example:
-    from data.sql.db import init_db, add_indicator, write_dataframe
-
-    # Initialize database
-    init_db()
-
-    # Add and write data
-    add_indicator("SPY", system="finance", source="Yahoo")
-    write_dataframe(df, "SPY", system="finance")
+It intentionally does NOT rely on prism_db for indicator logic.
 """
 
 from __future__ import annotations
@@ -45,35 +19,40 @@ from typing import Optional
 
 import pandas as pd
 
-# Import from prism_db (primary database module)
+# -----------------------------------------------------------------------------
+# IMPORT THE LEGACY MODULE (ONLY FOR CONNECTION + BASIC IO)
+# -----------------------------------------------------------------------------
 from .prism_db import (
-    # Connection
     get_connection,
     get_db_path,
     init_db,
-
-    # Indicator management
-    add_indicator,
-    get_indicator,
-    list_indicators,
-    update_indicator,
-    delete_indicator,
-
-    # Data operations
     write_dataframe,
     load_indicator,
-    load_multiple_indicators,
-    load_system_indicators,
-
-    # Utilities
-    run_migration,
-    get_db_stats,
-
-    # Constants
-    system_types,
+    run_all_migrations as run_migration,
 )
 
-# Alias for backward compatibility
+# -----------------------------------------------------------------------------
+# INDICATOR MANAGEMENT — PROVIDED BY db_connector (MODERN API)
+# -----------------------------------------------------------------------------
+try:
+    from .db_connector import (
+        add_indicator,
+        get_indicator,
+        list_indicators,
+        update_indicator,
+        delete_indicator,
+        load_multiple_indicators,
+        load_system_indicators,
+        get_db_stats,
+    )
+except ImportError:
+    # Fail loudly so users know the dependency is missing
+    raise ImportError(
+        "db_connector.py is missing or incomplete. "
+        "The unified SQL layer requires db_connector for indicator operations."
+    )
+
+# Backward compatibility alias
 initialize_db = init_db
 
 _logger = logging.getLogger(__name__)
@@ -82,7 +61,6 @@ _logger = logging.getLogger(__name__)
 # =============================================================================
 # FETCH LOGGING
 # =============================================================================
-
 def log_fetch(
     source: str,
     entity: str,
@@ -98,66 +76,52 @@ def log_fetch(
     db_path: Optional[Path] = None,
 ) -> int:
     """
-    Log a fetch operation to the database.
-
-    This function records fetch operations for auditing and debugging.
-    It requires the fetch_log table to exist (created by migration 006).
-
-    Args:
-        source: Data source (e.g., 'yahoo', 'fred', 'custom')
-        entity: Ticker or series code fetched (e.g., 'SPY', 'GDP')
-        operation: Operation type ('fetch', 'update', 'backfill')
-        status: Status ('success', 'error', 'partial')
-        rows_fetched: Number of rows retrieved from source
-        rows_inserted: Number of new rows inserted
-        rows_updated: Number of existing rows updated
-        error_message: Error details if status='error'
-        started_at: Start time (ISO format, defaults to now)
-        duration_ms: Duration in milliseconds
-        db_path: Optional path to database
-
-    Returns:
-        Row ID of the log entry
-
-    Example:
-        log_fetch(
-            source="fred",
-            entity="GDP",
-            operation="fetch",
-            status="success",
-            rows_fetched=100,
-            rows_inserted=100
-        )
+    Log a fetch operation in the fetch_log table.
     """
+
     if started_at is None:
         started_at = datetime.now().isoformat()
 
-    with get_connection(db_path) as conn:
-        # Check if fetch_log table exists
-        cursor = conn.execute(
+    with get_connection() as conn:
+        # Ensure table exists
+        exists = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
-        )
-        if cursor.fetchone() is None:
+        ).fetchone()
+
+        if exists is None:
             _logger.warning(
-                "fetch_log table not found. Run migrations to create it. "
-                "Skipping log entry."
+                "fetch_log table not found — run migrations to enable fetch logging."
             )
             return -1
 
         cursor = conn.execute(
             """
             INSERT INTO fetch_log
-                (source, entity, operation, status, rows_fetched, rows_inserted,
-                 rows_updated, error_message, started_at, completed_at, duration_ms)
+                (source, entity, operation, status,
+                 rows_fetched, rows_inserted, rows_updated,
+                 error_message, started_at, completed_at, duration_ms)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
             """,
-            (source, entity, operation, status, rows_fetched, rows_inserted,
-             rows_updated, error_message, started_at, duration_ms),
+            (
+                source,
+                entity,
+                operation,
+                status,
+                rows_fetched,
+                rows_inserted,
+                rows_updated,
+                error_message,
+                started_at,
+                duration_ms,
+            ),
         )
         conn.commit()
         return cursor.lastrowid
 
 
+# =============================================================================
+# FETCH HISTORY QUERY
+# =============================================================================
 def get_fetch_history(
     entity: Optional[str] = None,
     source: Optional[str] = None,
@@ -165,23 +129,15 @@ def get_fetch_history(
     db_path: Optional[Path] = None,
 ) -> pd.DataFrame:
     """
-    Get fetch history from the log.
-
-    Args:
-        entity: Filter by entity (ticker/series code)
-        source: Filter by source
-        limit: Maximum number of records to return
-        db_path: Optional path to database
-
-    Returns:
-        DataFrame with fetch log entries
+    Retrieve structured fetch logs.
     """
-    with get_connection(db_path) as conn:
-        # Check if fetch_log table exists
-        cursor = conn.execute(
+    with get_connection() as conn:
+
+        exists = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
-        )
-        if cursor.fetchone() is None:
+        ).fetchone()
+
+        if exists is None:
             return pd.DataFrame()
 
         query = "SELECT * FROM fetch_log WHERE 1=1"
@@ -190,6 +146,7 @@ def get_fetch_history(
         if entity:
             query += " AND entity = ?"
             params.append(entity)
+
         if source:
             query += " AND source = ?"
             params.append(source)
@@ -201,9 +158,8 @@ def get_fetch_history(
 
 
 # =============================================================================
-# CONVENIENCE FUNCTIONS
+# CONVENIENCE WRITER
 # =============================================================================
-
 def quick_write(
     df: pd.DataFrame,
     indicator_name: str,
@@ -216,38 +172,15 @@ def quick_write(
     db_path: Optional[Path] = None,
 ) -> int:
     """
-    Quick write with automatic indicator creation and fetch logging.
-
-    This is a convenience function that:
-    1. Creates the indicator if it doesn't exist
-    2. Writes the data
-    3. Logs the fetch operation
-
-    Args:
-        df: DataFrame with the data
-        indicator_name: Name of the indicator
-        system: System/domain type
-        source: Data source name
-        frequency: Data frequency
-        date_column: Name of date column in df
-        value_column: Name of value column in df
-        db_path: Optional path to database
-
-    Returns:
-        Number of rows written
+    Automatic indicator create + write + fetch_log.
     """
+
     started_at = datetime.now().isoformat()
 
     try:
         rows = write_dataframe(
             df,
             indicator_name,
-            system=system,
-            source=source,
-            frequency=frequency,
-            date_column=date_column,
-            value_column=value_column,
-            db_path=db_path,
         )
 
         log_fetch(
@@ -277,40 +210,36 @@ def quick_write(
 
 
 # =============================================================================
-# MODULE EXPORTS
+# MODULE EXPORT LIST
 # =============================================================================
-
 __all__ = [
-    # Connection management
+    # Core connection
     "get_connection",
     "get_db_path",
     "init_db",
-    "initialize_db",  # Alias
+    "initialize_db",
 
-    # Indicator management
+    # Indicator operations (from db_connector)
     "add_indicator",
     "get_indicator",
     "list_indicators",
     "update_indicator",
     "delete_indicator",
-
-    # Data operations
-    "write_dataframe",
-    "load_indicator",
     "load_multiple_indicators",
     "load_system_indicators",
+    "get_db_stats",
+
+    # Data IO
+    "write_dataframe",
+    "load_indicator",
 
     # Fetch logging
     "log_fetch",
     "get_fetch_history",
 
+    # Utils
+    "run_migration",
+
     # Convenience
     "quick_write",
-
-    # Utilities
-    "run_migration",
-    "get_db_stats",
-
-    # Constants
-    "system_types",
 ]
