@@ -180,6 +180,71 @@ class YahooFetcher(BaseFetcher):
             logger.error(f"Yahoo batch error: {e}")
             return pd.DataFrame()
 
+    # -------------------------------------------------------------
+    # UNIFIED FETCH INTERFACE
+    # -------------------------------------------------------------
+    def fetch_all(
+        self,
+        registry: dict,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        interval: str = "1d",
+        **kwargs
+    ) -> Optional[pd.DataFrame]:
+        """
+        Unified Yahoo Finance fetcher for the entire market registry.
+
+        Args:
+            registry: PRISM metric registry dictionary
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+            interval: Yahoo interval ("1d", "1wk", "1mo")
+
+        Returns:
+            DataFrame with merged market data
+        """
+        if "market" not in registry:
+            logger.error("Registry missing 'market' section.")
+            return None
+
+        tickers = [item["symbol"] for item in registry["market"]]
+
+        if not tickers:
+            logger.error("No Yahoo tickers found in registry['market']")
+            return None
+
+        # Attempt batch fetch first (fastest)
+        try:
+            df = self.fetch_multiple(
+                tickers=tickers,
+                start_date=start_date,
+                end_date=end_date
+            )
+            if not df.empty:
+                return df
+        except Exception as e:
+            logger.warning(f"Batch fetch failed, falling back to single mode: {e}")
+
+        # Fallback: fetch each individually
+        merged = None
+        for t in tickers:
+            df_t = self.fetch_single(
+                t,
+                start_date=start_date,
+                end_date=end_date,
+                interval=interval
+            )
+            if df_t is None:
+                logger.warning(f"Skipping ticker (no data): {t}")
+                continue
+
+            if merged is None:
+                merged = df_t
+            else:
+                merged = pd.merge(merged, df_t, on="date", how="outer")
+
+        return merged
+
 
 def fetch_registry_market_data(
     registry: dict,
