@@ -24,12 +24,12 @@ import pandas as pd
 # -----------------------------------------------------------------------------
 from .prism_db import (
     get_connection,
-    get_db_path,
-    init_db,
+    initialize_db as init_db,
     write_dataframe,
     load_indicator,
     run_all_migrations as run_migration,
 )
+from .db_path import get_db_path
 
 # -----------------------------------------------------------------------------
 # INDICATOR MANAGEMENT — PROVIDED BY db_connector (MODERN API)

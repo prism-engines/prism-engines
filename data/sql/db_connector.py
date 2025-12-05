@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Optional, List
 import pandas as pd
 
-from .prism_db import get_connection, get_db_path
+from .prism_db import get_connection
+from .db_path import get_db_path
 
 
 # =============================================================================
