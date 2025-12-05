@@ -3,11 +3,14 @@ Unified Database API for PRISM Engine.
 
 This module provides:
     - Modern unified accessors for indicator management
-    - Legacy compatibility bridging for prism_db
     - Fetch logging
     - Convenience helpers (quick_write)
+    - Database statistics
 
-It intentionally does NOT rely on prism_db for indicator logic.
+IMPORTANT: This module imports ONLY from db_connector.py.
+It does NOT import from prism_db.py to avoid circular dependencies.
+
+For legacy compatibility, use prism_db.py directly.
 """
 
 from __future__ import annotations
@@ -15,108 +18,47 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import pandas as pd
 
 # -----------------------------------------------------------------------------
-# IMPORT THE LEGACY MODULE (ONLY FOR CONNECTION + BASIC IO)
+# IMPORT EVERYTHING FROM db_connector (MODERN API)
+# This is the ONLY import source for db.py
 # -----------------------------------------------------------------------------
-from .prism_db import (
+from .db_connector import (
+    # Connection
     get_connection,
-    initialize_db as init_db,
+    connect,
+    # Initialization
+    init_database,
+    # Indicator registry
+    add_indicator,
+    get_indicator,
+    list_indicators,
+    # Fetch logging
+    log_fetch,
+    # Statistics
+    database_stats,
+    get_table_stats,
+    get_date_range,
+    # Data IO
     write_dataframe,
     load_indicator,
-    run_all_migrations as run_migration,
+    load_multiple_indicators,
+    query,
+    export_to_csv,
 )
+
 from .db_path import get_db_path
-
-# -----------------------------------------------------------------------------
-# INDICATOR MANAGEMENT — PROVIDED BY db_connector (MODERN API)
-# -----------------------------------------------------------------------------
-try:
-    from .db_connector import (
-        add_indicator,
-        get_indicator,
-        list_indicators,
-        update_indicator,
-        delete_indicator,
-        load_multiple_indicators,
-        load_system_indicators,
-        get_db_stats,
-    )
-except ImportError:
-    # Fail loudly so users know the dependency is missing
-    raise ImportError(
-        "db_connector.py is missing or incomplete. "
-        "The unified SQL layer requires db_connector for indicator operations."
-    )
-
-# Backward compatibility alias
-initialize_db = init_db
 
 _logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# FETCH LOGGING
-# =============================================================================
-def log_fetch(
-    source: str,
-    entity: str,
-    operation: str,
-    status: str,
-    *,
-    rows_fetched: int = 0,
-    rows_inserted: int = 0,
-    rows_updated: int = 0,
-    error_message: Optional[str] = None,
-    started_at: Optional[str] = None,
-    duration_ms: Optional[int] = None,
-    db_path: Optional[Path] = None,
-) -> int:
-    """
-    Log a fetch operation in the fetch_log table.
-    """
-
-    if started_at is None:
-        started_at = datetime.now().isoformat()
-
-    with get_connection() as conn:
-        # Ensure table exists
-        exists = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
-        ).fetchone()
-
-        if exists is None:
-            _logger.warning(
-                "fetch_log table not found — run migrations to enable fetch logging."
-            )
-            return -1
-
-        cursor = conn.execute(
-            """
-            INSERT INTO fetch_log
-                (source, entity, operation, status,
-                 rows_fetched, rows_inserted, rows_updated,
-                 error_message, started_at, completed_at, duration_ms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-            """,
-            (
-                source,
-                entity,
-                operation,
-                status,
-                rows_fetched,
-                rows_inserted,
-                rows_updated,
-                error_message,
-                started_at,
-                duration_ms,
-            ),
-        )
-        conn.commit()
-        return cursor.lastrowid
+# -----------------------------------------------------------------------------
+# BACKWARD COMPATIBILITY ALIASES
+# -----------------------------------------------------------------------------
+init_db = init_database
+initialize_db = init_database
 
 
 # =============================================================================
@@ -126,35 +68,45 @@ def get_fetch_history(
     entity: Optional[str] = None,
     source: Optional[str] = None,
     limit: int = 100,
-    db_path: Optional[Path] = None,
 ) -> pd.DataFrame:
     """
     Retrieve structured fetch logs.
+
+    Args:
+        entity: Filter by entity name
+        source: Filter by data source
+        limit: Maximum number of records to return
+
+    Returns:
+        DataFrame with fetch log entries
     """
-    with get_connection() as conn:
+    conn = get_connection()
 
-        exists = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
-        ).fetchone()
+    exists = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
+    ).fetchone()
 
-        if exists is None:
-            return pd.DataFrame()
+    if exists is None:
+        conn.close()
+        return pd.DataFrame()
 
-        query = "SELECT * FROM fetch_log WHERE 1=1"
-        params = []
+    sql = "SELECT * FROM fetch_log WHERE 1=1"
+    params: List[Any] = []
 
-        if entity:
-            query += " AND entity = ?"
-            params.append(entity)
+    if entity:
+        sql += " AND entity = ?"
+        params.append(entity)
 
-        if source:
-            query += " AND source = ?"
-            params.append(source)
+    if source:
+        sql += " AND source = ?"
+        params.append(source)
 
-        query += " ORDER BY completed_at DESC LIMIT ?"
-        params.append(limit)
+    sql += " ORDER BY completed_at DESC LIMIT ?"
+    params.append(limit)
 
-        return pd.read_sql_query(query, conn, params=params)
+    df = pd.read_sql_query(sql, conn, params=params)
+    conn.close()
+    return df
 
 
 # =============================================================================
@@ -169,19 +121,38 @@ def quick_write(
     frequency: str = "daily",
     date_column: str = "date",
     value_column: str = "value",
-    db_path: Optional[Path] = None,
 ) -> int:
     """
     Automatic indicator create + write + fetch_log.
-    """
 
+    Args:
+        df: DataFrame containing the data
+        indicator_name: Name for the indicator
+        system: System category ('market', 'econ', etc.)
+        source: Data source name
+        frequency: Data frequency (default 'daily')
+        date_column: Name of date column in df
+        value_column: Name of value column in df
+
+    Returns:
+        Number of rows written
+    """
     started_at = datetime.now().isoformat()
 
+    # Determine target table based on system
+    if system == "market":
+        table = "market_prices"
+    elif system == "econ":
+        table = "econ_values"
+    else:
+        table = "market_prices"  # Default
+
     try:
-        rows = write_dataframe(
-            df,
-            indicator_name,
-        )
+        # Ensure indicator is registered
+        add_indicator(indicator_name, system=system, metadata={"source": source, "frequency": frequency})
+
+        # Write the data
+        rows = write_dataframe(df, table)
 
         log_fetch(
             source=source.lower(),
@@ -191,7 +162,6 @@ def quick_write(
             rows_fetched=len(df),
             rows_inserted=rows,
             started_at=started_at,
-            db_path=db_path,
         )
 
         return rows
@@ -204,7 +174,6 @@ def quick_write(
             status="error",
             error_message=str(e),
             started_at=started_at,
-            db_path=db_path,
         )
         raise
 
@@ -215,30 +184,34 @@ def quick_write(
 __all__ = [
     # Core connection
     "get_connection",
+    "connect",
     "get_db_path",
+
+    # Initialization
+    "init_database",
     "init_db",
     "initialize_db",
 
-    # Indicator operations (from db_connector)
+    # Indicator operations
     "add_indicator",
     "get_indicator",
     "list_indicators",
-    "update_indicator",
-    "delete_indicator",
-    "load_multiple_indicators",
-    "load_system_indicators",
-    "get_db_stats",
 
     # Data IO
     "write_dataframe",
     "load_indicator",
+    "load_multiple_indicators",
+    "query",
+    "export_to_csv",
 
     # Fetch logging
     "log_fetch",
     "get_fetch_history",
 
-    # Utils
-    "run_migration",
+    # Statistics
+    "database_stats",
+    "get_table_stats",
+    "get_date_range",
 
     # Convenience
     "quick_write",
