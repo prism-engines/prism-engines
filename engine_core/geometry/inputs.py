@@ -44,6 +44,22 @@ def get_geometry_input_series(
     """
     cursor = conn.cursor()
 
+    # Check if indicators table exists
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='indicators'"
+    )
+    if not cursor.fetchone():
+        logger.info("No indicators table found - geometry inputs not yet available")
+        return []
+
+    # Check if indicator_values table exists
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='indicator_values'"
+    )
+    if not cursor.fetchone():
+        logger.info("No indicator_values table found - geometry inputs not yet available")
+        return []
+
     # Get all indicators from database
     cursor.execute(
         """
