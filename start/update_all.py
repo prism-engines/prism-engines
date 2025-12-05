@@ -351,14 +351,11 @@ def run_technical_builder(
 ) -> dict:
     """
     Build technical indicators for sectors and other assets.
-
-    Note: repo-cleanup's build_technical_indicators takes (conn, reg, start, end)
     """
     from engine_core.metrics.sector_technicals import build_technical_indicators
 
     logger.info("Building technical indicators...")
-    # repo-cleanup version has signature: (conn, reg, start_date, end_date)
-    return build_technical_indicators(conn, registry, start_date, end_date)
+    return build_technical_indicators(registry, conn, start_date, end_date)
 
 
 def verify_geometry_inputs(
