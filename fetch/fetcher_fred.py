@@ -36,8 +36,6 @@ class FREDFetcher(BaseFetcher):
 
     BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 
-    BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
-
     def __init__(self, api_key: Optional[str] = None, checkpoint_dir: Optional[Path] = None):
         super().__init__(checkpoint_dir)
         self.api_key = api_key or os.getenv("FRED_API_KEY") or os.getenv("FRED_API")
@@ -47,6 +45,38 @@ class FREDFetcher(BaseFetcher):
                 "No FRED API key found. Set FRED_API_KEY environment variable. "
                 "Get a free key at: https://fred.stlouisfed.org/docs/api/api_key.html"
             )
+
+    # ------------------------------------------------------------
+    # VALIDATE RESPONSE
+    # ------------------------------------------------------------
+    def validate_response(self, data):
+        """
+        Validate FRED API response structure.
+
+        Expected structure:
+        {
+            'id': 'GDP',
+            'observation_start': '2000-01-01',
+            'observation_end': '2023-01-01',
+            'observations': [
+                {'date': '2000-01-01', 'value': '12345.6'},
+                ...
+            ]
+        }
+        """
+        if data is None:
+            raise ValueError("FRED API returned no data")
+
+        if not isinstance(data, dict):
+            raise ValueError("Invalid FRED response: expected dict")
+
+        if "observations" not in data:
+            raise ValueError("Invalid FRED response: missing 'observations' array")
+
+        if not isinstance(data["observations"], list):
+            raise ValueError("FRED response 'observations' field is not a list")
+
+        return True
 
     # ------------------------------------------------------------
     # SINGLE SERIES FETCH
