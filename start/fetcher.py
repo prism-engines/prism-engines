@@ -23,6 +23,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from fetch.fetcher_yahoo import YahooFetcher
 from fetch.fetcher_fred import FREDFetcher
+from data.registry import load_metric_registry
 
 
 # Configure logging
@@ -33,27 +34,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def fetch_market(start_date=None, end_date=None, write_to_db=True):
+def fetch_market(registry, start_date=None, end_date=None, write_to_db=True):
     """
     Fetch all enabled market instruments.
-    
+
     Args:
+        registry: The loaded metric registry dictionary
         start_date: Optional start date filter
         end_date: Optional end date filter
         write_to_db: Whether to write to database
-        
+
     Returns:
         Dictionary of fetched DataFrames
     """
     logger.info("=" * 60)
     logger.info("FETCHING MARKET DATA")
     logger.info("=" * 60)
-    
+
     fetcher = YahooFetcher()
+    # Pass registry to fetch_all (required by new unified fetcher interface)
     results = fetcher.fetch_all(
-        write_to_db=write_to_db,
+        registry=registry,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        write_to_db=write_to_db
     )
     
     logger.info(f"Market fetch complete: {len(results)} instruments")
@@ -236,9 +240,13 @@ Examples:
     # Fetch data
     write_to_db = not args.no_db
     results = {"market": {}, "economic": {}}
-    
+
+    # Load the registry (required by unified fetcher interface)
+    registry = load_metric_registry()
+
     if args.all or args.market:
         results["market"] = fetch_market(
+            registry=registry,
             start_date=args.start_date,
             end_date=args.end_date,
             write_to_db=write_to_db
