@@ -1,63 +1,35 @@
-import pandas as pd
-import requests
-from io import StringIO
+# stooq_test.py
+# PRISM – Stooq Fetcher Test
 
-from data.sql.db import add_indicator, write_dataframe, load_indicator
+from fetch.fetcher_stooq import StooqFetcher
+from data.sql.prism_db import write_dataframe, query
 
-print("\n=== PRISM STOOQ FETCH TEST (SPY.US) ===\n")
+print("\n=== Testing Stooq Fetch ===")
 
-indicator = "spy"
-system = "market"
+# IMPORTANT: Stooq requires ticker format like SPY.US, QQQ.US, etc.
 ticker = "SPY.US"
 
-# Register indicator
-indicator_id = add_indicator(
-    name=indicator,
-    system=system,
-    frequency="daily",
-    source="stooq",
-    units="price",
-    description="SPY daily close via Stooq"
-)
-print(f"Registered indicator '{indicator}' with ID {indicator_id}\n")
+fetcher = StooqFetcher()
+df = fetcher.fetch_single(ticker)
 
-# Fetch CSV from Stooq
-url = f"https://stooq.com/q/d/l/?s={ticker}&i=d"
-print(f"Fetching: {url}")
-
-response = requests.get(url)
-if response.status_code != 200:
-    print("ERROR fetching from Stooq:", response.status_code)
+if df is None or df.empty:
+    print("❌ No data returned — check ticker format.")
     exit()
 
-print("Download OK, parsing CSV...")
-
-df = pd.read_csv(StringIO(response.text))
-
-print("\nRaw head:")
+print("\nFetched sample rows:")
 print(df.head())
 
-# Must contain at least: Date, Close
-if "Date" not in df.columns or "Close" not in df.columns:
-    print("\nERROR: Missing expected columns")
-    print("Columns found:", df.columns)
-    exit()
+# Add required ticker column before writing into SQL
+df["ticker"] = "SPY_STOOQ"
 
-# Convert to prism dataframe
-df["date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
-df = df.rename(columns={"Close": "value"})
-mini = df[["date", "value"]].dropna()
+# Reorder for DB schema
+df = df[["ticker", "date", "value"]]
 
-print("\nPrepared for DB:")
-print(mini.head())
+print("\n→ Writing SPY_STOOQ into market_prices…")
+write_dataframe(df, "market_prices")
 
-# Write to DB
-rows = write_dataframe(mini, indicator, system)
-print(f"\nInserted {rows} rows into indicator_values")
+print("\n=== DB Rows Inserted (first 5) ===")
+print(query("SELECT * FROM market_prices WHERE ticker='SPY_STOOQ' LIMIT 5;"))
 
-# Read back to confirm
-loaded = load_indicator(indicator, system)
-print("\nLoaded back from DB:")
-print(loaded.head())
+print("\n✔ Stooq test completed.")
 
-print("\n=== STOOQ TEST COMPLETE ===\n")
