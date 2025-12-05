@@ -332,10 +332,10 @@ def main() -> int:
         print(f"Technical metrics: {len(registry.get('technical', []))}")
 
         # Initialize database connection
-        from data.sql.prism_db import get_db_path, init_db
+        from data.sql.prism_db import get_db_path, initialize_db
 
         db_path = get_db_path()
-        init_db(db_path)
+        initialize_db()
         print(f"Database: {db_path}")
 
         conn = sqlite3.connect(str(db_path))
