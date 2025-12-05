@@ -1,318 +1,102 @@
-"""
-Yahoo Finance Fetcher - Stock, ETF, and market data
-"""
-
-from pathlib import Path
-from typing import Optional, Any, List
 import pandas as pd
+import yfinance as yf
 import logging
-
-from .fetcher_base import BaseFetcher
+from fetch.fetcher_base import BaseFetcher
 
 logger = logging.getLogger(__name__)
 
 
 class YahooFetcher(BaseFetcher):
     """
-    Fetcher for Yahoo Finance data.
+    Production-ready Yahoo Fetcher.
 
-    Supports stocks, ETFs, indices, currencies, and commodities.
+    Handles:
+    - MultiIndex columns
+    - Missing 'Close' columns (VIX, DXY, some indices)
+    - Always returns: date, value, adjusted_value
     """
 
-    def __init__(self, checkpoint_dir: Optional[Path] = None):
+    def validate_response(self, df):
+        return df is not None and not df.empty
+
+    def _flatten(self, cols):
+        out = []
+        for c in cols:
+            if isinstance(c, tuple):
+                flat = "_".join([str(x) for x in c if x])
+            else:
+                flat = str(c)
+            out.append(flat.lower())
+        return out
+
+    def _detect_close_column(self, df):
         """
-        Initialize Yahoo fetcher.
-
-        Args:
-            checkpoint_dir: Directory for checkpoints
+        Try to find the best price column.
+        Yahoo can return:
+          - 'close'
+          - 'close_*'
+          - 'adjclose'
+          - 'adj_close'
+          - 'vixclose' (weird VIX cases)
         """
-        super().__init__(checkpoint_dir)
+        candidates = [
+            "close",
+            "adjclose",
+            "adj_close",
+            "close_price",
+            "last",
+        ]
 
-    def validate_response(self, response: Any) -> bool:
-        """Validate Yahoo Finance response."""
-        if response is None:
-            return False
-        if isinstance(response, pd.DataFrame) and response.empty:
-            return False
-        return True
+        # direct match
+        for c in candidates:
+            if c in df.columns:
+                return c
 
-    def fetch_single(
-        self,
-        ticker: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        interval: str = "1d",
-        **kwargs
-    ) -> Optional[pd.DataFrame]:
-        """
-        Fetch data for a single Yahoo Finance ticker.
+        # anything containing 'close'
+        for col in df.columns:
+            if "close" in col:
+                return col
 
-        Args:
-            ticker: Yahoo ticker symbol (e.g., 'SPY', 'AAPL', '^VIX')
-            start_date: Start date (YYYY-MM-DD)
-            end_date: End date (YYYY-MM-DD)
-            interval: Data interval ('1d', '1wk', '1mo')
+        # last resort: first numeric column
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                logger.warning(f"[YahooFetcher] Using fallback column: {col}")
+                return col
 
-        Returns:
-            DataFrame with OHLCV data
-        """
-        import yfinance as yf
+        raise ValueError("[YahooFetcher] Could not detect close column")
 
-        try:
-            # Download data
-            df = yf.download(
-                ticker,
-                start=start_date,
-                end=end_date,
-                interval=interval,
-                auto_adjust=True,
-                progress=False
-            )
+    def fetch_single(self, ticker, start_date=None, end_date=None, **kwargs):
+        logger.info(f"[YahooFetcher] Requesting {ticker} ...")
 
-            if not self.validate_response(df):
-                logger.warning(f"No data returned for {ticker}")
-                return None
+        df = yf.download(
+            ticker,
+            start=start_date,
+            end=end_date,
+            auto_adjust=False,
+            progress=False,
+        )
 
-            # Reset index to get date as column
-            df = df.reset_index()
-
-            # Rename columns
-            column_map = {
-                "Date": "date",
-                "Open": f"{ticker.lower()}_open",
-                "High": f"{ticker.lower()}_high",
-                "Low": f"{ticker.lower()}_low",
-                "Close": ticker.lower(),  # Main column is just the ticker
-                "Volume": f"{ticker.lower()}_volume"
-            }
-            df = df.rename(columns=column_map)
-
-            return self.sanitize_dataframe(df, ticker)
-
-        except Exception as e:
-            logger.error(f"Yahoo error for {ticker}: {e}")
+        if not self.validate_response(df):
+            logger.error(f"[YahooFetcher] Invalid response for {ticker}")
             return None
 
-    def fetch_single_close_only(
-        self,
-        ticker: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        **kwargs
-    ) -> Optional[pd.DataFrame]:
-        """
-        Fetch only closing prices (lighter weight).
+        df = df.reset_index()
+        df.columns = self._flatten(df.columns)
 
-        Args:
-            ticker: Yahoo ticker symbol
-            start_date: Start date
-            end_date: End date
+        if "date" not in df.columns:
+            raise ValueError(f"[YahooFetcher] No 'date' column for {ticker}")
 
-        Returns:
-            DataFrame with date and close price only
-        """
-        import yfinance as yf
+        # pick the best available 'close-like' column
+        close_col = self._detect_close_column(df)
 
-        try:
-            df = yf.download(
-                ticker,
-                start=start_date,
-                end=end_date,
-                auto_adjust=True,
-                progress=False
-            )
+        # pick adjusted close if present
+        adj_col = "adjclose" if "adjclose" in df.columns else close_col
 
-            if not self.validate_response(df):
-                return None
+        out = pd.DataFrame()
+        out["date"] = pd.to_datetime(df["date"])
+        out["value"] = df[close_col]
+        out["value_2"] = None
+        out["adjusted_value"] = df[adj_col]
 
-            df = df.reset_index()[["Date", "Close"]]
-            df.columns = ["date", ticker.lower()]
-
-            return self.sanitize_dataframe(df, ticker)
-
-        except Exception as e:
-            logger.error(f"Yahoo error for {ticker}: {e}")
-            return None
-
-    def fetch_multiple(
-        self,
-        tickers: List[str],
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        **kwargs
-    ) -> pd.DataFrame:
-        """
-        Fetch multiple tickers efficiently in one call.
-
-        Args:
-            tickers: List of ticker symbols
-            start_date: Start date
-            end_date: End date
-
-        Returns:
-            DataFrame with date and all ticker close prices
-        """
-        import yfinance as yf
-
-        try:
-            df = yf.download(
-                tickers,
-                start=start_date,
-                end=end_date,
-                auto_adjust=True,
-                progress=False
-            )
-
-            if not self.validate_response(df):
-                return pd.DataFrame()
-
-            # Handle MultiIndex columns from multiple tickers
-            if isinstance(df.columns, pd.MultiIndex):
-                # Get just Close prices
-                df = df["Close"]
-
-            df = df.reset_index()
-            df.columns = ["date"] + [t.lower() for t in tickers]
-
-            return df
-
-        except Exception as e:
-            logger.error(f"Yahoo batch error: {e}")
-            return pd.DataFrame()
-
-
-    def fetch_all(
-        self,
-        tickers: List[str],
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        write_to_db: bool = False,
-        system: str = "finance",
-        **kwargs
-    ) -> pd.DataFrame:
-        """
-        Fetch all tickers and optionally write to database.
-
-        This method fetches multiple tickers, combines them into a single
-        DataFrame, and optionally persists the data to the PRISM database.
-
-        Args:
-            tickers: List of ticker symbols to fetch
-            start_date: Start date (YYYY-MM-DD)
-            end_date: End date (YYYY-MM-DD)
-            write_to_db: If True, write results to database
-            system: System type for database storage (default: 'finance')
-
-        Returns:
-            DataFrame with date and all ticker close prices
-
-        Example:
-            fetcher = YahooFetcher()
-            df = fetcher.fetch_all(
-                ['SPY', 'QQQ', 'IWM'],
-                start_date='2020-01-01',
-                write_to_db=True
-            )
-        """
-        # Fetch all tickers
-        df = self.fetch_multiple(tickers, start_date, end_date, **kwargs)
-
-        if df.empty:
-            logger.warning("No data fetched for any ticker")
-            return df
-
-        # Write to database if requested
-        if write_to_db:
-            try:
-                from data.sql.db import write_dataframe, log_fetch
-                from datetime import datetime
-
-                started_at = datetime.now().isoformat()
-
-                for ticker in tickers:
-                    ticker_lower = ticker.lower()
-                    if ticker_lower not in df.columns:
-                        logger.warning(f"Ticker {ticker} not found in results")
-                        continue
-
-                    # Create single-column dataframe for this ticker
-                    ticker_df = df[["date", ticker_lower]].copy()
-                    ticker_df = ticker_df.rename(columns={ticker_lower: "value"})
-                    ticker_df = ticker_df.dropna()
-
-                    if ticker_df.empty:
-                        continue
-
-                    try:
-                        rows = write_dataframe(
-                            ticker_df,
-                            indicator_name=ticker,
-                            system=system,
-                            source="Yahoo Finance",
-                            frequency="daily",
-                        )
-
-                        log_fetch(
-                            source="yahoo",
-                            entity=ticker,
-                            operation="fetch",
-                            status="success",
-                            rows_fetched=len(ticker_df),
-                            rows_inserted=rows,
-                            started_at=started_at,
-                        )
-
-                        logger.info(f"Wrote {rows} rows for {ticker}")
-
-                    except Exception as e:
-                        log_fetch(
-                            source="yahoo",
-                            entity=ticker,
-                            operation="fetch",
-                            status="error",
-                            error_message=str(e),
-                            started_at=started_at,
-                        )
-                        logger.error(f"Failed to write {ticker}: {e}")
-
-            except ImportError:
-                logger.error(
-                    "Database modules not available. "
-                    "Install with: pip install -e .[db]"
-                )
-                raise
-
-        return df
-
-
-# Common Yahoo Finance tickers for financial analysis
-COMMON_YAHOO_TICKERS = {
-    # Major Indices
-    "^GSPC": "S&P 500",
-    "^DJI": "Dow Jones",
-    "^IXIC": "NASDAQ",
-    "^RUT": "Russell 2000",
-    "^VIX": "VIX Volatility",
-
-    # Sector ETFs
-    "XLF": "Financials",
-    "XLK": "Technology",
-    "XLE": "Energy",
-    "XLV": "Healthcare",
-    "XLI": "Industrials",
-
-    # Commodities
-    "GC=F": "Gold Futures",
-    "CL=F": "Crude Oil Futures",
-    "SI=F": "Silver Futures",
-
-    # Currencies
-    "DX-Y.NYB": "US Dollar Index",
-    "EURUSD=X": "EUR/USD",
-    "JPYUSD=X": "JPY/USD",
-
-    # Bonds
-    "TLT": "20+ Year Treasury ETF",
-    "IEF": "7-10 Year Treasury ETF",
-    "HYG": "High Yield Bond ETF",
-}
+        logger.info(f"[YahooFetcher] {ticker} → {len(out)} rows")
+        return out

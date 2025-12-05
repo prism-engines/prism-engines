@@ -1,0 +1,86 @@
+diff --git a/panel/panel_builder.py b/panel/panel_builder.py
+index a12c33d..bb901ff 100644
+--- a/panel/panel_builder.py
++++ b/panel/panel_builder.py
+@@ -23,7 +23,7 @@ def load_timeseries(indicators, conn):
+-        df = pd.read_sql_query("SELECT * FROM timeseries WHERE indicator = ?", conn, params=(ind,))
++        df = pd.read_sql_query("SELECT indicator, system, date, value FROM indicator_values WHERE indicator = ?", conn, params=(ind,))
+         frames.append(df)
+ 
+     return pd.concat(frames, ignore_index=True)
+
+diff --git a/05_engine/engine_core.py b/05_engine/engine_core.py
+index 388ce33..8a00e22 100644
+--- a/05_engine/engine_core.py
++++ b/05_engine/engine_core.py
+@@ -15,7 +15,7 @@ class IndicatorLoader:
+     def fetch(self, indicator_name: str):
+-        df = query("SELECT * FROM timeseries WHERE indicator = ?", (indicator_name,))
++        df = query("SELECT indicator, system, date, value FROM indicator_values WHERE indicator = ?", (indicator_name,))
+         df["date"] = pd.to_datetime(df["date"])
+         return df.sort_values("date")
+
+diff --git a/data/registry/market_registry.json b/data/registry/market_registry.json
+index 1ff112a..76c89b1 100644
+--- a/data/registry/market_registry.json
++++ b/data/registry/market_registry.json
+@@ -1,10 +1,10 @@
+ {
+-    "system": "finance",
++    "system": "market",
+     "frequency": "daily",
+     "indicators": [
+-        { "name": "SPY", "symbol": "SPY", "source": "yahoo" },
++        { "name": "SPY", "symbol": "SPY", "source": "yahoo", "fetcher": "yahoo" },
+-        { "name": "DIA", "symbol": "DIA", "source": "yahoo" }
++        { "name": "DIA", "symbol": "DIA", "source": "yahoo", "fetcher": "yahoo" }
+     ]
+ }
+
+diff --git a/fetch/fetcher.py b/fetch/fetcher.py
+index f87a022..b781bc9 100644
+--- a/fetch/fetcher.py
++++ b/fetch/fetcher.py
+@@ -33,11 +33,18 @@ class YahooFetcher:
+     def fetch(self, symbol: str):
+         df = yf.download(symbol, period="max", interval="1d")
+ 
+-        # Flatten old MultiIndex columns
+-        df.columns = [col[1] if isinstance(col, tuple) else col for col in df.columns]
++        # Flatten multi-index to: Close, High, Low, Open, Volume
++        df.columns = df.columns.get_level_values(0)
+ 
+-        return df[["Close"]].reset_index().rename(columns={"Close": "value"})
++        out = df[["Close"]].reset_index()
++        out["date"] = out["Date"].dt.strftime("%Y-%m-%d")
++        out = out[["date", "Close"]]
++        out = out.rename(columns={"Close": "value"})
++
++        return out
+
+diff --git a/data/sql/schema.sql b/data/sql/schema.sql
+index 1e39d44..c45012d 100644
+--- a/data/sql/schema.sql
++++ b/data/sql/schema.sql
+@@ -145,7 +145,7 @@ CREATE VIEW IF NOT EXISTS timeseries AS
+ SELECT
+-    indicator_id,
+-    date,
+-    value
+-FROM indicator_values;
++    indicator,
++    system,
++    date,
++    value,
++    created_at
++FROM indicator_values;
+
+diff --git a/loader.py b/loader.py
+index 2302aaa..515f43e 100644
+--- a/loader.py
++++ b/loader.py
+@@ -29,7 +29,7 @@ def load_indicator(name: str):
+-    df = query("SELECT * FROM timeseries WHERE indicator = ?", (name,))
++    df = query("SELECT indicator, system, date, value FROM indicator_values WHERE indicator = ?", (name,))
+     df["date"] = pd.to_datetime(df["date"])
+     return df.sort_values("date")

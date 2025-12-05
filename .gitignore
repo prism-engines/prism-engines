@@ -68,3 +68,11 @@ venv.bak/
 02_data_raw/
 04_data_clean/
 06_output/
+__pycache__/
+*.pyc
+prism-mac-venv/
+_legacy_backup/
+__pycache__/
+*.pyc
+prism-mac-venv/
+_legacy_backup/
