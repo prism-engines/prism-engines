@@ -1,172 +1,83 @@
-[
-    {
-        "key": "dgs10",
-        "source": "fred",
-        "ticker": "DGS10"
-    },
-    {
-        "key": "dgs2",
-        "source": "fred",
-        "ticker": "DGS2"
-    },
-    {
-        "key": "dgs3mo",
-        "source": "fred",
-        "ticker": "DGS3MO"
-    },
-    {
-        "key": "t10y2y",
-        "source": "fred",
-        "ticker": "T10Y2Y"
-    },
-    {
-        "key": "t10y3m",
-        "source": "fred",
-        "ticker": "T10Y3M"
-    },
-    {
-        "key": "cpi",
-        "source": "fred",
-        "ticker": "CPIAUCSL"
-    },
-    {
-        "key": "cpi_core",
-        "source": "fred",
-        "ticker": "CPILFESL"
-    },
-    {
-        "key": "ppi",
-        "source": "fred",
-        "ticker": "PPIACO"
-    },
-    {
-        "key": "unrate",
-        "source": "fred",
-        "ticker": "UNRATE"
-    },
-    {
-        "key": "payrolls",
-        "source": "fred",
-        "ticker": "PAYEMS"
-    },
-    {
-        "key": "industrial_production",
-        "source": "fred",
-        "ticker": "INDPRO"
-    },
-    {
-        "key": "housing_starts",
-        "source": "fred",
-        "ticker": "HOUST"
-    },
-    {
-        "key": "permits",
-        "source": "fred",
-        "ticker": "PERMIT"
-    },
-    {
-        "key": "m2",
-        "source": "fred",
-        "ticker": "M2SL"
-    },
-    {
-        "key": "fed_balance_sheet",
-        "source": "fred",
-        "ticker": "WALCL"
-    },
-    {
-        "key": "anfci",
-        "source": "fred",
-        "ticker": "ANFCI"
-    },
-    {
-        "key": "nfci",
-        "source": "fred",
-        "ticker": "NFCI"
-    },
-    {
-        "key": "bcom",
-        "source": "yahoo",
-        "ticker": "BCOM"
-    },
-    {
-        "key": "spy",
-        "source": "yahoo",
-        "ticker": "SPY"
-    },
-    {
-        "key": "qqq",
-        "source": "yahoo",
-        "ticker": "QQQ"
-    },
-    {
-        "key": "iwm",
-        "source": "yahoo",
-        "ticker": "IWM"
-    },
-    {
-        "key": "dxy",
-        "source": "yahoo",
-        "ticker": "DXY"
-    },
-    {
-        "key": "vix",
-        "source": "yahoo",
-        "ticker": "VIX"
-    },
-    {
-        "key": "gld",
-        "source": "yahoo",
-        "ticker": "GLD"
-    },
-    {
-        "key": "slv",
-        "source": "yahoo",
-        "ticker": "SLV"
-    },
-    {
-        "key": "uso",
-        "source": "yahoo",
-        "ticker": "USO"
-    },
-    {
-        "key": "bnd",
-        "source": "yahoo",
-        "ticker": "BND"
-    },
-    {
-        "key": "tlt",
-        "source": "yahoo",
-        "ticker": "TLT"
-    },
-    {
-        "key": "shy",
-        "source": "yahoo",
-        "ticker": "SHY"
-    },
-    {
-        "key": "ief",
-        "source": "yahoo",
-        "ticker": "IEF"
-    },
-    {
-        "key": "tip",
-        "source": "yahoo",
-        "ticker": "TIP"
-    },
-    {
-        "key": "lqd",
-        "source": "yahoo",
-        "ticker": "LQD"
-    },
-    {
-        "key": "hyg",
-        "source": "yahoo",
-        "ticker": "HYG"
-    },
-    {
-        "key": "xlu",
-        "source": "yahoo",
-        "ticker": "XLU"
-    }
-]
+{
+  "version": "1.1",
+  "generated": "2025-12-04",
+  "market": [
+    {"name": "spy", "type": "market_price", "frequency": "daily"},
+    {"name": "qqq", "type": "market_price", "frequency": "daily"},
+    {"name": "iwm", "type": "market_price", "frequency": "daily"},
+    {"name": "gld", "type": "market_price", "frequency": "daily"},
+    {"name": "tlt", "type": "market_price", "frequency": "daily"},
+    {"name": "dxy", "type": "market_price", "frequency": "daily"},
+    {"name": "vix", "type": "market_price", "frequency": "daily"},
+    {"name": "btc", "type": "market_price", "frequency": "daily"},
+    {"name": "xlc", "type": "market_price", "frequency": "daily"},
+    {"name": "xly", "type": "market_price", "frequency": "daily"},
+    {"name": "xlp", "type": "market_price", "frequency": "daily"},
+    {"name": "xle", "type": "market_price", "frequency": "daily"},
+    {"name": "xlf", "type": "market_price", "frequency": "daily"},
+    {"name": "xlv", "type": "market_price", "frequency": "daily"},
+    {"name": "xli", "type": "market_price", "frequency": "daily"},
+    {"name": "xlb", "type": "market_price", "frequency": "daily"},
+    {"name": "xlre", "type": "market_price", "frequency": "daily"},
+    {"name": "xlk", "type": "market_price", "frequency": "daily"},
+    {"name": "xlu", "type": "market_price", "frequency": "daily"}
+  ],
+  "economic": [
+    {"name": "cpi", "type": "econ_series", "frequency": "monthly"},
+    {"name": "ppi", "type": "econ_series", "frequency": "monthly"},
+    {"name": "unrate", "type": "econ_series", "frequency": "monthly"},
+    {"name": "payems", "type": "econ_series", "frequency": "monthly"},
+    {"name": "m2", "type": "econ_series", "frequency": "monthly"},
+    {"name": "gdp", "type": "econ_series", "frequency": "quarterly"},
+    {"name": "dgs10", "type": "econ_series", "frequency": "daily"},
+    {"name": "dgs2", "type": "econ_series", "frequency": "daily"},
+    {"name": "dgs3mo", "type": "econ_series", "frequency": "daily"},
+    {"name": "baaffm", "type": "econ_series", "frequency": "monthly"},
+    {"name": "baa10ym", "type": "econ_series", "frequency": "monthly"}
+  ],
+  "synthetic": [
+    {"name": "t10y2y", "depends_on": ["dgs10", "dgs2"]},
+    {"name": "t10y3m", "depends_on": ["dgs10", "dgs3mo"]},
+    {"name": "credit_spread", "depends_on": ["baaffm", "dgs10"]},
+    {"name": "real_yield_10y", "depends_on": ["dgs10", "cpi"]},
+    {"name": "breakeven_inflation", "depends_on": ["cpi", "ppi"]},
+    {"name": "employment_spread", "depends_on": ["unrate", "payems"]},
+    {"name": "liquidity_ratio", "depends_on": ["m2", "gdp"]},
+    {"name": "yield_curve_slope", "depends_on": ["dgs10", "dgs2"]}
+  ],
+  "technical": [
+    {"name": "spy_mom_12m", "depends_on": ["spy"]},
+    {"name": "spy_mom_6m", "depends_on": ["spy"]},
+    {"name": "spy_vol_20d", "depends_on": ["spy"]},
+    {"name": "spy_vol_60d", "depends_on": ["spy"]},
+    {"name": "spy_rsi_14", "depends_on": ["spy"]},
+    {"name": "spy_roc_1m", "depends_on": ["spy"]},
+    {"name": "qqq_mom_12m", "depends_on": ["qqq"]},
+    {"name": "qqq_vol_20d", "depends_on": ["qqq"]},
+    {"name": "sector_mom_diff", "depends_on": ["xly","xlp","xlf","xlk","xle","xlb","xli","xlv","xlc","xlre","xlu"]},
+    {"name": "sector_breadth", "depends_on": ["xly","xlp","xlf","xlk","xle","xlb","xli","xlv","xlc","xlre","xlu"]}
+  ],
+  "geometry": [
+    {"name": "theta", "type": "geometry"},
+    {"name": "phi", "type": "geometry"},
+    {"name": "magnitude", "type": "geometry"},
+    {"name": "coherence", "type": "geometry"},
+    {"name": "divergence", "type": "geometry"},
+    {"name": "harmonic_1", "type": "geometry"},
+    {"name": "harmonic_2", "type": "geometry"},
+    {"name": "harmonic_3", "type": "geometry"}
+  ],
+  "model_outputs": [
+    {"name": "mrf_core", "type": "model"},
+    {"name": "prf_core", "type": "model"},
+    {"name": "crf_core", "type": "model"},
+    {"name": "mrf_stress", "type": "model"},
+    {"name": "mvss", "type": "model"},
+    {"name": "stress_index", "type": "model"},
+    {"name": "regime_state", "type": "classification"},
+    {"name": "regime_confidence", "type": "classification"},
+    {"name": "trend_strength", "type": "signal"},
+    {"name": "volatility_state", "type": "signal"},
+    {"name": "liquidity_state", "type": "signal"}
+  ]
+}

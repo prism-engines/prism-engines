@@ -212,3 +212,149 @@ COMMON_YAHOO_TICKERS = {
     "IEF": "7-10 Year Treasury ETF",
     "HYG": "High Yield Bond ETF",
 }
+
+
+# =============================================================================
+# REGISTRY-DRIVEN TICKER MAPPING
+# =============================================================================
+
+# Mapping from lowercase registry names to Yahoo Finance symbols
+# Registry stores lowercase, Yahoo API needs proper symbols
+REGISTRY_TO_YAHOO_MAP = {
+    # Major ETFs/Indices (direct uppercase mapping)
+    "spy": "SPY",
+    "qqq": "QQQ",
+    "iwm": "IWM",
+    "gld": "GLD",
+    "tlt": "TLT",
+    "btc": "BTC-USD",  # Bitcoin needs -USD suffix
+
+    # Special symbols
+    "dxy": "DX-Y.NYB",  # US Dollar Index
+    "vix": "^VIX",      # VIX needs caret prefix
+
+    # Sector ETFs (direct uppercase)
+    "xlc": "XLC",
+    "xly": "XLY",
+    "xlp": "XLP",
+    "xle": "XLE",
+    "xlf": "XLF",
+    "xlv": "XLV",
+    "xli": "XLI",
+    "xlb": "XLB",
+    "xlre": "XLRE",
+    "xlk": "XLK",
+    "xlu": "XLU",
+}
+
+
+def get_yahoo_tickers_from_registry(reg: dict) -> list[str]:
+    """
+    Get list of Yahoo Finance tickers from the registry's market section.
+
+    Maps lowercase registry names to proper Yahoo Finance symbols.
+    DB stores lowercase names matching registry, not Yahoo symbols.
+
+    Args:
+        reg: The metric registry dictionary.
+
+    Returns:
+        List of Yahoo Finance ticker symbols (uppercase/proper format).
+    """
+    market_metrics = reg.get("market", [])
+    yahoo_tickers = []
+
+    for metric in market_metrics:
+        name = metric.get("name", "").lower()
+        metric_type = metric.get("type", "")
+
+        # Only process market_price types
+        if metric_type != "market_price":
+            continue
+
+        # Use mapping if available, otherwise uppercase the name
+        yahoo_symbol = REGISTRY_TO_YAHOO_MAP.get(name, name.upper())
+        yahoo_tickers.append(yahoo_symbol)
+
+    return yahoo_tickers
+
+
+def get_registry_name_from_yahoo(yahoo_ticker: str) -> str:
+    """
+    Convert Yahoo Finance ticker back to lowercase registry name.
+
+    Args:
+        yahoo_ticker: Yahoo Finance ticker symbol.
+
+    Returns:
+        Lowercase registry name for database storage.
+    """
+    # Build reverse mapping
+    yahoo_to_registry = {v: k for k, v in REGISTRY_TO_YAHOO_MAP.items()}
+
+    if yahoo_ticker in yahoo_to_registry:
+        return yahoo_to_registry[yahoo_ticker]
+
+    # Default: lowercase the ticker
+    return yahoo_ticker.lower().replace("-usd", "").replace("^", "")
+
+
+def fetch_registry_market_data(
+    reg: dict,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Fetch all market data defined in the registry.
+
+    Returns DataFrame with lowercase column names matching registry names.
+
+    Args:
+        reg: The metric registry dictionary.
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+
+    Returns:
+        DataFrame with date column and lowercase registry names as columns.
+    """
+    import yfinance as yf
+
+    yahoo_tickers = get_yahoo_tickers_from_registry(reg)
+
+    if not yahoo_tickers:
+        logger.warning("No Yahoo tickers found in registry")
+        return pd.DataFrame()
+
+    try:
+        # Fetch all tickers at once
+        df = yf.download(
+            yahoo_tickers,
+            start=start_date,
+            end=end_date,
+            auto_adjust=True,
+            progress=False
+        )
+
+        if df.empty:
+            logger.warning("No data returned from Yahoo Finance")
+            return pd.DataFrame()
+
+        # Handle MultiIndex columns from multiple tickers
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df["Close"]
+
+        df = df.reset_index()
+
+        # Rename columns to lowercase registry names
+        new_columns = ["date"]
+        for ticker in yahoo_tickers:
+            registry_name = get_registry_name_from_yahoo(ticker)
+            new_columns.append(registry_name)
+
+        df.columns = new_columns
+
+        return df
+
+    except Exception as e:
+        logger.error(f"Error fetching registry market data: {e}")
+        return pd.DataFrame()
