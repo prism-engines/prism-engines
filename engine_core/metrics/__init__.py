@@ -1,17 +1,10 @@
 """
-Metrics module for PRISM Engine.
+PRISM Engine - Metrics Module
+=============================
 
-Provides technical and sector-level metrics computation.
+Technical indicators and metric computations for the PRISM Engine.
 """
 
-from .sector_technicals import (
-    compute_sector_momentum_diff,
-    compute_sector_breadth,
-    build_technical_indicators,
-)
+from .sector_technicals import build_technical_indicators
 
-__all__ = [
-    "compute_sector_momentum_diff",
-    "compute_sector_breadth",
-    "build_technical_indicators",
-]
+__all__ = ["build_technical_indicators"]

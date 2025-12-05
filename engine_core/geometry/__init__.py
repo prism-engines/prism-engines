@@ -1,11 +1,10 @@
 """
-Geometry module for PRISM Engine.
+PRISM Engine - Geometry Module
+==============================
 
-Provides input adapters for the geometry engine.
+Geometric analysis and visualization tools for the PRISM Engine.
 """
 
 from .inputs import get_geometry_input_series
 
-__all__ = [
-    "get_geometry_input_series",
-]
+__all__ = ["get_geometry_input_series"]
