@@ -6,6 +6,7 @@ Fixes applied:
 - Proper ticker extraction from registry (handles params.ticker)
 - Fallback ticker mapping applied
 - Known problematic tickers filtered
+- Retry logic with exponential backoff for transient failures
 """
 
 from pathlib import Path
@@ -13,10 +14,15 @@ from typing import Optional, Any, List
 import pandas as pd
 import logging
 import json
+import time
 
 from .fetcher_base import BaseFetcher
 
 logger = logging.getLogger(__name__)
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_BASE = 2  # seconds, will be multiplied by attempt number
 
 
 def _load_fallback_map():
@@ -33,9 +39,27 @@ def _load_fallback_map():
 
 FALLBACK_MAP = _load_fallback_map()
 
-# Tickers known to be problematic (delisted, unavailable, etc.)
+# Tickers known to be problematic on Yahoo Finance
+# These often return "No timezone found" errors - consider using Stooq for these
 KNOWN_PROBLEMATIC_TICKERS = {
     "^GVZ",   # Gold Volatility Index - often unavailable
+}
+
+# Commodity futures that are flaky on Yahoo - logged as warning but still attempted
+FLAKY_FUTURES_TICKERS = {
+    "CL=F",   # WTI Crude Oil
+    "BZ=F",   # Brent Crude
+    "NG=F",   # Natural Gas
+    "RB=F",   # RBOB Gasoline
+    "HO=F",   # Heating Oil
+    "GC=F",   # Gold
+    "SI=F",   # Silver
+    "HG=F",   # Copper
+    "PL=F",   # Platinum
+    "PA=F",   # Palladium
+    "ZC=F",   # Corn
+    "ZW=F",   # Wheat
+    "ZS=F",   # Soybeans
 }
 
 
@@ -72,7 +96,7 @@ class YahooFetcher(BaseFetcher):
         **kwargs
     ) -> Optional[pd.DataFrame]:
         """
-        Fetch data for a single Yahoo Finance ticker.
+        Fetch data for a single Yahoo Finance ticker with retry logic.
 
         Args:
             ticker: Yahoo ticker symbol (e.g., 'SPY', 'AAPL', '^VIX')
@@ -91,40 +115,54 @@ class YahooFetcher(BaseFetcher):
         if ticker != original_ticker:
             logger.info(f"Remapped ticker {original_ticker} -> {ticker}")
 
-        try:
-            # Download data
-            df = yf.download(
-                ticker,
-                start=start_date,
-                end=end_date,
-                interval=interval,
-                auto_adjust=True,
-                progress=False
-            )
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                # Download data
+                df = yf.download(
+                    ticker,
+                    start=start_date,
+                    end=end_date,
+                    interval=interval,
+                    auto_adjust=True,
+                    progress=False
+                )
 
-            if not self.validate_response(df):
-                logger.warning(f"No data returned for {ticker}")
-                return None
+                if not self.validate_response(df):
+                    if attempt < MAX_RETRIES - 1:
+                        delay = RETRY_DELAY_BASE * (attempt + 1)
+                        logger.debug(f"No data for {ticker}, retrying in {delay}s...")
+                        time.sleep(delay)
+                        continue
+                    logger.warning(f"No data returned for {ticker} after {MAX_RETRIES} attempts")
+                    return None
 
-            # Reset index to get date as column
-            df = df.reset_index()
+                # Reset index to get date as column
+                df = df.reset_index()
 
-            # Rename columns
-            column_map = {
-                "Date": "date",
-                "Open": f"{ticker.lower()}_open",
-                "High": f"{ticker.lower()}_high",
-                "Low": f"{ticker.lower()}_low",
-                "Close": ticker.lower(),  # Main column is just the ticker
-                "Volume": f"{ticker.lower()}_volume"
-            }
-            df = df.rename(columns=column_map)
+                # Rename columns
+                column_map = {
+                    "Date": "date",
+                    "Open": f"{ticker.lower()}_open",
+                    "High": f"{ticker.lower()}_high",
+                    "Low": f"{ticker.lower()}_low",
+                    "Close": ticker.lower(),  # Main column is just the ticker
+                    "Volume": f"{ticker.lower()}_volume"
+                }
+                df = df.rename(columns=column_map)
 
-            return self.sanitize_dataframe(df, ticker)
+                return self.sanitize_dataframe(df, ticker)
 
-        except Exception as e:
-            logger.error(f"Yahoo error for {ticker}: {e}")
-            return None
+            except Exception as e:
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAY_BASE * (attempt + 1)
+                    logger.debug(f"Yahoo error for {ticker}: {e}, retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Yahoo error for {ticker} after {MAX_RETRIES} attempts: {e}")
+
+        return None
 
     def fetch_single_close_only(
         self,
