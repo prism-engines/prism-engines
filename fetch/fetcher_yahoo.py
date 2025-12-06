@@ -115,18 +115,31 @@ class YahooFetcher(BaseFetcher):
         if ticker != original_ticker:
             logger.info(f"Remapped ticker {original_ticker} -> {ticker}")
 
+        # Use Ticker API for index symbols (more reliable for ^GSPC, ^VIX, etc.)
+        use_ticker_api = ticker.startswith("^")
+
         last_error = None
         for attempt in range(MAX_RETRIES):
             try:
-                # Download data
-                df = yf.download(
-                    ticker,
-                    start=start_date,
-                    end=end_date,
-                    interval=interval,
-                    auto_adjust=True,
-                    progress=False
-                )
+                if use_ticker_api:
+                    # Use Ticker().history() for index symbols
+                    t = yf.Ticker(ticker)
+                    df = t.history(
+                        start=start_date,
+                        end=end_date,
+                        interval=interval,
+                        auto_adjust=True
+                    )
+                else:
+                    # Use download() for regular symbols
+                    df = yf.download(
+                        ticker,
+                        start=start_date,
+                        end=end_date,
+                        interval=interval,
+                        auto_adjust=True,
+                        progress=False
+                    )
 
                 if not self.validate_response(df):
                     if attempt < MAX_RETRIES - 1:
