@@ -377,14 +377,17 @@ def convert_to_legacy_format(registry: Dict[str, Any]) -> Dict[str, Any]:
         ind_id = ind.get("id")
         params = ind.get("params", {})
 
-        if source == "yahoo":
+        # Both yahoo and stooq are market data sources
+        if source in ("yahoo", "stooq"):
             legacy["market"].append({
                 "name": ind_id,
                 "ticker": params.get("ticker", ind_id.upper()),
+                "source": source,  # CRITICAL: preserve source for routing
                 "type": "market_price",
                 "frequency": ind.get("frequency", "daily"),
                 "group": ind.get("group"),
                 "asset_class": ind.get("asset_class"),
+                "params": params,  # Keep full params for ticker access
             })
 
         elif source == "fred":
