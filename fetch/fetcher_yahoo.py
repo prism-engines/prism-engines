@@ -207,7 +207,11 @@ class YahooFetcher(BaseFetcher):
             logger.error("Registry missing 'market' section.")
             return None
 
-        tickers = [item["symbol"] for item in registry["market"]]
+        tickers = [
+            item.get("symbol") or item.get("ticker")
+            for item in registry["market"]
+            if item.get("symbol") or item.get("ticker")
+        ]
 
         if not tickers:
             logger.error("No Yahoo tickers found in registry['market']")
