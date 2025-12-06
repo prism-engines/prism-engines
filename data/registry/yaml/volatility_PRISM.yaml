@@ -1,0 +1,18 @@
+version: 2.0.0
+generated: '2025-12-06'
+title: PRISM Volatility Registry
+description: Core volatility indicators
+
+indicators:
+
+# VIX is in market_PRISM.yaml to keep everything in one place
+# This file exists for MOVE index from FRED
+
+- id: move
+  name: MOVE Bond Volatility
+  source: fred
+  group: volatility
+  frequency: daily
+  params:
+    series_id: MOVEIDX
+  asset_class: volatility
