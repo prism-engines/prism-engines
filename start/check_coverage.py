@@ -6,7 +6,20 @@ import pandas as pd
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path.home() / "prism_data" / "prism.db"
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
+DB_PATH = DATA_DIR / "prism.db"
 
 conn = sqlite3.connect(DB_PATH)
 

@@ -12,11 +12,24 @@ import numpy as np
 import sqlite3
 from datetime import datetime
 
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Database path
-DB_PATH = Path.home() / "prism_data" / "prism.db"
+DB_PATH = DATA_DIR / "prism.db"
 
 def load_from_database():
     """Load all data from database and merge into a single panel."""
@@ -174,7 +187,7 @@ def main():
         print_regime_summary(results, clean_panel)
         
         # Save results
-        output_dir = PROJECT_ROOT / "output" / "regime_analysis"
+        output_dir = OUTPUT_DIR / "regime_analysis"
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Save regime labels with dates

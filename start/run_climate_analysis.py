@@ -29,9 +29,22 @@ from sklearn.ensemble import IsolationForest
 from sklearn.cluster import KMeans
 from scipy import stats
 
-DB_PATH = Path.home() / "prism_data" / "climate.db"
-PANEL_PATH = Path.home() / "prism_data" / "climate_panel.csv"
-OUTPUT_DIR = Path.home() / "prism_data" / "climate_output"
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
+DB_PATH = DATA_DIR / "climate.db"
+PANEL_PATH = DATA_DIR / "climate_panel.csv"
+CLIMATE_# OUTPUT_DIR imported from output_config / "climate"
 
 
 # ============================================================================

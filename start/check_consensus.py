@@ -6,7 +6,20 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-output_dir = Path.home() / "prism-engine" / "output" / "full_40y_analysis"
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
+output_dir = OUTPUT_DIR / "full_40y_analysis"
 
 # Load the normalized scores
 normalized = pd.read_csv(output_dir / "lens_normalized_40y.csv", index_col=0, parse_dates=True)

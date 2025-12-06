@@ -85,6 +85,19 @@ from sklearn.covariance import LedoitWolf
 from scipy import stats
 from scipy.ndimage import gaussian_filter1d
 
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
 # Optional: Hidden Markov Model (install with: pip install hmmlearn)
 try:
     from hmmlearn.hmm import GaussianHMM
@@ -97,7 +110,7 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-DB_PATH = Path.home() / "prism_data" / "prism.db"
+DB_PATH = DATA_DIR / "prism.db"
 
 # ============================================================================
 # CONFIGURATION
@@ -928,7 +941,7 @@ def main():
     print(f"   Detected {len(events)} regime shift events")
     
     # Create output directory
-    output_dir = PROJECT_ROOT / "output" / "full_40y_analysis"
+    output_dir = OUTPUT_DIR / "full_40y_analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Save data files

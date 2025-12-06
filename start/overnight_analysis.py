@@ -88,6 +88,19 @@ from sklearn.utils import resample
 from scipy import stats
 from scipy.ndimage import gaussian_filter1d
 
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
 # Optional HMM
 try:
     from hmmlearn.hmm import GaussianHMM
@@ -99,7 +112,7 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-DB_PATH = Path.home() / "prism_data" / "prism.db"
+DB_PATH = DATA_DIR / "prism.db"
 
 # ============================================================================
 # CONFIGURATION - THE BEAST SETTINGS
@@ -965,7 +978,7 @@ def main():
     # =========================================================================
     # SAVE RESULTS
     # =========================================================================
-    output_dir = PROJECT_ROOT / "output" / "overnight_analysis"
+    output_dir = OUTPUT_DIR / "overnight_analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     print("\n" + "=" * 70)

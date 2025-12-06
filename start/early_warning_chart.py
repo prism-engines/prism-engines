@@ -19,9 +19,22 @@ import matplotlib.dates as mdates
 from pathlib import Path
 import sqlite3
 
+# === PRISM PATH CONFIG ===
+import os
+import sys
+# Double-click support: ensure correct directory and path
+if __name__ == "__main__":
+    _script_dir = Path(__file__).parent.parent
+    os.chdir(_script_dir)
+    if str(_script_dir) not in sys.path:
+        sys.path.insert(0, str(_script_dir))
+from output_config import OUTPUT_DIR, DATA_DIR
+# === END PATH CONFIG ===
+
+
 # Paths
-DB_PATH = Path.home() / "prism_data" / "prism.db"
-OUTPUT_DIR = Path.home() / "prism-engine" / "output" / "overnight_lite"
+DB_PATH = DATA_DIR / "prism.db"
+# OUTPUT_DIR imported from output_config
 
 def load_multiresolution():
     """Load multiresolution data."""
