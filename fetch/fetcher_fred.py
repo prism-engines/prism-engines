@@ -173,94 +173,46 @@ class FREDFetcher(BaseFetcher):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None
     ) -> Dict[str, pd.DataFrame]:
-
         series_list = self.load_economic_registry()
         results = {}
-
+        
         # Try DB
+        db_ready = False
         if write_to_db:
             try:
-                from data.sql.prism_db import (
-                    init_database,
-                    ensure_indicator,
-                    write_values,
-                    log_fetch
-                )
-                init_database()
+                from data.sql.prism_db import initialize_db, write_dataframe
+                initialize_db()
                 db_ready = True
             except Exception as e:
                 logger.error(f"Database unavailable: {e}")
-                db_ready = False
-        else:
-            db_ready = False
-
+        
         for cfg in series_list:
             if not cfg.get("enabled", True):
                 continue
-
             key = cfg["key"]
             ticker = cfg.get("ticker", key.upper())
-
             logger.info(f"Fetching economic series: {key} ({ticker})")
-
             try:
                 df = self.fetch_single(ticker, start_date, end_date)
-
                 if df is None or df.empty:
                     logger.warning(f"No data returned for {key}")
-
-                    if db_ready:
-                        log_fetch(
-                            indicator=key,
-                            system="economic",
-                            source="fred",
-                            rows_fetched=0,
-                            status="error",
-                            error_message="No data returned"
-                        )
                     continue
-
+                    
                 results[key] = df
-
+                
                 if db_ready:
-                    ensure_indicator(
-                        name=key,
-                        system="economic",
-                        frequency=cfg.get("frequency", "daily"),
-                        source="fred",
-                        description=cfg.get("name", "")
-                    )
-
-                    rows = write_values(key, "economic", df)
-
-                    log_fetch(
-                        indicator=key,
-                        system="economic",
-                        source="fred",
-                        rows_fetched=rows,
-                        status="success"
-                    )
-
-                    logger.info(f"  -> Wrote {rows} rows for {key}")
-
+                    # Format for econ_values table: series_id, date, value
+                    db_df = df.copy()
+                    db_df["series_id"] = ticker
+                    db_df = db_df[["series_id", "date", "value"]]
+                    write_dataframe(db_df, "econ_values")
+                    logger.info(f"  -> Wrote {len(db_df)} rows to DB")
+                    
             except Exception as e:
                 logger.error(f"Error fetching {key}: {e}")
-
-                if db_ready:
-                    log_fetch(
-                        indicator=key,
-                        system="economic",
-                        source="fred",
-                        rows_fetched=0,
-                        status="error",
-                        error_message=str(e)
-                    )
-
+        
         logger.info(f"Completed: {len(results)} economic series fetched")
         return results
-
-    # ------------------------------------------------------------
-    # CONNECTION TEST
     # ------------------------------------------------------------
     def test_connection(self) -> bool:
         try:

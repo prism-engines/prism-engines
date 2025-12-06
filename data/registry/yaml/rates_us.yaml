@@ -61,3 +61,23 @@ indicators:
   params:
     series_id: FEDFUNDS
   asset_class: rates
+
+# ============ VIX (FRED) ============
+- id: vix
+  name: VIX Index
+  source: fred
+  group: volatility
+  frequency: daily
+  params:
+    series_id: VIXCLS
+  asset_class: volatility
+
+# ============ DOLLAR INDEX (FRED) ============
+- id: dxy
+  name: Trade Weighted Dollar Index
+  source: fred
+  group: fx
+  frequency: daily
+  params:
+    series_id: DTWEXBGS
+  asset_class: fx

@@ -101,6 +101,37 @@ def _split_registry_by_source(registry):
     return yahoo_registry, stooq_registry
 
 
+
+def _write_market_to_db(df, write_dataframe):
+    """
+    Convert wide DataFrame to tall format and write to market_prices table.
+    
+    Wide format (from fetchers): date, spy_us, qqq_us, ...
+    Tall format (for DB): ticker, date, value
+    """
+    if df is None or df.empty:
+        return 0
+    
+    # Melt wide to tall
+    date_col = "date"
+    value_cols = [c for c in df.columns if c != date_col]
+    
+    tall_df = df.melt(
+        id_vars=[date_col],
+        value_vars=value_cols,
+        var_name="ticker",
+        value_name="value"
+    )
+    
+    # Drop NaN values
+    tall_df = tall_df.dropna(subset=["value"])
+    
+    # Write to DB
+    if not tall_df.empty:
+        write_dataframe(tall_df[["ticker", "date", "value"]], "market_prices")
+    
+    return len(tall_df)
+
 def fetch_market(registry, start_date=None, end_date=None, write_to_db=True):
     """
     Fetch all enabled market instruments from appropriate sources.
@@ -120,6 +151,16 @@ def fetch_market(registry, start_date=None, end_date=None, write_to_db=True):
     logger.info("FETCHING MARKET DATA")
     logger.info("=" * 60)
 
+    # Setup database if needed
+    db_ready = False
+    if write_to_db:
+        try:
+            from data.sql.prism_db import initialize_db, write_dataframe
+            initialize_db()
+            db_ready = True
+        except Exception as e:
+            logger.error(f"Database unavailable: {e}")
+
     # Split registry by source (respects YAML source field)
     yahoo_registry, stooq_registry = _split_registry_by_source(registry)
 
@@ -138,6 +179,9 @@ def fetch_market(registry, start_date=None, end_date=None, write_to_db=True):
         if yahoo_df is not None and not yahoo_df.empty:
             results.append(yahoo_df)
             logger.info(f"Yahoo: {_safe_len(yahoo_df)} instruments fetched")
+            if db_ready:
+                rows = _write_market_to_db(yahoo_df, write_dataframe)
+                logger.info(f"Yahoo: Wrote {rows} rows to DB")
         else:
             logger.warning("Yahoo: No data returned (API may be rate limiting)")
 
@@ -154,6 +198,9 @@ def fetch_market(registry, start_date=None, end_date=None, write_to_db=True):
         if stooq_df is not None and not stooq_df.empty:
             results.append(stooq_df)
             logger.info(f"Stooq: {_safe_len(stooq_df)} instruments fetched")
+            if db_ready:
+                rows = _write_market_to_db(stooq_df, write_dataframe)
+                logger.info(f"Stooq: Wrote {rows} rows to DB")
         else:
             logger.warning("Stooq: No data returned")
 
