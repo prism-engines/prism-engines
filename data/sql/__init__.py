@@ -1,97 +1,64 @@
 """
-data.sql - SQLite-based storage for indicators and time series data.
+PRISM Engine - SQL Database Module
 
-Two modules are available:
-
-1. data.sql.db - Modern, unified API (recommended)
-    from data.sql.db import init_database, add_indicator, write_dataframe, load_indicator
-
-2. data.sql.prism_db - Legacy API with basic IO support
-    from data.sql.prism_db import get_connection, write_dataframe, load_indicator
+This exposes the database API from db.py.
 
 Usage:
-    import data.sql
-    data.sql.init_database()
-    data.sql.add_indicator("SPY", system="market")
-    data.sql.write_dataframe(df, "market_prices")
-    df = data.sql.load_indicator("SPY")
+    from data.sql import db
+    
+    db.init_database()
+    db.add_indicator('SPY', system='market')
+    db.write_dataframe(df, indicator='SPY', system='market')
+    data = db.load_indicator('SPY')
 """
 
-# Import from the unified db module (includes db_connector functions)
 from .db import (
-    # Core connection
-    get_connection,
-    connect,
+    # Path resolution
     get_db_path,
-
+    
+    # Connection
+    connect,
+    
     # Initialization
     init_database,
-    init_db,
-    initialize_db,
-
-    # Indicator operations
+    init_db,  # alias
+    
+    # Query
+    query,
+    
+    # Indicator API
     add_indicator,
     get_indicator,
     list_indicators,
-
-    # Data IO
+    
+    # Data API
     write_dataframe,
     load_indicator,
     load_multiple_indicators,
-    query,
-    export_to_csv,
-
-    # Fetch logging
+    
+    # Logging
     log_fetch,
-    get_fetch_history,
-
-    # Statistics
-    database_stats,
-    get_table_stats,
+    
+    # Utilities
     get_date_range,
-
-    # Convenience
-    quick_write,
+    export_to_csv,
+    get_table_stats,
 )
 
-# Also expose prism_db for backward compatibility (as a module reference)
-from . import prism_db
-
 __all__ = [
-    # Core connection
-    "get_connection",
-    "connect",
-    "get_db_path",
-
-    # Initialization
-    "init_database",
-    "init_db",
-    "initialize_db",
-
-    # Indicator operations
-    "add_indicator",
-    "get_indicator",
-    "list_indicators",
-
-    # Data IO
-    "write_dataframe",
-    "load_indicator",
-    "load_multiple_indicators",
-    "query",
-    "export_to_csv",
-
-    # Fetch logging
-    "log_fetch",
-    "get_fetch_history",
-
-    # Statistics
-    "database_stats",
-    "get_table_stats",
-    "get_date_range",
-
-    # Convenience
-    "quick_write",
-
-    # Legacy module
-    "prism_db",
+    'get_db_path',
+    'connect',
+    'init_database',
+    'init_db',
+    'query',
+    'add_indicator',
+    'get_indicator',
+    'list_indicators',
+    'write_dataframe',
+    'load_indicator',
+    'load_multiple_indicators',
+    'log_fetch',
+    'get_date_range',
+    'export_to_csv',
+    'get_table_stats',
 ]
