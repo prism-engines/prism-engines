@@ -69,7 +69,8 @@ def _split_registry_by_source(registry):
     """
     Split market registry items by their data source.
 
-    IMPORTANT: Only VIX and DXY use Yahoo. Everything else routes to Stooq.
+    ALL tickers now route to Stooq (Yahoo is too unreliable).
+    Handles ticker format conversion for Stooq.
 
     Args:
         registry: The loaded metric registry dictionary
@@ -77,15 +78,31 @@ def _split_registry_by_source(registry):
     Returns:
         Tuple of (yahoo_registry, stooq_registry) - each a copy with filtered market items
     """
-    # Only these tickers should use Yahoo Finance
-    YAHOO_ONLY_TICKERS = {
-        "^VIX",      # VIX - not available on Stooq
-        "DX-Y.NYB",  # Dollar Index - Yahoo format
-        "vix",       # lowercase variants
-        "dxy",
+    # Ticker format mapping: Yahoo format -> Stooq format
+    # Stooq doesn't use ^ prefix, uses different suffixes
+    TICKER_CONVERSIONS = {
+        # Indices - Stooq uses different symbols
+        "^VIX": "VIX.US",
+        "^GSPC": "SPX.US",
+        "^NDX": "NDX.US",
+        "^DJI": "DJI.US",
+        "^RUT": "RUT.US",
+        "^FTSE": "FTSE.UK",
+        "^GDAXI": "DAX.DE",
+        "^FCHI": "CAC.FR",
+        "^N225": "NKY.JP",
+        "^HSI": "HSI.HK",
+        "^STOXX": "SX5E.EU",
+        "^AXJO": "ASX.AU",
+        "^GSPTSE": "TSX.CA",
+        "^BVSP": "BVSP.BR",
+        # Dollar Index
+        "DX-Y.NYB": "DXY.US",
+        # Shanghai - special case
+        "000001.SS": "SHCOMP.CN",
     }
 
-    yahoo_items = []
+    yahoo_items = []  # Empty - we're not using Yahoo anymore
     stooq_items = []
 
     for item in registry.get("market", []):
@@ -96,32 +113,37 @@ def _split_registry_by_source(registry):
             item.get("name", "").upper()
         )
 
-        # Check if this ticker should use Yahoo
-        ticker_upper = ticker.upper() if ticker else ""
-        ticker_lower = ticker.lower() if ticker else ""
+        if not ticker:
+            continue
 
-        if ticker in YAHOO_ONLY_TICKERS or ticker_upper in YAHOO_ONLY_TICKERS or ticker_lower in YAHOO_ONLY_TICKERS:
-            yahoo_items.append(item)
+        # Create Stooq item
+        stooq_item = dict(item)
+        stooq_item["source"] = "stooq"
+
+        # Convert ticker format for Stooq
+        if ticker in TICKER_CONVERSIONS:
+            stooq_ticker = TICKER_CONVERSIONS[ticker]
+        elif ticker.startswith("^"):
+            # Generic ^ prefix removal - add .US suffix
+            stooq_ticker = ticker[1:] + ".US"
+        elif ticker.endswith((".US", ".F", ".UK", ".DE", ".FR", ".JP")):
+            # Already in Stooq format
+            stooq_ticker = ticker
         else:
-            # Everything else goes to Stooq - convert ticker format if needed
-            stooq_item = dict(item)
-            stooq_item["source"] = "stooq"
+            # Regular ticker - add .US suffix
+            stooq_ticker = f"{ticker}.US"
 
-            # Convert Yahoo ticker format to Stooq format if needed
-            if ticker and not ticker.endswith((".US", ".F")):
-                # Add .US suffix for regular tickers (stocks, ETFs)
-                stooq_ticker = f"{ticker}.US"
-                if "params" not in stooq_item:
-                    stooq_item["params"] = {}
-                stooq_item["params"]["ticker"] = stooq_ticker
+        if "params" not in stooq_item:
+            stooq_item["params"] = {}
+        stooq_item["params"]["ticker"] = stooq_ticker
 
-            stooq_items.append(stooq_item)
+        stooq_items.append(stooq_item)
 
     # Create filtered registries
     yahoo_registry = {**registry, "market": yahoo_items}
     stooq_registry = {**registry, "market": stooq_items}
 
-    logger.info(f"Registry split: {len(yahoo_items)} Yahoo (VIX/DXY only), {len(stooq_items)} Stooq")
+    logger.info(f"Registry: {len(stooq_items)} tickers routed to Stooq (Yahoo disabled)")
 
     return yahoo_registry, stooq_registry
 
