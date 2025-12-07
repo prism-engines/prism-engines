@@ -1,118 +1,169 @@
+{# dashboard/templates/dashboard.html #}
 {% extends "base.html" %}
 {% block content %}
+<div class="page">
+  <div class="page-main">
+    <div class="container-xl py-4">
 
-<div class="row">
-    <div class="col-3">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+          <div>
+            <h2 class="page-title mb-1">PRISM Controller</h2>
+            <div class="text-secondary">
+              Unified geometric model of equilibrium
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <div class="card">
+      <div class="row row-cards">
+        <!-- Left: Controls -->
+        <div class="col-md-4">
+          <form id="prism-form" class="card card-md">
             <div class="card-header">
-                <h3 class="card-title">Controls</h3>
+              <h3 class="card-title">Run configuration</h3>
             </div>
             <div class="card-body">
 
-                <!-- Diagnostics -->
+              <!-- Diagnostics -->
+              <div class="mb-3">
                 <label class="form-label">Diagnostics</label>
-                <select id="diagnostics" class="form-select mb-3">
-                    <option value="none">None</option>
-                    <option value="full">Full System ★</option>
-                    <option value="db">Database Health</option>
-                    <option value="fetch">Fetcher Health</option>
-                    <option value="lenses">Lens Execution</option>
-                    <option value="engines">Engine Runtime</option>
+                <select class="form-select" name="diagnostics">
+                  <option value="none" selected>None</option>
+                  <option value="full">Full System Check</option>
+                  <option value="db">Database Health</option>
+                  <option value="fetch">Fetcher Health</option>
+                  <option value="lenses">Lens Execution</option>
+                  <option value="engines">Engine Runtime</option>
                 </select>
+              </div>
 
-                <!-- Data Fetch -->
-                <label class="form-label">Data Fetch</label>
-                <select id="fetch-source" class="form-select mb-3" multiple>
-                    <option value="none" selected>No Fetch</option>
-                    <option value="fred">FRED</option>
-                    <option value="tiingo">Tiingo</option>
-                    <option value="climate">Climate</option>
-                </select>
-
-                <label class="form-label">Fetch Range</label>
-                <select id="fetch-range" class="form-select mb-3">
-                    <option value="none">None</option>
-                    <option value="30d">Last 30 Days</option>
-                    <option value="90d">Last 90 Days</option>
-                    <option value="full">Full History</option>
-                </select>
-
-                <!-- Analysis -->
+              <!-- Analysis -->
+              <div class="mb-3">
                 <label class="form-label">Analysis</label>
-                <select id="analysis" class="form-select mb-3">
-                    <option value="none">None</option>
-                    <option value="coherence">Market Coherence</option>
-                    <option value="correlation">Correlation Matrix</option>
-                    <option value="families">Cross-Family Correlation</option>
-                    <option value="calibrated">Calibrated Engine</option>
-                    <option value="regime">Regime Detection</option>
-                    <option value="20yr">20-Year Full ★</option>
-                    <option value="40yr">40-Year Full ★</option>
+                <select class="form-select" name="analysis">
+                  <option value="none" selected>None</option>
+                  <option value="coherence">Market Coherence</option>
+                  <option value="correlation">Correlation Matrix</option>
+                  <option value="families">Cross-Family Correlation</option>
+                  <option value="calibrated">Calibrated Engine</option>
+                  <option value="regime">Regime Detection</option>
+                  <option value="20yr">20-Year Full Analysis</option>
+                  <option value="40yr">40-Year Full Analysis</option>
                 </select>
+              </div>
 
-                <!-- ML / Meta -->
-                <label class="form-label">ML / Meta Mode</label>
-                <select id="mlmeta" class="form-select mb-3">
-                    <option value="none">None</option>
-                    <option value="ml">ML Only</option>
-                    <option value="meta">Meta Only</option>
-                    <option value="mlmeta">ML + Meta</option>
+              <!-- Fetch -->
+              <div class="mb-3">
+                <label class="form-label">Data fetch (optional)</label>
+                <div class="form-selectgroup form-selectgroup-pills">
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="fetch_source" value="fred"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">FRED</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="fetch_source" value="tiingo"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">Tiingo</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="fetch_source" value="climate"
+                           class="form-selectgroup-input" disabled>
+                    <span class="form-selectgroup-label">Climate (frozen)</span>
+                  </label>
+                </div>
+                <small class="form-hint">
+                  Warning: Tiingo has rate limits. Use sparingly.
+                </small>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Fetch range</label>
+                <select class="form-select" name="fetch_range">
+                  <option value="none">None</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="90d">Last 90 days</option>
+                  <option value="full">Full history</option>
                 </select>
+              </div>
 
-                <!-- Systems -->
+              <!-- ML / Meta -->
+              <div class="mb-3">
+                <label class="form-label">ML / Meta</label>
+                <select class="form-select" name="mlmeta">
+                  <option value="none" selected>None</option>
+                  <option value="ml">ML only</option>
+                  <option value="meta">Meta only</option>
+                  <option value="both">ML + Meta</option>
+                </select>
+              </div>
+
+              <!-- Systems -->
+              <div class="mb-3">
                 <label class="form-label">Systems / Domains</label>
-                <select id="system-domain" class="form-select mb-3" multiple>
-                    <option value="market" selected>Market</option>
-                    <option value="liquidity">Liquidity</option>
-                    <option value="credit">Credit</option>
-                    <option value="macro">Macro & Rates</option>
-                    <option value="vol">Volatility</option>
-                    <option value="climate">Climate</option>
-                </select>
-
-                <!-- Run -->
-                <button id="run-btn" class="btn btn-primary w-100 mt-3">
-                    ▶ Run PRISM
-                </button>
+                <div class="form-selectgroup form-selectgroup-pills">
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="market"
+                           class="form-selectgroup-input" checked>
+                    <span class="form-selectgroup-label">Market</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="liquidity"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">Liquidity</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="credit"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">Credit</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="macro"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">Macro</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="vol"
+                           class="form-selectgroup-input">
+                    <span class="form-selectgroup-label">Volatility</span>
+                  </label>
+                  <label class="form-selectgroup-item">
+                    <input type="checkbox" name="systems" value="climate"
+                           class="form-selectgroup-input" disabled>
+                    <span class="form-selectgroup-label">Climate</span>
+                  </label>
+                </div>
+              </div>
 
             </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+              <div class="text-secondary small" id="run-status">
+                Ready.
+              </div>
+              <button type="submit" class="btn btn-primary" id="run-button">
+                Run PRISM
+              </button>
+            </div>
+          </form>
         </div>
-    </div>
 
-    <!-- OUTPUT AREA -->
-    <div class="col-9">
-        <div class="card">
-            <div class="card-header"><h3 class="card-title">Output</h3></div>
+        <!-- Right: Results -->
+        <div class="col-md-8">
+          <div class="card card-md">
+            <div class="card-header">
+              <h3 class="card-title">Run output</h3>
+            </div>
             <div class="card-body">
-                <pre id="output" style="min-height:400px;">Waiting for PRISM run...</pre>
+              <pre id="output-json" class="code-block mb-3" style="max-height: 300px; overflow-y: auto; background: var(--tblr-bg-surface-secondary); padding: 1rem; border-radius: 4px;">Waiting for run...</pre>
+              <div id="output-actions"></div>
             </div>
+          </div>
         </div>
+      </div>
+
     </div>
+  </div>
 </div>
-
-<script>
-document.getElementById("run-btn").onclick = async () => {
-    const payload = {
-        diagnostics: document.getElementById("diagnostics").value,
-        fetch_source: [...document.getElementById("fetch-source").selectedOptions].map(o => o.value),
-        fetch_range: document.getElementById("fetch-range").value,
-        analysis: document.getElementById("analysis").value,
-        mlmeta: document.getElementById("mlmeta").value,
-        systems: [...document.getElementById("system-domain").selectedOptions].map(o => o.value)
-    };
-
-    const resp = await fetch("/run", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
-    });
-
-    const data = await resp.json();
-
-    document.getElementById("output").textContent =
-        JSON.stringify(data, null, 2);
-};
-</script>
-
 {% endblock %}
