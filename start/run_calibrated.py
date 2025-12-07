@@ -607,7 +607,11 @@ def generate_signals(rankings: pd.DataFrame, weights: dict) -> pd.DataFrame:
                 'weighted_score': weighted,
                 'status': status,
             })
-    
+
+    # Ensure each signal dict includes a numeric 'rank'
+    for idx, s in enumerate(signals):
+        s.setdefault("rank", idx + 1)
+
     return pd.DataFrame(signals).sort_values('rank')
 
 
