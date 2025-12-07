@@ -36,6 +36,15 @@ from .executor import WorkflowExecutor
 from .output_manager import OutputManager
 from .dispatcher import Dispatcher, DispatchError
 
+# Import report generator (optional - requires jinja2)
+try:
+    from .report_generator import ReportGenerator, generate_report
+    _REPORTS_AVAILABLE = True
+except ImportError:
+    _REPORTS_AVAILABLE = False
+    ReportGenerator = None
+    generate_report = None
+
 __all__ = [
     "CLIRunner",
     "run_cli",
@@ -44,3 +53,9 @@ __all__ = [
     "Dispatcher",
     "DispatchError",
 ]
+
+if _REPORTS_AVAILABLE:
+    __all__.extend([
+        "ReportGenerator",
+        "generate_report",
+    ])

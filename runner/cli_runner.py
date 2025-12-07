@@ -298,7 +298,12 @@ class CLIRunner:
                 summary += "\n" + self.output.format_regime_comparison(results)
             self.output.save_text(summary, "summary.txt")
 
+            # Generate HTML report
+            html_path = self.output.generate_html_report(results, open_browser=False)
+
             print(f"\n[SAVED] Results saved to: {run_dir}")
+            if html_path:
+                print(f"[HTML] Report: {html_path}")
 
         except Exception as e:
             logger.error(f"Could not save results: {e}")

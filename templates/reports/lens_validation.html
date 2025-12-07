@@ -1,0 +1,93 @@
+{% extends "reports/base_report.html" %}
+
+{% block report_title %}Lens Validation Report{% endblock %}
+{% block report_subtitle %}Engine validation results for PRISM analysis system{% endblock %}
+
+{% block summary_stats %}
+<div class="card stat-card">
+    <div class="stat-value">{{ engines_validated | default(0) }}</div>
+    <div class="stat-label">Engines Tested</div>
+</div>
+<div class="card stat-card">
+    <div class="stat-value text-success">{{ engines_valid | default(0) }}</div>
+    <div class="stat-label">Valid</div>
+</div>
+<div class="card stat-card">
+    <div class="stat-value text-danger">{{ (engines_validated | default(0)) - (engines_valid | default(0)) }}</div>
+    <div class="stat-label">Invalid</div>
+</div>
+<div class="card stat-card">
+    <div class="stat-value">{{ ((engines_valid | default(0)) / (engines_validated | default(1)) * 100) | round }}%</div>
+    <div class="stat-label">Pass Rate</div>
+</div>
+{% endblock %}
+
+{% block report_content %}
+
+<!-- Validation Results -->
+{% if validation_details %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">~</span>
+        <h2>Validation Details</h2>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Engine</th>
+                <th>Status</th>
+                <th>Loadable</th>
+                <th>Has Analyze</th>
+                <th>Has Rank</th>
+                <th>Errors</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for engine, details in validation_details.items() | sort %}
+            <tr>
+                <td><strong>{{ engine }}</strong></td>
+                <td>
+                    {% if details.valid %}
+                    <span class="badge badge-success">Valid</span>
+                    {% else %}
+                    <span class="badge badge-danger">Invalid</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if details.loadable %}
+                    <span class="text-success">YES</span>
+                    {% else %}
+                    <span class="text-danger">NO</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if details.has_analyze %}
+                    <span class="text-success">YES</span>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if details.has_rank_indicators %}
+                    <span class="text-success">YES</span>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if details.errors %}
+                    <span class="text-danger font-mono" style="font-size: 0.75rem;">
+                        {{ details.errors[0][:50] }}{% if details.errors[0] | length > 50 %}...{% endif %}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% endblock %}
