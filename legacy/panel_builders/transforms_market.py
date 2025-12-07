@@ -2,16 +2,28 @@
 PRISM Market Transforms
 =======================
 
+DEPRECATED: This module uses domain-specific logic (market) and will be removed.
+The new architecture is domain-agnostic - all indicators are treated equally.
+
 Transformation utilities for market data series.
 """
 
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+
+# Deprecation warning
+warnings.warn(
+    "panel.transforms_market is DEPRECATED. "
+    "The new architecture is domain-agnostic - use generic transforms instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 logger = logging.getLogger(__name__)
 

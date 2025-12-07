@@ -3,12 +3,16 @@
 PRISM Climate Panel Builder
 ===========================
 
+DEPRECATED: This module uses domain-specific logic (climate) and will be removed.
+Use panel.runtime_loader.load_panel(indicator_names) instead.
+Panels should be defined at runtime by the UI, not in files.
+
 Builds analysis panel from climate database.
 Same format as market panel for drop-in compatibility with PRISM engines.
 
 Usage:
     python build_climate_panel.py
-    
+
 Output:
     ~/prism_data/climate_panel.csv
 """
@@ -18,6 +22,15 @@ import sqlite3
 from pathlib import Path
 import logging
 import warnings
+
+# Deprecation warning
+warnings.warn(
+    "panel.build_climate_panel is DEPRECATED. "
+    "Use panel.runtime_loader.load_panel(indicator_names) instead. "
+    "Panels should be defined at runtime, not in domain-specific files.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

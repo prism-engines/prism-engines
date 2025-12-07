@@ -2,26 +2,32 @@
 PRISM Panel Module
 ==================
 
-Panel building layer that reads from the database and registries
-to produce a unified, engine-ready panel.
+Domain-agnostic panel loading from the unified indicator_values table.
+
+Panels are defined at runtime by the UI as simple lists of indicator names.
+There are NO file-based panel definitions.
 
 Usage:
-    from panel.build_panel import build_panel
+    from panel import load_panel
 
-    # Build the master panel
-    df = build_panel()
+    # Load indicators selected by UI at runtime
+    selected = ["sp500", "vix", "t10y2y"]
+    panel = load_panel(selected)
+
+Legacy panel builders have been moved to legacy/panel_builders/
+and are deprecated.
 """
 
-from panel.build_panel import build_panel
+from panel.runtime_loader import (
+    load_panel,
+    list_available_indicators,
+    get_indicator_info,
+)
 from panel.validators import validate_panel
-from panel.transforms_market import align_market_series, compute_returns
-from panel.transforms_econ import align_econ_series, forward_fill_to_daily
 
 __all__ = [
-    "build_panel",
+    "load_panel",
+    "list_available_indicators",
+    "get_indicator_info",
     "validate_panel",
-    "align_market_series",
-    "compute_returns",
-    "align_econ_series",
-    "forward_fill_to_daily",
 ]

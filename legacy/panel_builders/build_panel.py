@@ -1,6 +1,9 @@
 """
 PRISM Panel Builder - Builds unified panel from database indicators.
 
+DEPRECATED: This module uses domain-specific logic and will be removed.
+Use panel.runtime_loader.load_panel() instead.
+
 Schema v2 Compatible:
   - Reads from indicator_values table (universal data table)
   - Falls back to deprecated tables for backward compatibility
@@ -11,11 +14,22 @@ Usage:
 """
 
 from __future__ import annotations
+
 import json
 import logging
+import warnings
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import pandas as pd
+
+# Deprecation warning
+warnings.warn(
+    "panel.build_panel is DEPRECATED and will be removed. "
+    "Use panel.runtime_loader.load_panel(indicator_names) instead. "
+    "Panels should be defined at runtime, not in files.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parent.parent
