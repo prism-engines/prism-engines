@@ -95,12 +95,23 @@ class EngineLoader:
 
     def list_engines(self) -> List[str]:
         """
-        List all available engine names.
+        List all available engine names including plugins.
 
         Returns:
             List of engine keys
         """
-        return list(self.registry.get("engines", {}).keys())
+        engines = set(self.registry.get("engines", {}).keys())
+
+        # Plugin engines
+        try:
+            from core.plugin_loader import PluginLoader
+            plugin_loader = PluginLoader()
+            plugin_loader.discover_engines()
+            engines.update(plugin_loader._engines.keys())
+        except ImportError:
+            pass
+
+        return sorted(e for e in engines if e)
 
     def list_lenses(self) -> List[str]:
         """
