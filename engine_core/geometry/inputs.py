@@ -7,12 +7,18 @@ Prepares and validates input series for the geometry engine.
 The geometry engine performs multi-dimensional analysis of indicator
 relationships. This module ensures all required input series are
 available and properly formatted.
+
+Schema v2 Notes:
+- Uses indicator_values.indicator_name as the key (not indicator_id)
+- Joins to indicators table via indicators.name
+- No numeric IDs used for linking tables
 """
 
 from __future__ import annotations
 
 import logging
 import sqlite3
+import warnings
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -60,21 +66,20 @@ def get_geometry_input_series(
         logger.info("No indicator_values table found - geometry inputs not yet available")
         return []
 
-    # Get all indicators from database
+    # Get all indicators from database (Schema v2 - uses indicator_name, not indicator_id)
     cursor.execute(
         """
         SELECT
-            i.id,
-            i.name,
+            iv.indicator_name,
             i.system,
-            COUNT(iv.id) as count,
+            COUNT(*) as count,
             MIN(iv.date) as start_date,
             MAX(iv.date) as end_date
-        FROM indicators i
-        LEFT JOIN indicator_values iv ON i.id = iv.indicator_id
-        GROUP BY i.id
+        FROM indicator_values iv
+        LEFT JOIN indicators i ON iv.indicator_name = i.name
+        GROUP BY iv.indicator_name
         HAVING count > 0
-        ORDER BY i.system, i.name
+        ORDER BY i.system, iv.indicator_name
         """
     )
 
@@ -83,11 +88,11 @@ def get_geometry_input_series(
 
     for row in rows:
         inputs.append({
-            "name": row[1],
-            "system": row[2],
-            "count": row[3],
-            "start_date": row[4],
-            "end_date": row[5],
+            "name": row[0],
+            "system": row[1] or "unknown",  # May be NULL if not in indicators table
+            "count": row[2],
+            "start_date": row[3],
+            "end_date": row[4],
         })
 
     logger.info(f"Found {len(inputs)} indicators available for geometry engine")
@@ -134,6 +139,8 @@ def load_geometry_matrix(
     """
     Load a matrix of indicator values for geometric analysis.
 
+    Schema v2: Uses indicator_values.indicator_name directly (no join needed for values).
+
     Args:
         conn: SQLite database connection
         indicator_names: List of indicator names to include
@@ -141,19 +148,18 @@ def load_geometry_matrix(
         end_date: Optional end date filter
 
     Returns:
-        DataFrame with date index and one column per indicator
+        DataFrame with date index and one column per indicator (columns = indicator names)
     """
     if not indicator_names:
         return pd.DataFrame()
 
-    cursor = conn.cursor()
     placeholders = ",".join(["?" for _ in indicator_names])
 
+    # Schema v2: Query indicator_values directly using indicator_name
     query = f"""
-        SELECT iv.date, i.name, iv.value
+        SELECT iv.indicator_name, iv.date, iv.value
         FROM indicator_values iv
-        JOIN indicators i ON iv.indicator_id = i.id
-        WHERE i.name IN ({placeholders})
+        WHERE iv.indicator_name IN ({placeholders})
     """
     params = list(indicator_names)
 
@@ -165,15 +171,15 @@ def load_geometry_matrix(
         query += " AND iv.date <= ?"
         params.append(end_date)
 
-    query += " ORDER BY iv.date, i.name"
+    query += " ORDER BY iv.indicator_name, iv.date"
 
     df = pd.read_sql_query(query, conn, params=params)
 
     if df.empty:
         return pd.DataFrame()
 
-    # Pivot to wide format
+    # Pivot to wide format (columns = indicator_name)
     df["date"] = pd.to_datetime(df["date"])
-    matrix = df.pivot(index="date", columns="name", values="value")
+    matrix = df.pivot(index="date", columns="indicator_name", values="value")
 
     return matrix
