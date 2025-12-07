@@ -30,32 +30,77 @@ import json
 import pandas as pd
 
 from output_config import OUTPUT_DIR, DATA_DIR
-from sql_schema_extension import PrismDB
+from sql_schema_extension import PrismDB, ensure_schema, table_exists, get_table_row_count
 
 OUTPUT_PATH = OUTPUT_DIR / "dashboard_full.html"
 
 
 def generate_full_dashboard():
-    """Generate full analytics dashboard."""
-    
+    """
+    Generate full analytics dashboard with graceful degradation.
+
+    Handles missing data gracefully:
+    - If analysis_signals table missing/empty: shows warning banner
+    - If calibration incomplete: displays degraded mode notice
+    - Always renders successfully without crashing
+    """
+    # Ensure schema exists first
+    ensure_schema()
+
     db = PrismDB()
+
+    # Check calibration status for degraded mode detection
+    calibration_complete = True
+    degraded_reasons = []
+
+    # Check if analysis_signals table exists and has data
+    if not table_exists('analysis_signals'):
+        calibration_complete = False
+        degraded_reasons.append("analysis_signals table missing")
+    elif get_table_row_count('analysis_signals') == 0:
+        calibration_complete = False
+        degraded_reasons.append("no signals data available")
+
+    # Check if calibration_lenses has data
+    if not table_exists('calibration_lenses') or get_table_row_count('calibration_lenses') == 0:
+        calibration_complete = False
+        degraded_reasons.append("lens calibration not completed")
+
+    # Get data with safe fallbacks
+    try:
+        signals = db.get_latest_signals() if calibration_complete else pd.DataFrame()
+    except Exception:
+        signals = pd.DataFrame()
+        calibration_complete = False
+        degraded_reasons.append("failed to load signals")
+
+    try:
+        calibration = db.get_calibration()
+    except Exception:
+        calibration = {}
+
+    try:
+        danger_history = db.get_danger_history(days=90) if calibration_complete else pd.DataFrame()
+    except Exception:
+        danger_history = pd.DataFrame()
     
-    # Get data
-    signals = db.get_latest_signals()
-    calibration = db.get_calibration()
-    danger_history = db.get_danger_history(days=90)
-    
-    # Get rankings
-    rankings_path = OUTPUT_DIR / "tuned_analysis" / "rankings.csv"
-    if rankings_path.exists():
-        rankings = pd.read_csv(rankings_path, index_col=0)
-    else:
-        rankings = pd.DataFrame()
-    
+    # Get rankings - try multiple locations
+    rankings = pd.DataFrame()
+    for rankings_path in [
+        OUTPUT_DIR / "calibrated_analysis" / "rankings.csv",
+        OUTPUT_DIR / "tuned_analysis" / "rankings.csv",
+    ]:
+        if rankings_path.exists():
+            try:
+                rankings = pd.read_csv(rankings_path, index_col=0)
+                break
+            except Exception:
+                pass
+
     # Prepare chart data
-    lens_weights = calibration.get('lens_weights', {})
-    lens_names = json.dumps(list(lens_weights.keys()))
-    lens_values = json.dumps(list(lens_weights.values()))
+    lens_weights = calibration.get('lens_weights') or {}
+    lens_names = json.dumps(list(lens_weights.keys()) if lens_weights else [])
+    lens_values = json.dumps(list(lens_weights.values()) if lens_weights else [])
     
     # Rankings for chart
     if not rankings.empty:
@@ -97,20 +142,37 @@ def generate_full_dashboard():
             </div>
             """
     
-    # Build rankings table
+    # Build rankings table (handle both consensus_rank and weighted_rank columns)
     ranking_rows = ""
     if not rankings.empty:
+        rank_col = 'consensus_rank' if 'consensus_rank' in rankings.columns else 'weighted_rank' if 'weighted_rank' in rankings.columns else None
         for i, (ind, row) in enumerate(rankings.head(25).iterrows(), 1):
             tier = int(row.get('tier', 0)) if pd.notna(row.get('tier')) else '?'
             tier_class = f"tier-{tier}" if isinstance(tier, int) else ""
+            rank_value = row[rank_col] if rank_col and pd.notna(row.get(rank_col)) else i
             ranking_rows += f"""
             <tr class="{tier_class}">
                 <td>{i}</td>
                 <td>{ind}</td>
-                <td>{row['consensus_rank']:.1f}</td>
+                <td>{rank_value:.1f}</td>
                 <td>T{tier}</td>
             </tr>
             """
+
+    # Build degraded mode banner
+    degraded_banner = ""
+    if not calibration_complete:
+        reasons_text = ", ".join(degraded_reasons) if degraded_reasons else "calibration incomplete"
+        degraded_banner = f"""
+        <div class="degraded-banner">
+            <div class="degraded-icon">⚠️</div>
+            <div class="degraded-text">
+                <strong>Calibration Not Yet Completed</strong>
+                <p>Reason: {reasons_text}</p>
+                <p>Run the calibration pipeline to enable full dashboard features.</p>
+            </div>
+        </div>
+        """
     
     html = f"""
 <!DOCTYPE html>
@@ -273,6 +335,34 @@ def generate_full_dashboard():
             color: #666;
             font-size: 0.9em;
         }}
+        .degraded-banner {{
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+            color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+        .degraded-icon {{
+            font-size: 2.5em;
+        }}
+        .degraded-text strong {{
+            font-size: 1.2em;
+            display: block;
+            margin-bottom: 5px;
+        }}
+        .degraded-text p {{
+            margin: 2px 0;
+            opacity: 0.9;
+        }}
+        .empty-state {{
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }}
     </style>
 </head>
 <body>
@@ -280,8 +370,9 @@ def generate_full_dashboard():
         <h1>🔬 PRISM Analytics</h1>
         <p class="subtitle">Portfolio Risk Intelligence & Signal Monitor</p>
     </div>
-    
+
     <div class="container">
+        {degraded_banner}
         <div class="metrics-row">
             <div class="metric-card danger">
                 <div class="metric-value">{danger_count}</div>
@@ -296,7 +387,7 @@ def generate_full_dashboard():
                 <div class="metric-label">Normal</div>
             </div>
             <div class="metric-card info">
-                <div class="metric-value">{len(calibration.get('active_indicators', []))}</div>
+                <div class="metric-value">{len(calibration.get('active_indicators') or [])}</div>
                 <div class="metric-label">Active Indicators</div>
             </div>
         </div>
@@ -304,7 +395,7 @@ def generate_full_dashboard():
         <div class="signals-section">
             <h2>🚦 Current Signals</h2>
             <div class="signals-grid">
-                {signal_cards}
+                {signal_cards if signal_cards else '<div class="empty-state">No signals available. Run calibration to generate signals.</div>'}
             </div>
         </div>
         
@@ -325,7 +416,7 @@ def generate_full_dashboard():
         
         <div class="table-card">
             <h3>📈 Full Rankings</h3>
-            <table>
+            {f'''<table>
                 <thead>
                     <tr>
                         <th>#</th>
@@ -337,7 +428,7 @@ def generate_full_dashboard():
                 <tbody>
                     {ranking_rows}
                 </tbody>
-            </table>
+            </table>''' if ranking_rows else '<div class="empty-state">No rankings available. Run analysis to generate rankings.</div>'}
         </div>
         
         <div class="footer">
