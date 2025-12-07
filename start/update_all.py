@@ -23,11 +23,18 @@ import argparse
 import logging
 import sqlite3
 import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+
+# Climate module freeze warning
+warnings.warn(
+    "Climate module detected but is currently frozen and NOT part of the pipeline.",
+    RuntimeWarning
+)
 
 # ---------------------------------------------------------------------
 # Path setup

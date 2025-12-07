@@ -183,9 +183,18 @@ Roadmap
 
  Documentation site
 
-License
+## Climate Module (Frozen)
+
+A future standalone project. Present in repository but not active.
+Please do not integrate, import, or modify the climate folder until the PRISM core engine is complete.
+
+---
+
+## License
 
 MIT (or your chosen license)
+
+---
 
 End of README
 
