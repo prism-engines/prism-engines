@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from flask import Flask, render_template, request, jsonify, send_from_directory
+import pandas as pd
+import numpy as np
 
 # -----------------------------------------------------------------------------
 # Paths
@@ -424,6 +426,373 @@ def download_models_overview():
     """
     docs_dir = Path(__file__).resolve().parent.parent / "docs"
     return send_from_directory(docs_dir, "models_overview.md", as_attachment=True)
+
+
+# -----------------------------------------------------------------------------
+# Engine vs Series API
+# -----------------------------------------------------------------------------
+
+# Series mapping: user-friendly names to indicator IDs
+SERIES_MAPPING = {
+    "sp500": "sp500_d",
+    "nasdaq": "nasdaq_d",
+    "t10y2y": "t10y2y_d",
+    "vix": "vix_d",
+    "m2sl": "m2sl_m",
+    "dgs10": "dgs10_d",
+    "dgs2": "dgs2_d",
+    "effr": "effr_d",
+}
+
+
+def _compute_rolling_correlation(panel: pd.DataFrame, window: int = 63) -> pd.Series:
+    """
+    Compute rolling mean pairwise correlation as a coherence proxy.
+    Returns a Series indexed by date with values in [0, 1].
+    """
+    if panel.shape[1] < 2:
+        return pd.Series(index=panel.index, data=0.5)
+
+    scores = []
+    dates = []
+
+    for i in range(window, len(panel)):
+        window_data = panel.iloc[i - window:i]
+        corr_matrix = window_data.corr()
+        # Get upper triangle (excluding diagonal)
+        mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
+        upper_corrs = corr_matrix.where(mask).stack()
+        if len(upper_corrs) > 0:
+            # Mean absolute correlation as coherence score
+            mean_corr = upper_corrs.abs().mean()
+            scores.append(float(mean_corr))
+        else:
+            scores.append(0.5)
+        dates.append(panel.index[i])
+
+    return pd.Series(data=scores, index=dates)
+
+
+def _compute_pca_instability(panel: pd.DataFrame, window: int = 63) -> pd.Series:
+    """
+    Compute rolling PCA instability: change in PC1 explained variance ratio.
+    High variance in explained ratio = unstable geometry.
+    """
+    from sklearn.decomposition import PCA
+
+    if panel.shape[1] < 2:
+        return pd.Series(index=panel.index, data=0.5)
+
+    pc1_ratios = []
+    dates = []
+
+    for i in range(window, len(panel)):
+        window_data = panel.iloc[i - window:i].dropna(axis=1, how="all")
+        window_data = window_data.dropna()
+
+        if window_data.shape[0] < 10 or window_data.shape[1] < 2:
+            pc1_ratios.append(np.nan)
+            dates.append(panel.index[i])
+            continue
+
+        try:
+            pca = PCA(n_components=1)
+            pca.fit(window_data)
+            pc1_ratios.append(pca.explained_variance_ratio_[0])
+        except Exception:
+            pc1_ratios.append(np.nan)
+        dates.append(panel.index[i])
+
+    result = pd.Series(data=pc1_ratios, index=dates)
+
+    # Compute rolling change as instability
+    instability = result.diff().abs().rolling(window=21, min_periods=1).mean()
+    # Normalize to 0-1
+    if instability.max() > 0:
+        instability = instability / instability.max()
+
+    return instability.fillna(0.5)
+
+
+def _compute_dispersion(panel: pd.DataFrame, window: int = 21) -> pd.Series:
+    """
+    Compute rolling cross-sectional dispersion (standard deviation across indicators).
+    Higher dispersion = more divergence in behavior.
+    """
+    # Normalize each column to returns
+    returns = panel.pct_change()
+
+    scores = []
+    dates = []
+
+    for i in range(window, len(returns)):
+        window_data = returns.iloc[i - window:i]
+        # Mean cross-sectional std for each day, then average over window
+        cross_std = window_data.std(axis=1).mean()
+        scores.append(float(cross_std) if pd.notna(cross_std) else 0)
+        dates.append(returns.index[i])
+
+    result = pd.Series(data=scores, index=dates)
+
+    # Normalize to 0-1
+    if result.max() > 0:
+        result = result / result.max()
+
+    return result.fillna(0)
+
+
+def _compute_regime_score(panel: pd.DataFrame, window: int = 126) -> pd.Series:
+    """
+    Compute regime stress score based on rolling volatility regime.
+    Uses volatility clustering as a regime proxy.
+    """
+    if panel.shape[1] < 1:
+        return pd.Series(index=panel.index, data=0.5)
+
+    # Use first column or mean for volatility
+    if panel.shape[1] > 1:
+        mean_series = panel.mean(axis=1)
+    else:
+        mean_series = panel.iloc[:, 0]
+
+    returns = mean_series.pct_change().dropna()
+    vol = returns.rolling(window=21, min_periods=5).std()
+
+    # Rolling percentile of volatility as regime score
+    scores = []
+    dates = []
+
+    for i in range(window, len(vol)):
+        window_vol = vol.iloc[i - window:i]
+        current_vol = vol.iloc[i]
+        if pd.notna(current_vol) and len(window_vol.dropna()) > 0:
+            percentile = (window_vol < current_vol).sum() / len(window_vol.dropna())
+            scores.append(float(percentile))
+        else:
+            scores.append(0.5)
+        dates.append(vol.index[i])
+
+    return pd.Series(data=scores, index=dates)
+
+
+def compute_engine_series(
+    panel: pd.DataFrame,
+    engine_name: str,
+    window: int = 63
+) -> pd.Series:
+    """
+    Compute engine scores over time.
+
+    Args:
+        panel: Wide-format DataFrame with indicators as columns
+        engine_name: One of coherence, hmm_regime, pca_instability, dispersion, meta, composite
+        window: Rolling window size
+
+    Returns:
+        pd.Series indexed by date with engine scores in [0, 1]
+    """
+    engine_name = engine_name.lower()
+
+    if engine_name == "coherence":
+        return _compute_rolling_correlation(panel, window=window)
+    elif engine_name in ("hmm_regime", "regime"):
+        return _compute_regime_score(panel, window=window)
+    elif engine_name == "pca_instability":
+        return _compute_pca_instability(panel, window=window)
+    elif engine_name == "dispersion":
+        return _compute_dispersion(panel, window=21)
+    elif engine_name in ("meta", "composite"):
+        # Average of all engines
+        coherence = _compute_rolling_correlation(panel, window=window)
+        regime = _compute_regime_score(panel, window=window)
+        pca_inst = _compute_pca_instability(panel, window=window)
+        dispersion = _compute_dispersion(panel, window=21)
+
+        # Align and average
+        combined = pd.DataFrame({
+            "coherence": coherence,
+            "regime": regime,
+            "pca": pca_inst,
+            "dispersion": dispersion,
+        })
+        return combined.mean(axis=1).fillna(0.5)
+    else:
+        raise ValueError(f"Unknown engine: {engine_name}")
+
+
+def align_engine_and_series(engine_series: pd.Series, data_series: pd.Series) -> pd.DataFrame:
+    """
+    Align engine scores and data series on shared dates.
+    Returns DataFrame with columns: ['engine', 'series'].
+    """
+    df = pd.DataFrame({
+        "engine": engine_series,
+        "series": data_series,
+    }).dropna(how="any")
+    return df
+
+
+@app.route("/api/engine_vs_series", methods=["GET"])
+def api_engine_vs_series():
+    """
+    Return engine output (bars) and selected series (line) on a common time axis.
+
+    Query params:
+      engine:     coherence | hmm_regime | pca_instability | dispersion | meta | composite
+      series:     indicator id (e.g., sp500, vix, t10y2y)
+      start:      YYYY-MM-DD (optional)
+      end:        YYYY-MM-DD (optional)
+      frequency:  daily | weekly | monthly (optional, default daily)
+    """
+    engine = request.args.get("engine", "coherence")
+    series_id = request.args.get("series", "sp500")
+    start = request.args.get("start")
+    end = request.args.get("end")
+    frequency = request.args.get("frequency", "daily")
+
+    try:
+        # Import data loaders
+        from panel.runtime_loader import load_panel, list_available_indicators
+        from data.sql.db_connector import load_indicator
+
+        # Get available indicators
+        available = list_available_indicators()
+
+        if not available:
+            return jsonify({
+                "error": "No indicators available in database",
+                "dates": [],
+                "bars": [],
+                "line": [],
+            }), 200
+
+        # Load panel for engine computation (use all available indicators)
+        panel = load_panel(
+            indicator_names=available,
+            start_date=start,
+            end_date=end,
+            skip_hvd_check=True,
+        )
+
+        if panel.empty:
+            return jsonify({
+                "error": "Panel is empty - no data in selected date range",
+                "dates": [],
+                "bars": [],
+                "line": [],
+            }), 200
+
+        # Handle frequency resampling
+        if frequency == "weekly":
+            panel = panel.resample("W").last()
+        elif frequency == "monthly":
+            panel = panel.resample("ME").last()
+
+        # Compute engine scores
+        engine_scores = compute_engine_series(panel, engine)
+
+        # Load selected series
+        indicator_id = SERIES_MAPPING.get(series_id.lower(), series_id)
+        series_df = load_indicator(indicator_id)
+
+        if series_df.empty:
+            return jsonify({
+                "error": f"Series '{series_id}' not found in database",
+                "dates": [],
+                "bars": [],
+                "line": [],
+            }), 200
+
+        # Convert to series
+        series_df["date"] = pd.to_datetime(series_df["date"])
+        data_series = series_df.set_index("date")["value"]
+
+        # Apply date filters to series
+        if start:
+            data_series = data_series[data_series.index >= start]
+        if end:
+            data_series = data_series[data_series.index <= end]
+
+        # Handle frequency resampling for series
+        if frequency == "weekly":
+            data_series = data_series.resample("W").last()
+        elif frequency == "monthly":
+            data_series = data_series.resample("ME").last()
+
+        # Align engine and series
+        aligned = align_engine_and_series(engine_scores, data_series)
+
+        if aligned.empty:
+            return jsonify({
+                "error": "No overlapping dates between engine and series",
+                "dates": [],
+                "bars": [],
+                "line": [],
+            }), 200
+
+        # Normalize series values for display (z-score normalization)
+        series_values = aligned["series"].values
+        if len(series_values) > 1 and np.std(series_values) > 0:
+            # Keep original values for display - frontend will handle dual axis
+            pass
+
+        return jsonify({
+            "dates": [d.strftime("%Y-%m-%d") for d in aligned.index],
+            "bars": [round(v, 4) for v in aligned["engine"].tolist()],
+            "line": [round(v, 4) if pd.notna(v) else None for v in aligned["series"].tolist()],
+            "meta": {
+                "engine": engine,
+                "series": series_id,
+                "start": aligned.index.min().strftime("%Y-%m-%d") if not aligned.empty else None,
+                "end": aligned.index.max().strftime("%Y-%m-%d") if not aligned.empty else None,
+                "frequency": frequency,
+                "n_points": len(aligned),
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "dates": [],
+            "bars": [],
+            "line": [],
+        }), 200
+
+
+@app.route("/api/available_series", methods=["GET"])
+def api_available_series():
+    """Return list of available series for the dropdown."""
+    try:
+        from panel.runtime_loader import list_available_indicators
+
+        available = list_available_indicators()
+
+        # Build response with friendly names
+        series_list = []
+        for key, indicator_id in SERIES_MAPPING.items():
+            if indicator_id in available:
+                series_list.append({
+                    "id": key,
+                    "name": key.upper().replace("_", " "),
+                    "indicator_id": indicator_id,
+                })
+
+        # Also add any other available indicators
+        mapped_ids = set(SERIES_MAPPING.values())
+        for ind in available:
+            if ind not in mapped_ids:
+                series_list.append({
+                    "id": ind,
+                    "name": ind,
+                    "indicator_id": ind,
+                })
+
+        return jsonify({"series": series_list})
+
+    except Exception as e:
+        return jsonify({"series": [], "error": str(e)})
 
 
 if __name__ == "__main__":
