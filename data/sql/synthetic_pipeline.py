@@ -182,16 +182,15 @@ def _load_input_series(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> Dict[str, pd.Series]:
-    """Load input series from database."""
+    """Load input series from database (Schema v2 - uses indicator_name)."""
     input_data = {}
 
     for input_name in inputs:
-        # Build query with optional date filters
+        # Schema v2: Query indicator_values directly using indicator_name
         query = """
             SELECT iv.date, iv.value
             FROM indicator_values iv
-            JOIN indicators i ON iv.indicator_id = i.id
-            WHERE i.name = ?
+            WHERE iv.indicator_name = ?
         """
         params = [input_name]
 
@@ -221,24 +220,21 @@ def _write_synthetic_values(
     name: str,
     series: pd.Series
 ) -> int:
-    """Write synthetic series values to database."""
-    # Get or create indicator
-    cursor.execute("SELECT id FROM indicators WHERE name = ?", (name,))
+    """Write synthetic series values to database (Schema v2 - uses indicator_name)."""
+    # Ensure indicator exists in registry
+    cursor.execute("SELECT name FROM indicators WHERE name = ?", (name,))
     row = cursor.fetchone()
 
-    if row:
-        indicator_id = row[0]
-    else:
+    if not row:
         cursor.execute(
             """
-            INSERT INTO indicators (name, system, frequency, source)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO indicators (name, source)
+            VALUES (?, ?)
             """,
-            (name, "finance", "daily", "synthetic"),
+            (name, "synthetic"),
         )
-        indicator_id = cursor.lastrowid
 
-    # Write values
+    # Schema v2: Write values using indicator_name directly
     count = 0
     for date_val, value in series.items():
         if pd.isna(value) or np.isinf(value):
@@ -246,10 +242,10 @@ def _write_synthetic_values(
         date_str = date_val.strftime("%Y-%m-%d")
         cursor.execute(
             """
-            INSERT OR REPLACE INTO indicator_values (indicator_id, date, value)
-            VALUES (?, ?, ?)
+            INSERT OR REPLACE INTO indicator_values (indicator_name, date, value, provenance)
+            VALUES (?, ?, ?, ?)
             """,
-            (indicator_id, date_str, float(value)),
+            (name, date_str, float(value), "synthetic"),
         )
         count += 1
 

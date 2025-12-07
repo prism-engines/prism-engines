@@ -1,0 +1,143 @@
+# PRISM Registry v2 - Domain-Agnostic Indicator Registry
+# ======================================================
+#
+# This registry contains ONLY indicator metadata needed for fetching.
+# NO domains, NO categories, NO panel definitions.
+# Panels are defined at runtime by the UI.
+#
+# Format:
+#   indicator_name:
+#     source: fred|tiingo|yahoo
+#     source_id: <ticker or series ID at source>
+#
+# All indicators are equal - selection happens at runtime.
+
+# Market Indices
+sp500:
+  source: fred
+  source_id: SP500
+
+nasdaq:
+  source: fred
+  source_id: NASDAQCOM
+
+djia:
+  source: fred
+  source_id: DJIA
+
+# Volatility
+vix:
+  source: fred
+  source_id: VIXCLS
+
+vxo:
+  source: fred
+  source_id: VXOCLS
+
+# Treasury Rates
+dgs2:
+  source: fred
+  source_id: DGS2
+
+dgs10:
+  source: fred
+  source_id: DGS10
+
+dgs30:
+  source: fred
+  source_id: DGS30
+
+fedfunds:
+  source: fred
+  source_id: DFF
+
+# Corporate Yields
+aaa_yield:
+  source: fred
+  source_id: DAAA
+
+baa_yield:
+  source: fred
+  source_id: DBAA
+
+# Spreads
+t10y2y:
+  source: fred
+  source_id: T10Y2Y
+
+t10y3m:
+  source: fred
+  source_id: T10Y3M
+
+hy_spread:
+  source: fred
+  source_id: BAMLH0A0HYM2
+
+bbb_spread:
+  source: fred
+  source_id: BAMLC0A4CBBB
+
+ted_spread:
+  source: fred
+  source_id: TEDRATE
+
+# FX
+dxy_broad:
+  source: fred
+  source_id: DTWEXBGS
+
+dxy_major:
+  source: fred
+  source_id: DTWEXM
+
+usdjpy:
+  source: fred
+  source_id: DEXJPUS
+
+eurusd:
+  source: fred
+  source_id: DEXUSEU
+
+# Commodities
+oil_wti:
+  source: fred
+  source_id: DCOILWTICO
+
+oil_brent:
+  source: fred
+  source_id: DCOILBRENTEU
+
+natgas:
+  source: fred
+  source_id: DHHNGSP
+
+# Financial Stress
+stlfsi:
+  source: fred
+  source_id: STLFSI4
+
+nfci:
+  source: fred
+  source_id: NFCI
+
+anfci:
+  source: fred
+  source_id: ANFCI
+
+# Monetary
+fed_balance:
+  source: fred
+  source_id: WALCL
+
+m2:
+  source: fred
+  source_id: M2SL
+
+monetary_base:
+  source: fred
+  source_id: BOGMBASE
+
+# Consumer
+consumer_sentiment:
+  source: fred
+  source_id: UMCSENT

@@ -1,27 +1,20 @@
 """
-PRISM Engine - Full Data Pipeline Orchestrator
+PRISM Engine - Full Data Pipeline Orchestrator (Registry v2)
 
-This script runs the full data pipeline:
+Domain-agnostic data pipeline using indicators.yaml registry.
 
-1. Load and validate the metric registry
-2. Run all fetchers (Yahoo Finance + FRED) and write to the database
-3. Build synthetic time series
-4. Build technical indicators
-5. Verify geometry engine inputs
+This script:
+1. Loads indicators from data/registry/indicators.yaml
+2. Fetches data from sources (FRED, etc.)
+3. Writes to unified indicator_values table (Schema v2)
+4. Builds synthetic time series
+5. Builds technical indicators
+6. Verifies geometry engine inputs
 
 CLI Usage:
-
-    # Full update from 2000-01-01 to today
     python start/update_all.py
-
-    # Full update with a custom start date
-    python start/update_all.py --start-date 1998-01-01
-
-    # Skip fetching (use existing DB data) but rebuild synthetics/technicals/geometry
     python start/update_all.py --skip-fetch
-
-    # Verbose logging
-    python start/update_all.py -v
+    python start/update_all.py --start-date 1998-01-01
 """
 
 from __future__ import annotations
@@ -32,10 +25,12 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 # ---------------------------------------------------------------------
-# Path setup so we can run as: python start/update_all.py
+# Path setup
 # ---------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -71,294 +66,191 @@ def step_header(step_num: int, title: str) -> None:
 
 
 # ---------------------------------------------------------------------
-# Registry loading / validation
+# Registry v2 - Load from YAML (domain-agnostic)
 # ---------------------------------------------------------------------
 
-def load_and_validate_registry() -> dict:
+def load_indicators_yaml() -> Dict[str, Dict[str, Any]]:
     """
-    Load and validate the metric registry.
+    Load indicators from data/registry/indicators.yaml (Registry v2).
 
-    Expects data/registry to expose:
-        - load_metric_registry()
-        - validate_registry(registry)
+    Returns:
+        Dict mapping indicator_name -> {source, source_id, ...}
     """
-    from data.registry import load_metric_registry, validate_registry
+    registry_path = PROJECT_ROOT / "data" / "registry" / "indicators.yaml"
 
-    registry = load_metric_registry()
-    validate_registry(registry)
-    return registry
+    if not registry_path.exists():
+        raise FileNotFoundError(
+            f"Registry v2 not found: {registry_path}\n"
+            "Please create data/registry/indicators.yaml"
+        )
+
+    with open(registry_path, "r") as f:
+        indicators = yaml.safe_load(f)
+
+    # Filter out comments/metadata (any non-dict entries)
+    return {k: v for k, v in indicators.items() if isinstance(v, dict)}
 
 
 # ---------------------------------------------------------------------
-# Fetchers
+# Unified Fetcher (Schema v2)
 # ---------------------------------------------------------------------
 
-def run_yahoo_fetcher(
-    registry: dict,
+def fetch_all_indicators(
+    indicators: Dict[str, Dict[str, Any]],
     conn: sqlite3.Connection,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> int:
     """
-    Fetch market data from Yahoo Finance and store it in the database.
+    Fetch all indicators and write to indicator_values (Schema v2).
+
+    Uses indicator_name as the key (no indicator_id).
 
     Returns:
-        Number of indicators successfully updated.
+        Number of indicators successfully fetched.
     """
-    from fetch.fetcher_yahoo import YahooFetcher
+    from data.sql.db_connector import add_indicator, write_dataframe
+    import pandas as pd
 
-    logger.info("Fetching market data from Yahoo Finance...")
+    # Group by source
+    fred_indicators = {k: v for k, v in indicators.items() if v.get("source") == "fred"}
 
-    # Get market tickers from registry
-    market_metrics = registry.get("market", [])
-    tickers = []
-    for metric in market_metrics:
-        ticker = metric.get("ticker") or metric.get("name")
-        if ticker:
-            tickers.append(ticker)
-
-    if not tickers:
-        logger.warning("No market tickers found in registry")
-        return 0
-
-    fetcher = YahooFetcher()
-    count = 0
-    cursor = conn.cursor()
-
-    for ticker in tickers:
-        try:
-            df = fetcher.fetch_single(ticker, start_date=start_date, end_date=end_date)
-
-            if df is None or df.empty:
-                logger.warning(f"No data for {ticker}")
-                continue
-
-            # Normalize column names
-            df = df.reset_index()
-            if "Date" in df.columns:
-                df = df.rename(columns={"Date": "date"})
-
-            # Get value column (close price)
-            value_col = ticker.lower()
-            if value_col not in df.columns:
-                # Try to find any value column
-                for col in df.columns:
-                    if col not in ["date", "index"]:
-                        value_col = col
-                        break
-
-            if value_col not in df.columns:
-                logger.warning(f"No value column found for {ticker}")
-                continue
-
-            indicator_df = df[["date", value_col]].copy()
-            indicator_df.columns = ["date", "value"]
-            indicator_df = indicator_df.dropna()
-
-            if indicator_df.empty:
-                continue
-
-            # Get or create indicator
-            name = ticker.lower()
-            cursor.execute("SELECT id FROM indicators WHERE name = ?", (name,))
-            row = cursor.fetchone()
-
-            if row:
-                indicator_id = row[0]
-            else:
-                cursor.execute(
-                    """
-                    INSERT INTO indicators (name, system, frequency, source)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (name, "finance", "daily", "yahoo"),
-                )
-                indicator_id = cursor.lastrowid
-
-            # Insert values
-            for _, r in indicator_df.iterrows():
-                date_val = r["date"]
-                if hasattr(date_val, "strftime"):
-                    date_str = date_val.strftime("%Y-%m-%d")
-                else:
-                    date_str = str(date_val)[:10]
-
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO indicator_values (indicator_id, date, value)
-                    VALUES (?, ?, ?)
-                    """,
-                    (indicator_id, date_str, float(r["value"])),
-                )
-
-            conn.commit()
-            count += 1
-            logger.info(f"  {name}: {len(indicator_df)} rows written")
-
-        except Exception as e:
-            logger.error(f"Error writing market series {ticker}: {e}")
-
-    return count
-
-
-def run_fred_fetcher(
-    registry: dict,
-    conn: sqlite3.Connection,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> int:
-    """
-    Fetch economic data from FRED and store it in the database.
-
-    Supports both legacy registry format and YAML-based Full Institutional Pack.
-
-    Returns:
-        Number of indicators successfully updated.
-    """
-    try:
-        from fetch.fetcher_fred import FREDFetcher
-    except ImportError:
-        logger.warning("FRED fetcher not available, skipping economic data")
-        return 0
-
-    logger.info("Fetching economic data from FRED...")
-
-    # Economic metrics live under registry["economic"]
-    economic_metrics = registry.get("economic", [])
-
-    fetcher = FREDFetcher()
-    cursor = conn.cursor()
     count = 0
 
-    for metric in economic_metrics:
-        name = metric.get("name", "").lower()
-        freq = metric.get("frequency", "monthly")
-
-        # Get FRED series ID - check multiple field names for compatibility
-        fred_id = metric.get("series_id") or metric.get("fred_id")
-
-        if not fred_id:
-            logger.debug(f"No FRED series_id for metric '{name}', skipping")
-            continue
-
+    # Fetch FRED indicators
+    if fred_indicators:
         try:
-            df = fetcher.fetch_single(
-                fred_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
+            from fetch.fetcher_fred import FREDFetcher
+            fetcher = FREDFetcher()
 
-            if df is None or df.empty:
-                logger.warning(f"No data for {name} ({fred_id})")
-                continue
+            for name, config in fred_indicators.items():
+                source_id = config.get("source_id")
+                if not source_id:
+                    logger.warning(f"No source_id for {name}, skipping")
+                    continue
 
-            df = df.reset_index()
+                try:
+                    df = fetcher.fetch_single(source_id, start_date=start_date, end_date=end_date)
 
-            # Normalize columns
-            if "Date" in df.columns:
-                df = df.rename(columns={"Date": "date"})
-            if fred_id in df.columns:
-                df = df.rename(columns={fred_id: "value"})
-            elif "value" not in df.columns:
-                # Take the first non-date column as value
-                value_col = [c for c in df.columns if c != "date"][0]
-                df = df.rename(columns={value_col: "value"})
+                    if df is None or df.empty:
+                        logger.warning(f"No data for {name} ({source_id})")
+                        continue
 
-            df = df[["date", "value"]].dropna()
-            if df.empty:
-                logger.warning(f"All values NaN for {name} ({fred_id})")
-                continue
+                    # Normalize to date/value format
+                    df = df.reset_index()
+                    if "Date" in df.columns:
+                        df = df.rename(columns={"Date": "date"})
 
-            # Get or create indicator row
-            cursor.execute("SELECT id FROM indicators WHERE name = ?", (name,))
-            row = cursor.fetchone()
+                    # Find value column
+                    if source_id in df.columns:
+                        df = df.rename(columns={source_id: "value"})
+                    elif "value" not in df.columns:
+                        value_cols = [c for c in df.columns if c not in ["date", "index"]]
+                        if value_cols:
+                            df = df.rename(columns={value_cols[0]: "value"})
 
-            if row:
-                indicator_id = row[0]
-            else:
-                cursor.execute(
-                    """
-                    INSERT INTO indicators (name, system, frequency, source)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (name, "finance", freq, "fred"),
-                )
-                indicator_id = cursor.lastrowid
+                    df = df[["date", "value"]].dropna()
 
-            # Insert values
-            for _, r in df.iterrows():
-                date_val = r["date"]
-                if hasattr(date_val, "strftime"):
-                    date_str = date_val.strftime("%Y-%m-%d")
-                else:
-                    date_str = str(date_val)[:10]
+                    if df.empty:
+                        logger.warning(f"All values NaN for {name}")
+                        continue
 
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO indicator_values (indicator_id, date, value)
-                    VALUES (?, ?, ?)
-                    """,
-                    (indicator_id, date_str, float(r["value"])),
-                )
+                    # Format dates
+                    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
 
-            conn.commit()
-            count += 1
-            logger.info(f"  {name}: {len(df)} rows written")
+                    # Register indicator (Schema v2)
+                    add_indicator(name, source="fred")
 
-        except Exception as e:
-            logger.error(f"Error fetching/writing economic series {name}: {e}")
+                    # Write to indicator_values (Schema v2)
+                    rows = write_dataframe(
+                        df,
+                        table="indicator_values",
+                        indicator_name=name,
+                        provenance="fred"
+                    )
+
+                    count += 1
+                    logger.info(f"  {name}: {rows} rows written")
+
+                except Exception as e:
+                    logger.error(f"Error fetching {name} ({source_id}): {e}")
+
+        except ImportError:
+            logger.warning("FRED fetcher not available")
 
     return count
 
 
 # ---------------------------------------------------------------------
-# Synthetic / technical builders and geometry verification
+# Synthetic / Technical builders (Schema v2 compatible)
 # ---------------------------------------------------------------------
 
 def run_synthetic_builder(
-    registry: dict,
+    indicators: Dict[str, Dict[str, Any]],
     conn: sqlite3.Connection,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> dict:
-    """
-    Build synthetic time series from base indicators.
+    """Build synthetic time series from base indicators."""
+    try:
+        from data.sql.synthetic_pipeline import build_synthetic_timeseries
 
-    Note: repo-cleanup's build_synthetic_timeseries takes (reg, conn, start, end)
-    """
-    from data.sql.synthetic_pipeline import build_synthetic_timeseries
-
-    logger.info("Building synthetic time series...")
-    return build_synthetic_timeseries(registry, conn, start_date, end_date)
+        logger.info("Building synthetic time series...")
+        # Convert to legacy format for compatibility
+        legacy_registry = {"indicators": list(indicators.keys())}
+        return build_synthetic_timeseries(legacy_registry, conn, start_date, end_date)
+    except Exception as e:
+        logger.warning(f"Synthetic builder not available or failed: {e}")
+        return {}
 
 
 def run_technical_builder(
-    registry: dict,
+    indicators: Dict[str, Dict[str, Any]],
     conn: sqlite3.Connection,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> dict:
-    """
-    Build technical indicators for sectors and other assets.
-    """
-    from engine_core.metrics.sector_technicals import build_technical_indicators
+    """Build technical indicators."""
+    try:
+        from engine_core.metrics.sector_technicals import build_technical_indicators
 
-    logger.info("Building technical indicators...")
-    return build_technical_indicators(registry, conn, start_date, end_date)
+        logger.info("Building technical indicators...")
+        legacy_registry = {"indicators": list(indicators.keys())}
+        return build_technical_indicators(legacy_registry, conn, start_date, end_date)
+    except Exception as e:
+        logger.warning(f"Technical builder not available or failed: {e}")
+        return {}
 
 
-def verify_geometry_inputs(
-    registry: dict,
-    conn: sqlite3.Connection,
-) -> int:
-    """
-    Verify that the geometry engine has the required input series available.
-    """
+def verify_geometry_inputs(conn: sqlite3.Connection) -> int:
+    """Verify that geometry engine has required inputs."""
     from engine_core.geometry.inputs import get_geometry_input_series
 
     logger.info("Verifying geometry engine inputs...")
-    inputs = get_geometry_input_series(conn, registry)
+    inputs = get_geometry_input_series(conn, {})
     return len(inputs)
+
+
+# ---------------------------------------------------------------------
+# Runtime Panel Loader (domain-agnostic)
+# ---------------------------------------------------------------------
+
+def load_panel(indicator_names: List[str]) -> "pd.DataFrame":
+    """
+    Load a panel of indicators at runtime.
+
+    This is the domain-agnostic panel loader - panels are defined
+    by the UI at runtime, not in files.
+
+    Args:
+        indicator_names: List of indicator names to include
+
+    Returns:
+        Wide-format DataFrame with date index and indicator columns
+    """
+    from data.sql.db_connector import load_all_indicators_wide
+
+    return load_all_indicators_wide(indicator_names)
 
 
 # ---------------------------------------------------------------------
@@ -368,12 +260,12 @@ def verify_geometry_inputs(
 def main() -> int:
     """Main entry point for the full update pipeline."""
     parser = argparse.ArgumentParser(
-        description="Full data pipeline update for PRISM Engine",
+        description="Full data pipeline update for PRISM Engine (Registry v2)",
     )
     parser.add_argument(
         "--skip-fetch",
         action="store_true",
-        help="Skip market/economic data fetching; rebuild synthetics/technicals only",
+        help="Skip data fetching; rebuild synthetics/technicals only",
     )
     parser.add_argument(
         "--start-date",
@@ -398,7 +290,7 @@ def main() -> int:
 
     print()
     print("=" * 60)
-    print("PRISM ENGINE - FULL UPDATE PIPELINE")
+    print("PRISM ENGINE - FULL UPDATE PIPELINE (Registry v2)")
     print("=" * 60)
     print(f"Started:     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Start date:  {args.start_date}")
@@ -407,14 +299,19 @@ def main() -> int:
     print()
 
     try:
-        # Step 1: Load and validate registry
-        step_header(1, "LOAD AND VALIDATE REGISTRY")
-        registry = load_and_validate_registry()
-        print(f"Registry version:     {registry.get('version')}")
-        print(f"Market metrics:       {len(registry.get('market', []))}")
-        print(f"Economic metrics:     {len(registry.get('economic', []))}")
-        print(f"Synthetic metrics:    {len(registry.get('synthetic', []))}")
-        print(f"Technical metrics:    {len(registry.get('technical', []))}")
+        # Step 1: Load indicators from YAML (Registry v2)
+        step_header(1, "LOAD INDICATORS (REGISTRY V2)")
+        indicators = load_indicators_yaml()
+        print(f"Indicators loaded:    {len(indicators)}")
+
+        # Group by source for display
+        by_source = {}
+        for name, config in indicators.items():
+            source = config.get("source", "unknown")
+            by_source[source] = by_source.get(source, 0) + 1
+
+        for source, count in by_source.items():
+            print(f"  {source}: {count}")
 
         # Step 2: Initialize DB
         step_header(2, "INITIALIZE DATABASE")
@@ -430,23 +327,15 @@ def main() -> int:
 
         # Step 3: Fetch data (optional)
         if not args.skip_fetch:
-            step_header(3, "FETCH DATA (YAHOO + FRED)")
+            step_header(3, "FETCH DATA (UNIFIED)")
 
-            yahoo_count = run_yahoo_fetcher(
-                registry=registry,
+            fetch_count = fetch_all_indicators(
+                indicators=indicators,
                 conn=conn,
                 start_date=args.start_date,
                 end_date=args.end_date,
             )
-            print(f"Yahoo Finance:        {yahoo_count} indicators updated")
-
-            fred_count = run_fred_fetcher(
-                registry=registry,
-                conn=conn,
-                start_date=args.start_date,
-                end_date=args.end_date,
-            )
-            print(f"FRED:                 {fred_count} indicators updated")
+            print(f"Indicators fetched:   {fetch_count}")
         else:
             step_header(3, "FETCH DATA (SKIPPED)")
             print("Skipping data fetch as requested via --skip-fetch")
@@ -454,28 +343,28 @@ def main() -> int:
         # Step 4: Build synthetic series
         step_header(4, "BUILD SYNTHETIC SERIES")
         synthetic_results = run_synthetic_builder(
-            registry=registry,
+            indicators=indicators,
             conn=conn,
             start_date=args.start_date,
             end_date=args.end_date,
         )
-        synthetic_ok = sum(1 for v in synthetic_results.values() if v > 0)
-        print(f"Synthetic series OK:  {synthetic_ok}/{len(synthetic_results)}")
+        synthetic_ok = sum(1 for v in synthetic_results.values() if v > 0) if synthetic_results else 0
+        print(f"Synthetic series OK:  {synthetic_ok}/{len(synthetic_results) if synthetic_results else 0}")
 
         # Step 5: Build technical indicators
         step_header(5, "BUILD TECHNICAL INDICATORS")
         technical_results = run_technical_builder(
-            registry=registry,
+            indicators=indicators,
             conn=conn,
             start_date=args.start_date,
             end_date=args.end_date,
         )
-        technical_ok = sum(1 for v in technical_results.values() if v > 0)
-        print(f"Technical OK:         {technical_ok}/{len(technical_results)}")
+        technical_ok = sum(1 for v in technical_results.values() if v > 0) if technical_results else 0
+        print(f"Technical OK:         {technical_ok}/{len(technical_results) if technical_results else 0}")
 
         # Step 6: Verify geometry inputs
         step_header(6, "VERIFY GEOMETRY INPUTS")
-        geometry_count = verify_geometry_inputs(registry, conn)
+        geometry_count = verify_geometry_inputs(conn)
         print(f"Geometry input series: {geometry_count}")
 
         # Summary
@@ -487,27 +376,14 @@ def main() -> int:
         print(f"DB path:    {db_path}")
         print()
 
-        # Print indicator summary by source
+        # Print indicator summary
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT source, COUNT(*) as count
-            FROM indicators
-            GROUP BY source
-            ORDER BY count DESC
-        """)
-        source_counts = cursor.fetchall()
-
-        if source_counts:
-            print("Indicators by Source:")
-            for source, count in source_counts:
-                print(f"  {source:15s}: {count:4d}")
-
-        # Total indicators and values
         cursor.execute("SELECT COUNT(*) FROM indicators")
         total_indicators = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM indicator_values")
         total_values = cursor.fetchone()[0]
-        print(f"\nTotal indicators:    {total_indicators}")
+
+        print(f"Total indicators:    {total_indicators}")
         print(f"Total data points:   {total_values:,}")
 
         conn.close()
