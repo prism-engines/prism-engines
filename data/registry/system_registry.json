@@ -44,9 +44,9 @@
     },
     "paths": {
         "database": {
-            "default": "data/sql/engine.db",
-            "dropbox": "~/Dropbox/prism-data/engine.db",
-            "colab": "/content/drive/MyDrive/prism-data/engine.db"
+            "default": "data/sql/prism.db",
+            "dropbox": "~/Dropbox/prism-data/prism.db",
+            "colab": "/content/drive/MyDrive/prism-data/prism.db"
         },
         "active_db_path": "default",
         "panels": "data/panels/",

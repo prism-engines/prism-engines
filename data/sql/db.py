@@ -7,7 +7,7 @@ indicator time-series across multiple systems (finance, economic, climate, etc.)
 The DB path can be configured via:
 1. PRISM_DB environment variable
 2. system_registry.json paths configuration
-3. Default: data/sql/engine.db
+3. Default: data/sql/prism.db
 
 Tables are created automatically from schema.sql.
 
@@ -53,7 +53,7 @@ def get_db_path() -> str:
     Priority:
     1. Environment variable: PRISM_DB
     2. Registry configuration: paths.database.{active_db_path}
-    3. Default location: data/sql/engine.db
+    3. Default location: data/sql/prism.db
     
     Returns:
         Absolute path to the database file
@@ -83,7 +83,7 @@ def get_db_path() -> str:
             pass  # Fall through to default
     
     # 3. Default location
-    return str(root / "data" / "sql" / "engine.db")
+    return str(root / "data" / "sql" / "prism.db")
 
 
 # ============================================================
