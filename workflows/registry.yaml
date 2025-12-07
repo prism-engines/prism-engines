@@ -452,6 +452,48 @@ workflows:
     computation_weight: 4
 
   # ---------------------------------------------------------------------------
+  system_diagnostics:
+    name: "System Diagnostics"
+    description: "Run system health, performance, and validation checks"
+    category: "validation"
+    module: "diagnostics.run_diagnostics"
+    class: "DiagnosticRunner"
+
+    engines_required: []  # No engines needed - runs independently
+
+    compatible_panels: ["*"]
+
+    parameters:
+      quick_mode:
+        type: "bool"
+        default: false
+        description: "Run quick diagnostics only (skip slow checks)"
+
+      category:
+        type: "string"
+        default: "all"
+        description: "Category to run: health, performance, validation, or all"
+        options:
+          - all
+          - health
+          - performance
+          - validation
+
+    outputs:
+      - type: "html"
+        template: "runner/diagnostics.html"
+
+      - type: "json"
+        filename: "diagnostics_{timestamp}.json"
+
+    estimated_runtime: "30 seconds - 2 minutes"
+    computation_weight: 1
+
+    schedule:
+      suggested: "on_demand"
+      run_before_analysis: true
+
+  # ---------------------------------------------------------------------------
   # CUSTOM WORKFLOWS
   # ---------------------------------------------------------------------------
   custom_analysis:

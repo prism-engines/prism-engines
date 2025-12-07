@@ -187,6 +187,83 @@ def create_app():
         """Health check endpoint."""
         return jsonify({"status": "ok", "timestamp": datetime.now().isoformat()})
 
+    @app.route("/diagnostics")
+    def diagnostics_page():
+        """Diagnostics page with results."""
+        quick_mode = request.args.get('quick', 'false').lower() == 'true'
+        category = request.args.get('category', 'all')
+
+        try:
+            from diagnostics import DiagnosticRunner
+            from diagnostics.core.base import DiagnosticCategory
+
+            # Map category
+            categories = None
+            if category != 'all':
+                cat_map = {
+                    'health': [DiagnosticCategory.HEALTH, DiagnosticCategory.SYSTEM],
+                    'performance': [DiagnosticCategory.PERFORMANCE],
+                    'validation': [DiagnosticCategory.VALIDATION],
+                }
+                categories = cat_map.get(category)
+
+            runner = DiagnosticRunner(verbose=False)
+            results = runner.run_all(categories=categories, quick_mode=quick_mode)
+
+            return render_template(
+                "runner/diagnostics.html",
+                results=results,
+                quick_mode=quick_mode,
+                category=category,
+                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+        except ImportError as e:
+            return render_template(
+                "runner/diagnostics.html",
+                error=f"Diagnostics module not available: {e}",
+                results=None
+            )
+        except Exception as e:
+            logger.exception(f"Diagnostics failed: {e}")
+            return render_template(
+                "runner/diagnostics.html",
+                error=str(e),
+                results=None
+            )
+
+    @app.route("/api/diagnostics")
+    def diagnostics_api():
+        """Run diagnostics and return JSON."""
+        quick_mode = request.args.get('quick', 'false').lower() == 'true'
+        category = request.args.get('category', 'all')
+
+        try:
+            from diagnostics import DiagnosticRunner
+            from diagnostics.core.base import DiagnosticCategory
+
+            categories = None
+            if category != 'all':
+                cat_map = {
+                    'health': [DiagnosticCategory.HEALTH, DiagnosticCategory.SYSTEM],
+                    'performance': [DiagnosticCategory.PERFORMANCE],
+                    'validation': [DiagnosticCategory.VALIDATION],
+                }
+                categories = cat_map.get(category)
+
+            runner = DiagnosticRunner(verbose=False)
+            results = runner.run_all(categories=categories, quick_mode=quick_mode)
+
+            return jsonify({
+                "success": True,
+                "results": results,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
+
     return app
 
 
