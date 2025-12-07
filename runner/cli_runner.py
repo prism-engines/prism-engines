@@ -323,6 +323,59 @@ class CLIRunner:
         return icon_map.get(icon_name, "[*]")
 
 
+def run_diagnostics_mode(quick_mode: bool = False, category: str = 'all', verbose: bool = True) -> int:
+    """Run system diagnostics."""
+    try:
+        from diagnostics import DiagnosticRunner, DiagnosticReporter
+        from diagnostics.core.base import DiagnosticCategory
+    except ImportError as e:
+        print(f"Error: Could not import diagnostics module: {e}")
+        print("Make sure the diagnostics module is installed.")
+        return 1
+
+    print("\n" + "=" * 60)
+    print("PRISM DIAGNOSTICS")
+    print("=" * 60)
+
+    # Map category argument to DiagnosticCategory
+    categories = None
+    if category != 'all':
+        cat_map = {
+            'health': [DiagnosticCategory.HEALTH, DiagnosticCategory.SYSTEM],
+            'performance': [DiagnosticCategory.PERFORMANCE],
+            'validation': [DiagnosticCategory.VALIDATION],
+        }
+        categories = cat_map.get(category)
+
+    # Run diagnostics
+    runner = DiagnosticRunner(verbose=verbose)
+    results = runner.run_all(categories=categories, quick_mode=quick_mode)
+
+    # Generate HTML report
+    try:
+        from pathlib import Path
+        from datetime import datetime
+
+        runs_dir = Path(__file__).parent.parent / "runs" / "diagnostics"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        html_path = runs_dir / f"diagnostics_{timestamp}.html"
+
+        reporter = DiagnosticReporter(results)
+        reporter.save(str(html_path), format='html')
+        print(f"\nReport saved: {html_path}")
+    except Exception as e:
+        logger.warning(f"Could not save HTML report: {e}")
+
+    # Return exit code based on results
+    summary = results.get('summary', {})
+    if summary.get('all_passed', False):
+        return 0
+    elif summary.get('failed', 0) > 0 or summary.get('errors', 0) > 0:
+        return 1
+    return 0
+
+
 def run_cli() -> int:
     """Entry point for CLI runner."""
     parser = argparse.ArgumentParser(
@@ -334,6 +387,8 @@ Examples:
   python prism_run.py --panel market            # Direct mode
   python prism_run.py --list-panels             # List panels
   python prism_run.py --list-workflows          # List workflows
+  python prism_run.py --diagnostics             # Run diagnostics
+  python prism_run.py --diagnostics --quick     # Quick diagnostics
         """
     )
 
@@ -370,6 +425,22 @@ Examples:
         "--verbose", "-v",
         action="store_true",
         help="Enable verbose logging"
+    )
+    parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Run system diagnostics"
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Quick mode for diagnostics (skip slow checks)"
+    )
+    parser.add_argument(
+        "--diagnostics-category",
+        choices=['health', 'performance', 'validation', 'all'],
+        default='all',
+        help="Category of diagnostics to run"
     )
 
     args = parser.parse_args()
@@ -409,6 +480,14 @@ Examples:
         for engine in runner.executor.list_engines():
             print(f"  * {engine}")
         return 0
+
+    # Diagnostics mode
+    if args.diagnostics:
+        return run_diagnostics_mode(
+            quick_mode=args.quick,
+            category=args.diagnostics_category,
+            verbose=args.verbose
+        )
 
     # Direct mode
     if args.panel:
