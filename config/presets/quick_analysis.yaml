@@ -1,0 +1,19 @@
+# Quick Analysis Preset
+# ======================
+# Fast analysis with minimal lenses
+
+name: Quick Analysis
+description: Fast analysis using core lenses only
+
+analysis:
+  default_lens_set: quick
+  comparison_periods:
+    - 2020
+
+engine:
+  timeout_seconds: 60
+  parallel: false
+
+output:
+  include_json: true
+  include_csv: false
