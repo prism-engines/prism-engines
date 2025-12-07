@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>PRISM Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+</head>
+
+<body class="theme-dark">
+    <div class="page">
+        <header class="navbar navbar-expand-md navbar-dark bg-dark">
+            <div class="container-xl">
+                <h2 style="color:white;">PRISM Dashboard</h2>
+            </div>
+        </header>
+
+        <div class="page-body">
+            <div class="container-xl py-3">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
