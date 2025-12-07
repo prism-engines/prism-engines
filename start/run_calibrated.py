@@ -35,12 +35,18 @@ import json
 import numpy as np
 import pandas as pd
 import sqlite3
+import yaml
 from datetime import datetime, timedelta
 from scipy import stats
 import warnings
 warnings.filterwarnings('ignore')
 
 from output_config import OUTPUT_DIR, DATA_DIR
+
+# Logging setup
+import logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 # Import calibration
 sys.path.insert(0, str(Path(__file__).parent))
@@ -53,6 +59,56 @@ from calibration_loader import (
 
 OUTPUT_PATH = OUTPUT_DIR / "calibrated_analysis"
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
+
+# Registry path
+REGISTRY_PATH = Path(__file__).parent.parent / "data" / "registry" / "indicators.yaml"
+
+
+def load_calibrated_indicators() -> list:
+    """
+    Load indicator names from registry that have calibration enabled.
+
+    Filters indicators by the 'calibration' tag in the registry.
+    Falls back to ALL indicators if none have calibration: true.
+
+    Returns:
+        List of indicator names for calibration
+    """
+    if not REGISTRY_PATH.exists():
+        logger.warning(f"Registry not found at {REGISTRY_PATH}")
+        return []
+
+    with open(REGISTRY_PATH, 'r') as f:
+        registry = yaml.safe_load(f)
+
+    if not registry:
+        logger.warning("Registry is empty")
+        return []
+
+    # Filter indicators with calibration: true
+    # Note: calibration can be True, or purpose list containing 'calibration'
+    selected = []
+    for k, v in registry.items():
+        if isinstance(v, dict):
+            # Check explicit calibration flag
+            if v.get("calibration", False) is True:
+                selected.append(k)
+            # Also check purpose list for 'calibration'
+            elif "calibration" in v.get("purpose", []):
+                selected.append(k)
+
+    # Safety fallback: if no indicators matched, use ALL indicators
+    if len(selected) == 0:
+        logger.warning("⚠️  No indicators matched calibration filters — using ALL indicators.")
+        selected = [k for k, v in registry.items() if isinstance(v, dict)]
+
+    # Log the indicator set being used
+    logger.info(f"📦 Using {len(selected)} indicators for calibration:")
+    # Show first few indicators
+    preview = selected[:10]
+    logger.info(f"   {', '.join(preview)}" + ("..." if len(selected) > 10 else ""))
+
+    return selected
 
 
 # =============================================================================
@@ -241,6 +297,13 @@ def run_calibrated_analysis():
     # Load data
     print("\n📥 Loading data...")
     panel = load_panel()
+
+    # Validate panel contains data
+    if panel.empty:
+        raise RuntimeError(
+            "Calibration panel is empty — registry filters or DB paths likely incorrect."
+        )
+
     print(f"   {panel.shape[0]} days × {panel.shape[1]} indicators")
     print(f"   Range: {panel.index.min().date()} to {panel.index.max().date()}")
     
@@ -285,10 +348,14 @@ def run_calibrated_analysis():
         weighted = row['weighted_rank']
         print(f"   {i:2}. {indicator:25} (weighted score: {weighted:.1f})")
     
+    # Protect against missing rank column
+    if "rank" not in weighted_rankings.columns:
+        weighted_rankings["rank"] = weighted_rankings.index.to_series().rank()
+
     # Save rankings
     weighted_rankings.to_csv(OUTPUT_PATH / "rankings.csv")
     print(f"\n💾 Saved: {OUTPUT_PATH / 'rankings.csv'}")
-    
+
     # Generate signals
     signals = generate_signals(weighted_rankings, weights)
     signals.to_csv(OUTPUT_PATH / "signals.csv")

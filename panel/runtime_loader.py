@@ -170,3 +170,94 @@ def get_indicator_info(indicator_name: str) -> Optional[dict]:
     from data.sql.db_connector import get_indicator
 
     return get_indicator(indicator_name)
+
+
+def load_calibrated_indicators_from_registry() -> List[str]:
+    """
+    Load indicator names from registry that have calibration enabled.
+
+    Filters indicators by the 'calibration' tag or 'purpose' containing 'calibration'.
+    Falls back to ALL indicators if none have calibration enabled.
+
+    Returns:
+        List of indicator names for calibration
+    """
+    from pathlib import Path
+    import yaml
+
+    project_root = Path(__file__).parent.parent
+    registry_path = project_root / "data" / "registry" / "indicators.yaml"
+
+    if not registry_path.exists():
+        logger.warning(f"Registry not found at {registry_path}")
+        return []
+
+    with open(registry_path, 'r') as f:
+        registry = yaml.safe_load(f)
+
+    if not registry:
+        logger.warning("Registry is empty")
+        return []
+
+    # Filter indicators with calibration: true or purpose containing 'calibration'
+    selected = []
+    for k, v in registry.items():
+        if isinstance(v, dict):
+            # Check explicit calibration flag
+            if v.get("calibration", False) is True:
+                selected.append(k)
+            # Also check purpose list for 'calibration'
+            elif "calibration" in v.get("purpose", []):
+                selected.append(k)
+
+    # Safety fallback: if no indicators matched, use ALL indicators
+    if len(selected) == 0:
+        logger.warning("No indicators matched calibration filters — using ALL indicators.")
+        selected = [k for k, v in registry.items() if isinstance(v, dict)]
+
+    logger.info(f"Using {len(selected)} indicators for calibration")
+
+    return selected
+
+
+def load_calibrated_panel(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    skip_hvd_check: bool = False,
+) -> pd.DataFrame:
+    """
+    Load a panel of calibration-enabled indicators.
+
+    Convenience function that combines load_calibrated_indicators_from_registry()
+    with load_panel().
+
+    Args:
+        start_date: Optional start date filter (YYYY-MM-DD)
+        end_date: Optional end date filter (YYYY-MM-DD)
+        skip_hvd_check: Set to True to skip HVD family divergence check
+
+    Returns:
+        Wide-format DataFrame with calibrated indicators
+
+    Raises:
+        RuntimeError: If the resulting panel is empty
+    """
+    indicator_names = load_calibrated_indicators_from_registry()
+
+    if not indicator_names:
+        raise RuntimeError("No indicators available for calibration")
+
+    panel_df = load_panel(
+        indicator_names=indicator_names,
+        start_date=start_date,
+        end_date=end_date,
+        skip_hvd_check=skip_hvd_check,
+    )
+
+    # Validate panel contains data
+    if panel_df.empty:
+        raise RuntimeError(
+            "Calibration panel is empty — registry filters or DB paths likely incorrect."
+        )
+
+    return panel_df
