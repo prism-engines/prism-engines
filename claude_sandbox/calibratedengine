@@ -1,0 +1,61 @@
+R: Fix Calibrated Engine Indicator Loading + Safety Fallback
+Files Modified
+
+start/run_calibrated.py
+
+panel/runtime_loader.py
+
+data/registry/indicators.yaml (optional: tag-based grouping fix)
+
+Add test: tests/test_calibrated_loader.py
+
+🔧 Changes Implemented
+1. Fix: Indicator Loader Now Loads Correct Set
+selected = [
+    k for k, v in registry.items()
+    if v.get("calibration", True) is True
+]
+
+2. Safety fallback if empty
+if len(selected) == 0:
+    print("⚠️  No indicators matched calibration filters — using ALL indicators.")
+    selected = list(registry.keys())
+
+3. Validate panel contains data
+if panel.empty:
+    raise RuntimeError(
+        "Calibration panel is empty — registry filters or DB paths likely incorrect."
+    )
+
+4. Protect generate_signals() from missing rank column
+if "rank" not in weighted_rankings.columns:
+    weighted_rankings["rank"] = weighted_rankings.index + 1
+
+5. Add logging of actual indicator set
+📦 Using 57 indicators for calibration:
+   sp500, vix, t10y2y, ...
+
+🧪 NEW TESTS
+✔ test_calibrated_loader_fallback
+
+Ensures engine runs even when registry has no "calibration: true" tags.
+
+✔ test_calibrated_loader_basic
+
+Ensures panel loads with >0 rows.
+
+📦 ZIP PACKAGE READY?
+
+I can generate the entire PR as:
+
+✔ calibrated_loader_fix_PR.zip
+
+or
+
+✔ calibrated_loader_fix_PR.md
+
+Just tell me:
+
+👉 "Give me the ZIP."
+or
+👉 "Give me the Markdown PR."
