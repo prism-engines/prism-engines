@@ -269,6 +269,326 @@ families:
       default_representation: wti_d
       allow_multi_resolution: false
 
+  # ============================================================
+  # EQUITY STYLE FACTORS
+  # ============================================================
+
+  dow:
+    canonical_name: "Dow Jones Industrial Average"
+    description: "US blue-chip equity index (alias for djia)"
+    members:
+      dia:
+        source: tiingo
+        symbol: "DIA"
+        resolution: daily
+        history_start: 1998
+        use_for:
+          - geometry
+          - phase
+          - cross_index_coherence
+        notes: "ETF proxy for DJIA"
+
+      djia_fred:
+        source: fred
+        fred_code: "DJIA"
+        resolution: daily
+        history_start: 1992
+        use_for:
+          - calibration
+          - regime_baseline
+
+    rules:
+      default_representation: dia
+      allow_multi_resolution: false
+      correlation_warning_threshold: 0.95
+
+  style_growth:
+    canonical_name: "US Growth Style Factor"
+    description: "US growth equity exposure"
+    members:
+      iwf:
+        source: tiingo
+        symbol: "IWF"
+        resolution: daily
+        history_start: 2000
+        use_for:
+          - geometry
+          - style_rotation
+          - factor_momentum
+        notes: "iShares Russell 1000 Growth ETF"
+
+      qqq:
+        source: tiingo
+        symbol: "QQQ"
+        resolution: daily
+        history_start: 1999
+        use_for:
+          - geometry
+          - tech_proxy
+        notes: "Tech-heavy growth proxy"
+
+    rules:
+      default_representation: iwf
+      allow_multi_resolution: false
+      correlation_warning_threshold: 0.85
+
+  style_value:
+    canonical_name: "US Value Style Factor"
+    description: "US value equity exposure"
+    members:
+      iwd:
+        source: tiingo
+        symbol: "IWD"
+        resolution: daily
+        history_start: 2000
+        use_for:
+          - geometry
+          - style_rotation
+          - factor_momentum
+        notes: "iShares Russell 1000 Value ETF"
+
+    rules:
+      default_representation: iwd
+      allow_multi_resolution: false
+
+  # ============================================================
+  # FIXED INCOME
+  # ============================================================
+
+  treasury:
+    canonical_name: "US Treasury Yields"
+    description: "Multi-maturity treasury rate family"
+    members:
+      dgs2:
+        source: fred
+        fred_code: "DGS2"
+        resolution: daily
+        history_start: 1976
+        use_for:
+          - geometry
+          - yield_curve
+          - fed_expectations
+
+      dgs5:
+        source: fred
+        fred_code: "DGS5"
+        resolution: daily
+        history_start: 1962
+        use_for:
+          - geometry
+          - yield_curve
+
+      dgs10:
+        source: fred
+        fred_code: "DGS10"
+        resolution: daily
+        history_start: 1962
+        use_for:
+          - geometry
+          - yield_curve
+          - benchmark_rate
+
+      dgs30:
+        source: fred
+        fred_code: "DGS30"
+        resolution: daily
+        history_start: 1977
+        use_for:
+          - geometry
+          - yield_curve
+          - duration_risk
+
+      tlt:
+        source: tiingo
+        symbol: "TLT"
+        resolution: daily
+        history_start: 2002
+        use_for:
+          - geometry
+          - duration_hedge
+        notes: "Long-term treasury ETF proxy"
+
+    rules:
+      default_representation: dgs10
+      allow_multi_resolution: true
+      correlation_warning_threshold: 0.80
+      notes: "Multiple maturities OK in same analysis (yield curve)"
+
+  corporate_bond:
+    canonical_name: "US Corporate Bonds"
+    description: "Investment-grade and high-yield corporate bond exposure"
+    members:
+      lqd:
+        source: tiingo
+        symbol: "LQD"
+        resolution: daily
+        history_start: 2002
+        use_for:
+          - geometry
+          - credit_regime
+        notes: "Investment-grade corporate bond ETF"
+
+      hyg:
+        source: tiingo
+        symbol: "HYG"
+        resolution: daily
+        history_start: 2007
+        use_for:
+          - geometry
+          - credit_risk
+          - high_yield_spread
+        notes: "High-yield corporate bond ETF"
+
+      aaa_yield:
+        source: fred
+        fred_code: "DAAA"
+        resolution: daily
+        history_start: 1983
+        use_for:
+          - calibration
+          - long_term_credit
+
+      baa_yield:
+        source: fred
+        fred_code: "DBAA"
+        resolution: daily
+        history_start: 1986
+        use_for:
+          - calibration
+          - credit_spread
+
+    rules:
+      default_representation: lqd
+      allow_multi_resolution: false
+      correlation_warning_threshold: 0.75
+
+  # ============================================================
+  # GLOBAL EQUITY
+  # ============================================================
+
+  global_equity:
+    canonical_name: "Global Equity Exposure"
+    description: "Non-US developed and emerging market equity"
+    members:
+      efa:
+        source: tiingo
+        symbol: "EFA"
+        resolution: daily
+        history_start: 2001
+        use_for:
+          - geometry
+          - developed_markets
+        notes: "EAFE developed markets ETF"
+
+      eem:
+        source: tiingo
+        symbol: "EEM"
+        resolution: daily
+        history_start: 2003
+        use_for:
+          - geometry
+          - emerging_markets
+        notes: "Emerging markets ETF"
+
+      vwo:
+        source: tiingo
+        symbol: "VWO"
+        resolution: daily
+        history_start: 2005
+        use_for:
+          - geometry
+          - emerging_markets
+        notes: "Vanguard emerging markets ETF"
+
+      fxi:
+        source: tiingo
+        symbol: "FXI"
+        resolution: daily
+        history_start: 2004
+        use_for:
+          - geometry
+          - china_proxy
+        notes: "China large-cap ETF"
+
+      ewz:
+        source: tiingo
+        symbol: "EWZ"
+        resolution: daily
+        history_start: 2000
+        use_for:
+          - geometry
+          - brazil_proxy
+          - latam_exposure
+        notes: "Brazil ETF"
+
+    rules:
+      default_representation: efa
+      allow_multi_resolution: false
+      correlation_warning_threshold: 0.70
+
+  # ============================================================
+  # COMMODITIES (Extended)
+  # ============================================================
+
+  commodities:
+    canonical_name: "Broad Commodities"
+    description: "Diversified commodity exposure"
+    members:
+      dbc:
+        source: tiingo
+        symbol: "DBC"
+        resolution: daily
+        history_start: 2006
+        use_for:
+          - geometry
+          - commodity_regime
+        notes: "Diversified commodity ETF"
+
+      dba:
+        source: tiingo
+        symbol: "DBA"
+        resolution: daily
+        history_start: 2007
+        use_for:
+          - geometry
+          - agriculture_proxy
+        notes: "Agriculture commodity ETF"
+
+      gld:
+        source: tiingo
+        symbol: "GLD"
+        resolution: daily
+        history_start: 2004
+        use_for:
+          - geometry
+          - safe_haven
+        notes: "Gold ETF"
+
+      slv:
+        source: tiingo
+        symbol: "SLV"
+        resolution: daily
+        history_start: 2006
+        use_for:
+          - geometry
+          - precious_metals
+        notes: "Silver ETF"
+
+      uso:
+        source: tiingo
+        symbol: "USO"
+        resolution: daily
+        history_start: 2006
+        use_for:
+          - geometry
+          - energy_proxy
+        notes: "Oil ETF"
+
+    rules:
+      default_representation: dbc
+      allow_multi_resolution: false
+      correlation_warning_threshold: 0.60
+
 # ============================================================
 # PURPOSE DEFINITIONS
 # ============================================================
