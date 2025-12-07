@@ -42,6 +42,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from output_config import OUTPUT_DIR, DATA_DIR
+from data.sql.db_path import get_db_path
 
 CALIBRATION_DIR = OUTPUT_DIR / "calibration"
 OUTPUT_PATH = OUTPUT_DIR / "tuned_analysis"
@@ -177,10 +178,7 @@ LENS_FUNCTIONS = {
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    db_path = DATA_DIR / "prism.db"
-    if not db_path.exists():
-        db_path = Path.home() / "prism_data" / "prism.db"
-    
+    db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     
     market = pd.read_sql("""

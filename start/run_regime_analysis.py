@@ -22,6 +22,7 @@ if __name__ == "__main__":
     if str(_script_dir) not in sys.path:
         sys.path.insert(0, str(_script_dir))
 from output_config import OUTPUT_DIR, DATA_DIR
+from data.sql.db_path import get_db_path
 # === END PATH CONFIG ===
 
 
@@ -29,7 +30,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Database path
-DB_PATH = DATA_DIR / "prism.db"
+DB_PATH = get_db_path()
 
 def load_from_database():
     """Load all data from database and merge into a single panel."""

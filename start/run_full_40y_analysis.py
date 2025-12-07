@@ -110,7 +110,6 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-DB_PATH = DATA_DIR / "prism.db"
 
 # ============================================================================
 # CONFIGURATION
