@@ -2,26 +2,30 @@
 PRISM Engine - Data Fetching Module
 
 Fetchers for various data sources:
-- YahooFetcher: Market data from Yahoo Finance
+- StooqFetcher: Primary market data (US ETFs, stocks, commodities)
+- TiingoFetcher: Reliable backup + crypto data
 - FREDFetcher: Economic data from FRED
-- ClimateFetcher: Climate data (placeholder)
-- CustomFetcher: Custom data sources
+- YahooFetcher: Legacy (deprecated - use TiingoFetcher)
 
 Usage:
-    from fetch import YahooFetcher, FREDFetcher
-    
-    yahoo = YahooFetcher()
+    from fetch import StooqFetcher, TiingoFetcher, FREDFetcher
+
+    stooq = StooqFetcher()
+    tiingo = TiingoFetcher(api_key="your_key")
     fred = FREDFetcher()
-    
+
     # Fetch single
-    df = yahoo.fetch_single("SPY")
-    
-    # Fetch all from registry
-    results = yahoo.fetch_all()
+    df = stooq.fetch_single("SPY.US")
+    df = tiingo.fetch_single("SPY")
+    df = tiingo.fetch_crypto("btcusd")
 """
 
 from .fetcher_base import BaseFetcher
 from .fetcher_fred import FREDFetcher, FetcherFRED
+from .fetcher_stooq import StooqFetcher
+from .fetcher_tiingo import TiingoFetcher, FetcherTiingo
+
+# Legacy Yahoo fetcher (deprecated)
 from .fetcher_yahoo import YahooFetcher, FetcherYahoo
 
 # Optional fetchers (may not be fully implemented)
@@ -38,9 +42,12 @@ except ImportError:
 __all__ = [
     'BaseFetcher',
     'FREDFetcher',
-    'FetcherFRED',  # alias
+    'FetcherFRED',
+    'StooqFetcher',
+    'TiingoFetcher',
+    'FetcherTiingo',
     'YahooFetcher',
-    'FetcherYahoo',  # alias
+    'FetcherYahoo',
     'ClimateFetcher',
     'CustomFetcher',
 ]
