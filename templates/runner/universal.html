@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM - Universal Cross-Domain Analysis</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 2rem;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+            font-style: italic;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .nav-links a {
+            color: #00d4ff;
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+
+        .domain-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .domain-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .domain-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--domain-color, #666);
+        }
+        .domain-card.economic { --domain-color: #2E86AB; }
+        .domain-card.climate { --domain-color: #28A745; }
+        .domain-card.biological { --domain-color: #DC3545; }
+        .domain-card.social { --domain-color: #6F42C1; }
+        .domain-card.chemistry { --domain-color: #FD7E14; }
+
+        .indicator-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .indicator-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .indicator-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .indicator-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--domain-color);
+        }
+        .indicator-item label {
+            flex: 1;
+            cursor: pointer;
+        }
+        .indicator-item .freq {
+            font-size: 0.75rem;
+            color: #888;
+            background: rgba(255,255,255,0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .controls {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: transparent;
+            color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: linear-gradient(135deg, #7b2cbf, #00d4ff);
+            border-color: transparent;
+        }
+        .mode-btn:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .engine-checks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .engine-check {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+        }
+
+        .run-btn {
+            width: 100%;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #7b2cbf 0%, #00d4ff 100%);
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .run-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(123, 44, 191, 0.3);
+        }
+        .run-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .selection-summary {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .selection-count {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .domain-tags {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .domain-tag {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        .cross-domain-badge {
+            display: inline-block;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Results styling */
+        .results-container {
+            display: none;
+            margin-top: 2rem;
+        }
+        .results-container.show {
+            display: block;
+        }
+        .results-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .results-section h2 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        .insight-item {
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #00d4ff;
+        }
+        .rhythm-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+        .rhythm-coherence {
+            font-weight: bold;
+            color: #00d4ff;
+        }
+        .domain-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .domain-summary-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 3px solid var(--domain-color, #666);
+        }
+        .domain-summary-card h4 {
+            margin-bottom: 0.5rem;
+            text-transform: capitalize;
+        }
+        .domain-summary-card .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            font-size: 0.9rem;
+        }
+        .domain-summary-card .stat-label {
+            color: #888;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+        }
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PRISM Universal Analysis</h1>
+        <p class="subtitle">Discover rhythmic coherence across any domains</p>
+
+        <div class="nav-links">
+            <a href="/">Back to Main</a>
+            <a href="/reports">View Reports</a>
+        </div>
+
+        <div class="selection-summary">
+            <div class="selection-count" id="selectionCount">0</div>
+            <div>indicators selected</div>
+            <div class="domain-tags" id="domainTags"></div>
+            <div id="crossDomainBadge"></div>
+        </div>
+
+        <div class="domain-grid">
+            <!-- Economic Domain -->
+            <div class="domain-card economic">
+                <h3>Economic</h3>
+                <div class="indicator-list">
+                    <div class="indicator-item">
+                        <input type="checkbox" id="spy_ma_ratio" data-domain="economic">
+                        <label for="spy_ma_ratio">S&P 500 MA Ratio</label>
+                        <span class="freq">daily</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="vix" data-domain="economic">
+                        <label for="vix">VIX Volatility</label>
+                        <span class="freq">daily</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="yield_10y" data-domain="economic">
+                        <label for="yield_10y">10-Year Treasury</label>
+                        <span class="freq">daily</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="dxy" data-domain="economic">
+                        <label for="dxy">US Dollar Index</label>
+                        <span class="freq">daily</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Climate Domain -->
+            <div class="domain-card climate">
+                <h3>Climate</h3>
+                <div class="indicator-list">
+                    <div class="indicator-item">
+                        <input type="checkbox" id="co2_mauna_loa" data-domain="climate">
+                        <label for="co2_mauna_loa">CO2 Concentration</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="enso_index" data-domain="climate">
+                        <label for="enso_index">ENSO Index</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="global_temp_anomaly" data-domain="climate">
+                        <label for="global_temp_anomaly">Global Temp Anomaly</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="arctic_sea_ice" data-domain="climate">
+                        <label for="arctic_sea_ice">Arctic Sea Ice</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Biological Domain -->
+            <div class="domain-card biological">
+                <h3>Biological</h3>
+                <div class="indicator-list">
+                    <div class="indicator-item">
+                        <input type="checkbox" id="flu_activity" data-domain="biological">
+                        <label for="flu_activity">Influenza Activity</label>
+                        <span class="freq">weekly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="circadian_proxy" data-domain="biological">
+                        <label for="circadian_proxy">Circadian Proxy</label>
+                        <span class="freq">weekly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="mortality_seasonality" data-domain="biological">
+                        <label for="mortality_seasonality">Mortality Seasonality</label>
+                        <span class="freq">weekly</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Social Domain -->
+            <div class="domain-card social">
+                <h3>Social</h3>
+                <div class="indicator-list">
+                    <div class="indicator-item">
+                        <input type="checkbox" id="consumer_sentiment" data-domain="social">
+                        <label for="consumer_sentiment">Consumer Sentiment</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="google_uncertainty" data-domain="social">
+                        <label for="google_uncertainty">Economic Uncertainty</label>
+                        <span class="freq">weekly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="social_mood" data-domain="social">
+                        <label for="social_mood">Social Mood Index</label>
+                        <span class="freq">daily</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chemistry Domain -->
+            <div class="domain-card chemistry">
+                <h3>Chemistry</h3>
+                <div class="indicator-list">
+                    <div class="indicator-item">
+                        <input type="checkbox" id="commodity_chemicals" data-domain="chemistry">
+                        <label for="commodity_chemicals">Chemical Commodity Index</label>
+                        <span class="freq">weekly</span>
+                    </div>
+                    <div class="indicator-item">
+                        <input type="checkbox" id="fertilizer_prices" data-domain="chemistry">
+                        <label for="fertilizer_prices">Fertilizer Price Index</label>
+                        <span class="freq">monthly</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Analysis Mode</label>
+                <div class="mode-toggle">
+                    <button class="mode-btn" data-mode="ml">ML</button>
+                    <button class="mode-btn active" data-mode="meta">Meta</button>
+                    <button class="mode-btn" data-mode="hybrid">Hybrid</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Engines</label>
+                <div class="engine-checks">
+                    <label class="engine-check">
+                        <input type="checkbox" id="eng_hurst" checked>
+                        Hurst
+                    </label>
+                    <label class="engine-check">
+                        <input type="checkbox" id="eng_coherence" checked>
+                        Spectral Coherence
+                    </label>
+                    <label class="engine-check">
+                        <input type="checkbox" id="eng_pca">
+                        PCA
+                    </label>
+                    <label class="engine-check">
+                        <input type="checkbox" id="eng_wavelet">
+                        Wavelet
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button class="run-btn" id="runBtn" disabled>
+            Run Cross-Domain Analysis
+        </button>
+
+        <!-- Results Section -->
+        <div class="results-container" id="resultsContainer">
+            <div class="results-section">
+                <h2>Cross-Domain Insights</h2>
+                <div id="insightsContainer"></div>
+            </div>
+
+            <div class="results-section">
+                <h2>Shared Rhythms</h2>
+                <div id="rhythmsContainer"></div>
+            </div>
+
+            <div class="results-section">
+                <h2>Domain Summary</h2>
+                <div class="domain-summary-grid" id="domainSummaryContainer"></div>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div class="loading" id="loadingIndicator" style="display: none;">
+            <div class="spinner"></div>
+            <div>Running cross-domain analysis...</div>
+        </div>
+    </div>
+
+    <script>
+        // Track selections
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][data-domain]');
+        const runBtn = document.getElementById('runBtn');
+        const countEl = document.getElementById('selectionCount');
+        const tagsEl = document.getElementById('domainTags');
+        const badgeEl = document.getElementById('crossDomainBadge');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        const domainColors = {
+            economic: '#2E86AB',
+            climate: '#28A745',
+            biological: '#DC3545',
+            social: '#6F42C1',
+            chemistry: '#FD7E14'
+        };
+
+        function updateSelection() {
+            const selected = Array.from(checkboxes).filter(cb => cb.checked);
+            const domains = [...new Set(selected.map(cb => cb.dataset.domain))];
+
+            countEl.textContent = selected.length;
+
+            // Update domain tags
+            tagsEl.innerHTML = domains.map(d =>
+                `<span class="domain-tag" style="background: ${domainColors[d]}">${d}</span>`
+            ).join('');
+
+            // Cross-domain badge
+            if (domains.length > 1) {
+                badgeEl.innerHTML = '<span class="cross-domain-badge">Cross-Domain Analysis</span>';
+            } else {
+                badgeEl.innerHTML = '';
+            }
+
+            // Enable/disable run button
+            runBtn.disabled = selected.length < 2;
+        }
+
+        checkboxes.forEach(cb => cb.addEventListener('change', updateSelection));
+
+        // Mode toggle
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        function displayResults(result) {
+            resultsContainer.classList.add('show');
+
+            // Display insights
+            const insightsHtml = (result.insights || []).map(insight =>
+                `<div class="insight-item">${insight}</div>`
+            ).join('') || '<div class="insight-item">No significant insights found.</div>';
+            document.getElementById('insightsContainer').innerHTML = insightsHtml;
+
+            // Display shared rhythms
+            const rhythmsHtml = (result.shared_rhythms || []).slice(0, 10).map(rhythm =>
+                `<div class="rhythm-item">
+                    <div>${rhythm.indicator_1} <span style="color: ${domainColors[rhythm.domain_1]}">(${rhythm.domain_1})</span></div>
+                    <div>${rhythm.indicator_2} <span style="color: ${domainColors[rhythm.domain_2]}">(${rhythm.domain_2})</span></div>
+                    <div class="rhythm-coherence">${(rhythm.coherence * 100).toFixed(1)}%</div>
+                </div>`
+            ).join('') || '<div>No cross-domain rhythms found.</div>';
+            document.getElementById('rhythmsContainer').innerHTML = rhythmsHtml;
+
+            // Display domain summary
+            const domainSummaryHtml = Object.entries(result.domain_summary || {}).map(([domain, summary]) =>
+                `<div class="domain-summary-card" style="--domain-color: ${domainColors[domain] || '#666'}">
+                    <h4>${domain}</h4>
+                    <div class="stat">
+                        <span class="stat-label">Indicators</span>
+                        <span>${summary.indicator_count}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Avg Hurst</span>
+                        <span>${summary.avg_hurst?.toFixed(3) || 'N/A'}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Behavior</span>
+                        <span>${summary.hurst_interpretation || 'N/A'}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Cross-Domain Coh.</span>
+                        <span>${(summary.avg_cross_coherence * 100).toFixed(1)}%</span>
+                    </div>
+                </div>`
+            ).join('') || '<div>No domain summary available.</div>';
+            document.getElementById('domainSummaryContainer').innerHTML = domainSummaryHtml;
+        }
+
+        // Run analysis
+        runBtn.addEventListener('click', async () => {
+            const selected = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => ({ id: cb.id, domain: cb.dataset.domain }));
+
+            const mode = document.querySelector('.mode-btn.active').dataset.mode;
+
+            const engines = [];
+            if (document.getElementById('eng_hurst').checked) engines.push('hurst_exponent');
+            if (document.getElementById('eng_coherence').checked) engines.push('spectral_coherence');
+            if (document.getElementById('eng_pca').checked) engines.push('pca');
+            if (document.getElementById('eng_wavelet').checked) engines.push('wavelet');
+
+            runBtn.textContent = 'Analyzing...';
+            runBtn.disabled = true;
+            resultsContainer.classList.remove('show');
+            loadingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/cross-domain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ indicators: selected, mode, engines })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'completed') {
+                    displayResults(result);
+                } else {
+                    alert('Analysis failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Analysis failed: ' + err.message);
+            } finally {
+                runBtn.textContent = 'Run Cross-Domain Analysis';
+                runBtn.disabled = Array.from(checkboxes).filter(cb => cb.checked).length < 2;
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

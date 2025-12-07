@@ -336,6 +336,117 @@ def create_app() -> 'Flask':
             "workflows": len(executor.list_workflows()),
         })
 
+    # ========== Phase 7: Universal Cross-Domain Analysis ==========
+
+    @app.route("/universal")
+    def universal():
+        """Universal cross-domain analysis page."""
+        return render_template("runner/universal.html")
+
+    @app.route("/api/universal/registry")
+    def api_universal_registry():
+        """API endpoint for universal indicator registry."""
+        try:
+            from .universal_selector import UniversalSelector
+            selector = UniversalSelector()
+            return jsonify(selector.get_registry_for_ui())
+        except Exception as e:
+            logger.exception(f"Failed to load universal registry: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/cross-domain", methods=["POST"])
+    def api_cross_domain():
+        """API endpoint for cross-domain analysis."""
+        try:
+            import numpy as np
+            import pandas as pd
+            from engines.cross_domain_engine import run_cross_domain_analysis
+
+            data = request.get_json() or {}
+            indicators = data.get("indicators", [])
+            mode = data.get("mode", "meta")
+            engines = data.get("engines", ["hurst_exponent", "spectral_coherence"])
+
+            if len(indicators) < 2:
+                return jsonify({
+                    "status": "error",
+                    "error": "Need at least 2 indicators for cross-domain analysis"
+                }), 400
+
+            # Build indicator-to-domain mapping
+            indicator_domains = {ind["id"]: ind["domain"] for ind in indicators}
+
+            # Generate synthetic data for demonstration
+            # In production, this would fetch real data from data sources
+            np.random.seed(42)
+            n = 512
+            t = np.arange(n)
+
+            # Create a shared rhythm pattern
+            shared_cycle = np.sin(2 * np.pi * t / 365)
+
+            # Generate data for each selected indicator
+            synthetic_data = {}
+            for ind in indicators:
+                ind_id = ind["id"]
+                domain = ind["domain"]
+
+                # Different domains have different characteristics
+                if domain == "economic":
+                    signal = shared_cycle * 0.5 + np.random.randn(n) * 0.3
+                elif domain == "climate":
+                    signal = shared_cycle * 0.8 + np.random.randn(n) * 0.2
+                elif domain == "biological":
+                    # Phase-shifted annual cycle for biological
+                    signal = np.sin(2 * np.pi * t / 365 + np.pi/6) * 0.7 + np.random.randn(n) * 0.3
+                elif domain == "social":
+                    signal = shared_cycle * 0.4 + np.random.randn(n) * 0.4
+                elif domain == "chemistry":
+                    signal = shared_cycle * 0.3 + np.random.randn(n) * 0.5
+                else:
+                    signal = np.random.randn(n)
+
+                synthetic_data[ind_id] = signal
+
+            df = pd.DataFrame(synthetic_data)
+
+            # Run cross-domain analysis
+            logger.info(f"Running cross-domain analysis: {len(indicators)} indicators, mode={mode}")
+            result = run_cross_domain_analysis(df, indicator_domains, mode=mode)
+
+            # Save results
+            run_dir = output_manager.create_run_directory(prefix="cross_domain")
+            output_manager.save_json(result, "results.json")
+
+            result["run_id"] = run_dir.name
+            result["output_dir"] = str(run_dir)
+
+            return jsonify(result)
+
+        except ImportError as e:
+            logger.error(f"Import error in cross-domain analysis: {e}")
+            return jsonify({
+                "status": "error",
+                "error": f"Required module not available: {e}"
+            }), 500
+        except Exception as e:
+            logger.exception(f"Cross-domain analysis failed: {e}")
+            return jsonify({
+                "status": "error",
+                "error": str(e)
+            }), 500
+
+    @app.route("/api/hypotheses")
+    def api_hypotheses():
+        """API endpoint for cross-domain hypotheses."""
+        try:
+            from .universal_selector import UniversalSelector
+            selector = UniversalSelector()
+            return jsonify(selector.get_hypotheses())
+        except Exception as e:
+            logger.exception(f"Failed to load hypotheses: {e}")
+            return jsonify({"error": str(e)}), 500
+
     return app
 
 
