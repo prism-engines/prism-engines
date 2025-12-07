@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
 """
-PRISM Runner - Unified Entry Point
-===================================
+PRISM Engine - Main Entry Point
+=================================
 
-Launches the PRISM analysis interface.
+Unified runner for PRISM analysis system.
 
 Usage:
-    python prism_run.py              # Opens HTML interface in browser
-    python prism_run.py --cli        # Command-line interface
-    python prism_run.py --port 8080  # Custom port
-    python prism_run.py --no-browser # Don't auto-open browser
+    python prism_run.py                    # Interactive CLI mode
+    python prism_run.py --panel market     # Direct mode
+    python prism_run.py --html             # HTML mode (if available)
+    python prism_run.py --help             # Show help
 
-    python prism_run.py --workflow regime_comparison --panel market  # Direct run
+CLI Options:
+    python prism_run.py --list-panels      # List available panels
     python prism_run.py --list-workflows   # List available workflows
     python prism_run.py --list-engines     # List available engines
 
-The HTML runner provides:
-- Panel selection (Market, Economy, Climate, Custom)
-- Workflow selection (from registry)
-- Timeframe configuration
-- Engine weighting options
-- One-click execution
-- Auto-generated HTML reports
+Direct Mode:
+    python prism_run.py --panel market --workflow regime_comparison
+    python prism_run.py -p market -w daily_update --verbose
+
+See runner/ for implementation details.
 """
 
 import sys
@@ -31,10 +30,29 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-def main():
-    """Main entry point - delegates to runner module."""
-    from runner.prism_run import main as runner_main
-    runner_main()
+
+def main() -> int:
+    """Main entry point."""
+    # Quick check for --html flag before full argument parsing
+    if "--html" in sys.argv:
+        try:
+            from runner.prism_run import main as html_main
+            return html_main()
+        except ImportError:
+            print("HTML runner not available. Use CLI mode instead.")
+            print("Run: python prism_run.py --help")
+            return 1
+
+    # Default to CLI mode
+    try:
+        from runner.cli_runner import run_cli
+        return run_cli()
+    except ImportError as e:
+        print(f"Error importing CLI runner: {e}")
+        print("\nMake sure all dependencies are installed:")
+        print("  pip install pyyaml pandas")
+        return 1
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

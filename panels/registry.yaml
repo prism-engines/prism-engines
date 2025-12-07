@@ -1,0 +1,107 @@
+# PRISM Panel Registry
+# =====================
+#
+# Defines available analysis panels with their configuration.
+#
+# Each panel corresponds to a domain of analysis (market, economy, climate, etc.)
+# with specific indicators, data sources, and transformations.
+
+panels:
+  market:
+    name: "Market Indicators"
+    description: "Financial market data including equities, volatility, credit, and rates"
+    icon: "chart_increasing"
+    data_sources:
+      - yahoo_finance
+      - fred
+    indicator_categories:
+      - equities
+      - volatility
+      - credit
+      - rates
+      - commodities
+    default_resolution: daily
+    available_resolutions:
+      - daily
+      - weekly
+      - monthly
+
+  economy:
+    name: "Economic Indicators"
+    description: "Macroeconomic data including GDP, employment, inflation, and trade"
+    icon: "bank"
+    data_sources:
+      - fred
+      - bls
+    indicator_categories:
+      - output
+      - employment
+      - inflation
+      - trade
+      - consumer
+    default_resolution: monthly
+    available_resolutions:
+      - monthly
+      - quarterly
+
+  climate:
+    name: "Climate Indicators"
+    description: "Environmental and climate-related data"
+    icon: "globe"
+    data_sources:
+      - noaa
+      - climate_csv
+    indicator_categories:
+      - temperature
+      - precipitation
+      - emissions
+    default_resolution: monthly
+    available_resolutions:
+      - daily
+      - monthly
+      - yearly
+
+  custom:
+    name: "Custom Panel"
+    description: "User-defined panel from CSV data"
+    icon: "gear"
+    data_sources:
+      - csv
+    indicator_categories: []
+    default_resolution: daily
+    available_resolutions:
+      - daily
+      - weekly
+      - monthly
+
+# Default configuration
+defaults:
+  panel: market
+  resolution: daily
+  lookback_years: 5
+
+# Panel category definitions
+categories:
+  financial:
+    name: "Financial"
+    description: "Market and financial data"
+    panels:
+      - market
+
+  macroeconomic:
+    name: "Macroeconomic"
+    description: "Economic indicators and macro data"
+    panels:
+      - economy
+
+  environmental:
+    name: "Environmental"
+    description: "Climate and environmental data"
+    panels:
+      - climate
+
+  custom:
+    name: "Custom"
+    description: "User-defined data"
+    panels:
+      - custom
