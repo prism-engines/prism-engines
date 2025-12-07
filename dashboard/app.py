@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 
 # -----------------------------------------------------------------------------
 # Paths
@@ -35,6 +35,139 @@ app = Flask(
     template_folder=str(BASE_DIR / "dashboard" / "templates"),
     static_folder=str(BASE_DIR / "dashboard" / "static"),
 )
+
+# -----------------------------------------------------------------------------
+# Model metadata for /models page
+# -----------------------------------------------------------------------------
+
+MODELS_METADATA = [
+    {
+        "id": "wavelet",
+        "name": "Wavelet Coherence Engine",
+        "category": "Geometry / Time–Frequency",
+        "short": "Measures how synchronized two signals are across time and frequency.",
+        "inputs": [
+            "Daily or weekly return series for 2+ indicators",
+            "Aligned timestamp index (no timezone required)",
+            "Minimum history: ~3× the longest wavelet scale used"
+        ],
+        "outputs": [
+            "Coherence surface C(t, s) in [0, 1]",
+            "Time series of aggregate coherence scores",
+            "Candidate high-coherence "regime shift" windows"
+        ],
+        "used_for": [
+            "Detecting when many indicators move in lockstep",
+            "Flagging potential regime shift periods",
+            "Validating lens agreement during stress"
+        ],
+    },
+    {
+        "id": "hmm",
+        "name": "Hidden Markov Model (HMM) Regime Engine",
+        "category": "Unsupervised Machine Learning",
+        "short": "Learns latent market regimes from returns and volatility without labeled data.",
+        "inputs": [
+            "Panel of returns and/or volatility features",
+            "Regular time step (daily recommended)",
+            "Configurable number of hidden states (e.g. 2–4)"
+        ],
+        "outputs": [
+            "State probabilities P(state | t) over time",
+            "Most likely regime path",
+            "Transition matrix between regimes"
+        ],
+        "used_for": [
+            "Identifying bull/bear/transition regimes",
+            "Comparing with other regime lenses (GMM, PCA)",
+            "Feeding regime labels into downstream geometry"
+        ],
+    },
+    {
+        "id": "pca",
+        "name": "PCA Geometry Engine",
+        "category": "Dimensionality Reduction",
+        "short": "Projects the indicator panel into a low-dimensional geometric space.",
+        "inputs": [
+            "Normalized indicator panel (returns or levels)",
+            "Sufficient cross-section (N indicators) >> components",
+            "Rolling windows for time-varying geometry"
+        ],
+        "outputs": [
+            "Eigenvalues / explained variance per component",
+            "Eigenvectors / factor loadings",
+            "Low-dimensional coordinates for each indicator"
+        ],
+        "used_for": [
+            "Tracking concentration of risk into few factors",
+            "Detecting geometry changes in the risk surface",
+            "Supporting MRF / PRF / CRF composite signals"
+        ],
+    },
+    {
+        "id": "gmm",
+        "name": "Gaussian Mixture (GMM) Clustering Engine",
+        "category": "Unsupervised Machine Learning",
+        "short": "Clusters observations into probabilistic regimes in return–feature space.",
+        "inputs": [
+            "Feature matrix (returns, volatility, spreads, etc.)",
+            "Number of clusters (or model selection range)",
+            "Optional PCA pre-projection"
+        ],
+        "outputs": [
+            "Cluster responsibilities per observation",
+            "Cluster centroids and covariance matrices",
+            "Regime labels aligned with dates"
+        ],
+        "used_for": [
+            "Alternative regime labelling vs HMM",
+            "Comparing geometric vs probabilistic regimes",
+            "Stress-testing regime stability over time"
+        ],
+    },
+    {
+        "id": "network",
+        "name": "Network / Graph Geometry Engine",
+        "category": "Topology & Graph Theory",
+        "short": "Builds a correlation network and studies its structure over time.",
+        "inputs": [
+            "Correlation or distance matrix between indicators",
+            "Threshold or K-nearest neighbor rule",
+            "Rolling windows for time evolution"
+        ],
+        "outputs": [
+            "Graph metrics (degree, centrality, clustering)",
+            "Component structure and connectivity",
+            "Network-based early warning metrics"
+        ],
+        "used_for": [
+            "Identifying central risk hubs",
+            "Tracking fragmentation vs synchronization",
+            "Complementing correlation and coherence lenses"
+        ],
+    },
+    {
+        "id": "dispersion",
+        "name": "Dispersion & Volatility Geometry Engine",
+        "category": "Distributional Geometry",
+        "short": "Measures how spread out indicators are vs the market and vs each other.",
+        "inputs": [
+            "Panel of returns by indicator",
+            "Benchmark (e.g. S&P 500) if available",
+            "Rolling window size"
+        ],
+        "outputs": [
+            "Cross-sectional dispersion measures",
+            "Sector/style dispersion indexes",
+            "Phase-space views of risk spreading"
+        ],
+        "used_for": [
+            "Detecting early dispersion before major moves",
+            "Measuring breadth of participation in trends",
+            "Feeding dispersion into composite risk scores"
+        ],
+    },
+]
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -269,6 +402,28 @@ def run_controller():
             "result": results,
         }
     )
+
+
+# -----------------------------------------------------------------------------
+# Models page routes
+# -----------------------------------------------------------------------------
+
+
+@app.route("/models")
+def models():
+    """
+    Models & Geometry documentation page.
+    """
+    return render_template("models.html", models=MODELS_METADATA)
+
+
+@app.route("/downloads/models_overview.md")
+def download_models_overview():
+    """
+    Serve the Markdown documentation for all models.
+    """
+    docs_dir = Path(__file__).resolve().parent.parent / "docs"
+    return send_from_directory(docs_dir, "models_overview.md", as_attachment=True)
 
 
 if __name__ == "__main__":
