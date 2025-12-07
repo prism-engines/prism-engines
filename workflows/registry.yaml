@@ -1,0 +1,538 @@
+# =============================================================================
+# PRISM WORKFLOW REGISTRY
+# =============================================================================
+# Defines all available analysis workflows and their configurations.
+# Workflows orchestrate multiple engines to produce analysis reports.
+#
+# To add a new workflow:
+#   1. Add entry below with engines required and parameters
+#   2. Create the workflow class implementing BaseWorkflow interface
+#   3. Create the output template if needed
+#   4. That's it - the system will auto-discover it
+# =============================================================================
+
+version: "1.0.0"
+last_updated: "2024-12-06"
+description: "PRISM Workflow Registry - Pluggable Analysis Workflows"
+
+# =============================================================================
+# WORKFLOW CATEGORIES
+# =============================================================================
+categories:
+  regime:
+    name: "Regime Analysis"
+    description: "Market regime detection and comparison"
+
+  temporal:
+    name: "Temporal Analysis"
+    description: "Time-windowed historical analysis"
+
+  monitoring:
+    name: "Monitoring & Updates"
+    description: "Regular monitoring and daily updates"
+
+  validation:
+    name: "Validation & Diagnostics"
+    description: "Model validation and testing"
+
+  custom:
+    name: "Custom Analysis"
+    description: "User-defined analysis workflows"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+workflows:
+
+  # ---------------------------------------------------------------------------
+  # REGIME ANALYSIS WORKFLOWS
+  # ---------------------------------------------------------------------------
+  regime_comparison:
+    name: "Regime Comparison Analysis"
+    description: "Compare current market regime to historical periods (2001, 2008, COVID, 2022)"
+    category: "regime"
+    module: "engine_core.tandem_regime_runner"
+    class: "TandemRegimeRunner"
+
+    # Engines this workflow uses
+    engines_required:
+      lenses:
+        - pca
+        - clustering
+        - correlation
+        - volatility
+        - granger
+        - network
+      analysis:
+        - regime_fingerprint
+      weighting:
+        - hybrid_weighting
+
+    # Compatible data panels
+    compatible_panels:
+      - market
+      - market_economy
+
+    # Workflow parameters
+    parameters:
+      current_period:
+        type: "string"
+        default: "2024_current"
+        description: "Period key for current analysis"
+
+      comparison_periods:
+        type: "list"
+        default:
+          - "2001_dotcom"
+          - "2008_gfc"
+          - "2020_covid"
+          - "2022_bear"
+        description: "Historical periods to compare against"
+
+      data_source:
+        type: "string"
+        default: "database"
+        choices: ["database", "csv", "api"]
+        description: "Data source to use"
+
+      parallel:
+        type: "bool"
+        default: true
+        description: "Run periods in parallel"
+
+    # Output configuration
+    outputs:
+      - type: "html"
+        template: "reports/regime_report.html"
+        filename: "regime_comparison_{timestamp}.html"
+
+      - type: "json"
+        filename: "regime_comparison_{timestamp}.json"
+
+      - type: "csv"
+        filename: "similarity_scores_{timestamp}.csv"
+        optional: true
+
+    # Estimated runtime
+    estimated_runtime: "2-5 minutes"
+    computation_weight: 4
+
+  # ---------------------------------------------------------------------------
+  regime_fingerprint_only:
+    name: "Quick Regime Fingerprint"
+    description: "Extract fingerprint for current period without full comparison"
+    category: "regime"
+    module: "engine_core.regime_fingerprint"
+    class: "RegimeFingerprintAnalyzer"
+
+    engines_required:
+      lenses:
+        - pca
+        - correlation
+        - volatility
+      analysis:
+        - regime_fingerprint
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      period:
+        type: "string"
+        default: "current"
+
+    outputs:
+      - type: "json"
+        filename: "fingerprint_{timestamp}.json"
+
+    estimated_runtime: "30 seconds"
+    computation_weight: 2
+
+  # ---------------------------------------------------------------------------
+  # TEMPORAL ANALYSIS WORKFLOWS
+  # ---------------------------------------------------------------------------
+  full_temporal:
+    name: "Full Temporal Analysis"
+    description: "Run all 14 lenses across 55 annual windows (1970-2025)"
+    category: "temporal"
+    module: "engine_core.orchestration.temporal_runner"
+    class: "TemporalAnalysisRunner"
+
+    engines_required:
+      lenses: "all"  # Use full lens set
+      weighting:
+        - meta_consensus
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      start_year:
+        type: "int"
+        default: 1970
+        min: 1950
+        max: 2024
+
+      end_year:
+        type: "int"
+        default: 2025
+        min: 1970
+        max: 2030
+
+      window_years:
+        type: "int"
+        default: 2
+        choices: [1, 2, 3, 5]
+        description: "Size of rolling window in years"
+
+      overlap:
+        type: "bool"
+        default: true
+        description: "Use overlapping windows"
+
+    outputs:
+      - type: "html"
+        template: "reports/temporal_report.html"
+        filename: "temporal_analysis_{timestamp}.html"
+
+      - type: "json"
+        filename: "temporal_results_{timestamp}.json"
+
+      - type: "csv"
+        filename: "window_rankings_{timestamp}.csv"
+
+    estimated_runtime: "10-30 minutes"
+    computation_weight: 5
+
+  # ---------------------------------------------------------------------------
+  temporal_quick:
+    name: "Quick Temporal (Recent 5 Years)"
+    description: "Temporal analysis focused on recent history"
+    category: "temporal"
+    module: "engine_core.orchestration.temporal_runner"
+    class: "TemporalAnalysisRunner"
+
+    engines_required:
+      lenses: "quick"  # Use quick lens set
+      weighting:
+        - meta_consensus
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      start_year:
+        type: "int"
+        default: 2020
+
+      window_years:
+        type: "int"
+        default: 1
+
+    outputs:
+      - type: "html"
+        template: "reports/temporal_report.html"
+
+    estimated_runtime: "2-5 minutes"
+    computation_weight: 2
+
+  # ---------------------------------------------------------------------------
+  # MONITORING WORKFLOWS
+  # ---------------------------------------------------------------------------
+  daily_update:
+    name: "Daily Market Update"
+    description: "Quick daily check of market regime indicators"
+    category: "monitoring"
+    module: "workflows.daily_update"
+    class: "DailyUpdateWorkflow"
+
+    engines_required:
+      lenses:
+        - pca
+        - volatility
+        - correlation
+      analysis:
+        - regime_fingerprint
+
+    compatible_panels:
+      - market
+
+    parameters:
+      lookback_days:
+        type: "int"
+        default: 21
+        description: "Days of history to analyze"
+
+      compare_to:
+        type: "list"
+        default: ["yesterday", "last_week", "last_month"]
+
+    outputs:
+      - type: "html"
+        template: "reports/daily_report.html"
+        filename: "daily_update_{date}.html"
+
+    estimated_runtime: "30 seconds"
+    computation_weight: 1
+
+    # Scheduling hints
+    schedule:
+      suggested: "daily"
+      time: "18:00"
+      timezone: "America/New_York"
+
+  # ---------------------------------------------------------------------------
+  weekly_summary:
+    name: "Weekly Summary"
+    description: "Weekly market regime summary with key changes"
+    category: "monitoring"
+    module: "workflows.weekly_summary"
+    class: "WeeklySummaryWorkflow"
+
+    engines_required:
+      lenses:
+        - pca
+        - volatility
+        - correlation
+        - clustering
+      analysis:
+        - regime_fingerprint
+      weighting:
+        - meta_consensus
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      compare_weeks:
+        type: "int"
+        default: 4
+        description: "Number of weeks to compare"
+
+    outputs:
+      - type: "html"
+        template: "reports/weekly_report.html"
+
+    estimated_runtime: "1-2 minutes"
+    computation_weight: 2
+
+    schedule:
+      suggested: "weekly"
+      day: "friday"
+      time: "17:00"
+
+  # ---------------------------------------------------------------------------
+  overnight_batch:
+    name: "Overnight Batch Analysis"
+    description: "Comprehensive overnight analysis for next trading day"
+    category: "monitoring"
+    module: "workflows.overnight_batch"
+    class: "OvernightBatchWorkflow"
+
+    engines_required:
+      lenses: "full"
+      analysis:
+        - regime_fingerprint
+        - stress_test
+      weighting:
+        - hybrid_weighting
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      include_stress_test:
+        type: "bool"
+        default: true
+
+      generate_alerts:
+        type: "bool"
+        default: true
+
+    outputs:
+      - type: "html"
+        template: "reports/overnight_report.html"
+
+      - type: "json"
+        filename: "overnight_analysis_{date}.json"
+
+      - type: "alerts"
+        filename: "alerts_{date}.json"
+        optional: true
+
+    estimated_runtime: "15-30 minutes"
+    computation_weight: 5
+
+    schedule:
+      suggested: "daily"
+      time: "02:00"
+      timezone: "America/New_York"
+
+  # ---------------------------------------------------------------------------
+  # VALIDATION WORKFLOWS
+  # ---------------------------------------------------------------------------
+  lens_validation:
+    name: "Lens Validation Suite"
+    description: "Validate lens consistency and reliability"
+    category: "validation"
+    module: "validation.cross_lens_validator"
+    class: "CrossLensValidator"
+
+    engines_required:
+      lenses: "full"
+      diagnostics:
+        - validation
+
+    compatible_panels: ["*"]
+
+    parameters:
+      bootstrap_samples:
+        type: "int"
+        default: 100
+
+      permutation_tests:
+        type: "bool"
+        default: true
+
+    outputs:
+      - type: "html"
+        template: "reports/validation_report.html"
+
+      - type: "json"
+        filename: "validation_results_{timestamp}.json"
+
+    estimated_runtime: "5-15 minutes"
+    computation_weight: 4
+
+  # ---------------------------------------------------------------------------
+  backtest:
+    name: "Historical Backtest"
+    description: "Backtest regime signals against market outcomes"
+    category: "validation"
+    module: "validation.backtester"
+    class: "RegimeBacktester"
+
+    engines_required:
+      lenses: "full"
+      weighting:
+        - meta_consensus
+        - ml_weighting
+
+    compatible_panels:
+      - market
+      - market_economy
+
+    parameters:
+      start_date:
+        type: "string"
+        default: "2000-01-01"
+
+      end_date:
+        type: "string"
+        default: "2024-12-01"
+
+      forward_returns:
+        type: "list"
+        default: [21, 63, 126, 252]
+        description: "Forward return periods to test (trading days)"
+
+    outputs:
+      - type: "html"
+        template: "reports/backtest_report.html"
+
+      - type: "csv"
+        filename: "backtest_results_{timestamp}.csv"
+
+    estimated_runtime: "10-20 minutes"
+    computation_weight: 4
+
+  # ---------------------------------------------------------------------------
+  # CUSTOM WORKFLOWS
+  # ---------------------------------------------------------------------------
+  custom_analysis:
+    name: "Custom Analysis"
+    description: "User-defined analysis with selected engines"
+    category: "custom"
+    module: "workflows.custom_analysis"
+    class: "CustomAnalysisWorkflow"
+
+    engines_required: []  # User selects
+
+    compatible_panels: ["*"]
+
+    parameters:
+      selected_lenses:
+        type: "list"
+        default: []
+        description: "Lenses to run (empty = prompt user)"
+
+      selected_engines:
+        type: "list"
+        default: []
+        description: "Additional engines to run"
+
+      weighting_method:
+        type: "string"
+        default: "meta"
+        choices: ["meta", "ml", "hybrid", "none"]
+
+    outputs:
+      - type: "html"
+        template: "reports/custom_report.html"
+
+    estimated_runtime: "varies"
+    computation_weight: 3
+
+# =============================================================================
+# WORKFLOW PRESETS
+# =============================================================================
+presets:
+  quick_check:
+    name: "Quick Market Check"
+    description: "Fast 30-second market status"
+    workflow: "daily_update"
+    parameters:
+      lookback_days: 5
+
+  deep_dive:
+    name: "Deep Dive Analysis"
+    description: "Comprehensive regime analysis"
+    workflow: "regime_comparison"
+    parameters:
+      comparison_periods:
+        - "2001_dotcom"
+        - "2008_gfc"
+        - "2020_covid"
+        - "2022_bear"
+      parallel: true
+
+  historical_study:
+    name: "Historical Study"
+    description: "Full 50+ year temporal analysis"
+    workflow: "full_temporal"
+    parameters:
+      start_year: 1970
+      window_years: 2
+
+# =============================================================================
+# DEFAULT CONFIGURATIONS
+# =============================================================================
+defaults:
+  default_workflow: "regime_comparison"
+  output_dir: "output/{date}_{time}"
+
+  # Auto-open report after generation
+  auto_open_report: true
+
+  # Keep last N outputs
+  keep_outputs: 10
+
+  # Notification settings
+  notifications:
+    on_complete: false
+    on_error: true

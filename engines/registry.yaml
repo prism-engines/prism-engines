@@ -1,0 +1,486 @@
+# =============================================================================
+# PRISM ENGINE REGISTRY
+# =============================================================================
+# Defines all available analysis engines and their capabilities.
+# Engines are auto-discovered by the loader based on this registry.
+#
+# To add a new engine:
+#   1. Add entry below with module path and class name
+#   2. Create the engine class implementing BaseEngine interface
+#   3. That's it - the system will auto-discover it
+# =============================================================================
+
+version: "1.0.0"
+last_updated: "2024-12-06"
+description: "PRISM Engine Registry - Discoverable Analysis Engines"
+
+# =============================================================================
+# ENGINE CATEGORIES
+# =============================================================================
+categories:
+  geometry:
+    name: "Geometric Analysis"
+    description: "Dimensionality reduction and manifold analysis"
+
+  causality:
+    name: "Causal Analysis"
+    description: "Causal inference and network analysis"
+
+  regime:
+    name: "Regime Detection"
+    description: "Market regime identification and comparison"
+
+  weighting:
+    name: "Indicator Weighting"
+    description: "Methods for weighting indicator importance"
+
+  diagnostics:
+    name: "Diagnostics & Validation"
+    description: "Model validation and stress testing"
+
+  temporal:
+    name: "Temporal Analysis"
+    description: "Time-based and window analysis"
+
+# =============================================================================
+# LENS ENGINES (Core 14)
+# =============================================================================
+engines:
+
+  # ---------------------------------------------------------------------------
+  # GEOMETRY LENSES
+  # ---------------------------------------------------------------------------
+  pca:
+    name: "PCA Analysis"
+    description: "Principal Component Analysis for dimensionality reduction"
+    module: "engine_core.lenses.pca_lens"
+    class: "PCALens"
+    category: "geometry"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate", "custom"]
+    compatible_resolutions: ["daily", "weekly", "monthly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "n_components"
+          type: "int"
+          default: null
+          description: "Number of components (null = auto)"
+        - name: "variance_threshold"
+          type: "float"
+          default: 0.95
+    outputs: ["loadings", "explained_variance", "rankings"]
+    computation_weight: 1  # Relative computational cost
+
+  tda:
+    name: "Topological Data Analysis"
+    description: "Persistent homology and topological features"
+    module: "engine_core.lenses.tda_lens"
+    class: "TDALens"
+    category: "geometry"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "max_dimension"
+          type: "int"
+          default: 2
+    outputs: ["persistence_diagrams", "betti_numbers", "rankings"]
+    computation_weight: 3
+
+  # ---------------------------------------------------------------------------
+  # CAUSALITY LENSES
+  # ---------------------------------------------------------------------------
+  granger:
+    name: "Granger Causality"
+    description: "Granger causality testing between indicators"
+    module: "engine_core.lenses.granger_lens"
+    class: "GrangerLens"
+    category: "causality"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "max_lag"
+          type: "int"
+          default: 5
+        - name: "significance"
+          type: "float"
+          default: 0.05
+    outputs: ["causal_matrix", "rankings"]
+    computation_weight: 2
+
+  network:
+    name: "Network Analysis"
+    description: "Graph-based analysis of indicator relationships"
+    module: "engine_core.lenses.network_lens"
+    class: "NetworkLens"
+    category: "causality"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate"]
+    compatible_resolutions: ["daily", "weekly", "monthly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "threshold"
+          type: "float"
+          default: 0.5
+    outputs: ["adjacency_matrix", "centrality_scores", "rankings"]
+    computation_weight: 2
+
+  causality:
+    name: "Transfer Entropy"
+    description: "Information-theoretic causality measure"
+    module: "engine_core.lenses.causality_lens"
+    class: "CausalityLens"
+    category: "causality"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "lag"
+          type: "int"
+          default: 1
+    outputs: ["transfer_entropy_matrix", "rankings"]
+    computation_weight: 3
+
+  # ---------------------------------------------------------------------------
+  # REGIME LENSES
+  # ---------------------------------------------------------------------------
+  clustering:
+    name: "Hierarchical Clustering"
+    description: "Cluster indicators by behavior similarity"
+    module: "engine_core.lenses.clustering_lens"
+    class: "ClusteringLens"
+    category: "regime"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate", "custom"]
+    compatible_resolutions: ["daily", "weekly", "monthly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "n_clusters"
+          type: "int"
+          default: null
+        - name: "method"
+          type: "string"
+          default: "ward"
+          choices: ["ward", "complete", "average", "single"]
+    outputs: ["cluster_assignments", "dendrogram", "rankings"]
+    computation_weight: 2
+
+  anomaly:
+    name: "Anomaly Detection"
+    description: "Identify unusual indicator behavior"
+    module: "engine_core.lenses.anomaly_lens"
+    class: "AnomalyLens"
+    category: "regime"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "contamination"
+          type: "float"
+          default: 0.1
+    outputs: ["anomaly_scores", "rankings"]
+    computation_weight: 2
+
+  # ---------------------------------------------------------------------------
+  # STATISTICAL LENSES
+  # ---------------------------------------------------------------------------
+  correlation:
+    name: "Correlation Analysis"
+    description: "Pairwise correlation structure"
+    module: "engine_core.lenses.correlation_lens"
+    class: "CorrelationLens"
+    category: "geometry"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate", "custom"]
+    compatible_resolutions: ["daily", "weekly", "monthly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "method"
+          type: "string"
+          default: "pearson"
+          choices: ["pearson", "spearman", "kendall"]
+    outputs: ["correlation_matrix", "rankings"]
+    computation_weight: 1
+
+  volatility:
+    name: "Volatility Analysis"
+    description: "Volatility clustering and regime detection"
+    module: "engine_core.lenses.volatility_lens"
+    class: "VolatilityLens"
+    category: "regime"
+    lens: true
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "window"
+          type: "int"
+          default: 21
+    outputs: ["volatility_series", "regime_states", "rankings"]
+    computation_weight: 1
+
+  momentum:
+    name: "Momentum Analysis"
+    description: "Trend strength and momentum factors"
+    module: "engine_core.lenses.momentum_lens"
+    class: "MomentumLens"
+    category: "temporal"
+    lens: true
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "lookback"
+          type: "int"
+          default: 21
+    outputs: ["momentum_scores", "rankings"]
+    computation_weight: 1
+
+  mean_reversion:
+    name: "Mean Reversion"
+    description: "Mean reversion tendency analysis"
+    module: "engine_core.lenses.mean_reversion_lens"
+    class: "MeanReversionLens"
+    category: "temporal"
+    lens: true
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "window"
+          type: "int"
+          default: 21
+    outputs: ["half_life", "rankings"]
+    computation_weight: 1
+
+  cointegration:
+    name: "Cointegration Analysis"
+    description: "Long-run equilibrium relationships"
+    module: "engine_core.lenses.cointegration_lens"
+    class: "CointegrationLens"
+    category: "causality"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "significance"
+          type: "float"
+          default: 0.05
+    outputs: ["cointegration_pairs", "rankings"]
+    computation_weight: 2
+
+  wavelet:
+    name: "Wavelet Analysis"
+    description: "Multi-scale time-frequency decomposition"
+    module: "engine_core.lenses.wavelet_lens"
+    class: "WaveletLens"
+    category: "temporal"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy"]
+    compatible_resolutions: ["daily", "weekly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "wavelet"
+          type: "string"
+          default: "db4"
+        - name: "level"
+          type: "int"
+          default: 4
+    outputs: ["wavelet_coefficients", "rankings"]
+    computation_weight: 2
+
+  entropy:
+    name: "Entropy Analysis"
+    description: "Information-theoretic complexity measures"
+    module: "engine_core.lenses.entropy_lens"
+    class: "EntropyLens"
+    category: "regime"
+    lens: true
+    compatible_panels: ["market", "economy", "market_economy", "climate"]
+    compatible_resolutions: ["daily", "weekly", "monthly"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "method"
+          type: "string"
+          default: "sample"
+          choices: ["sample", "permutation", "approximate"]
+    outputs: ["entropy_scores", "rankings"]
+    computation_weight: 2
+
+  # ---------------------------------------------------------------------------
+  # WEIGHTING ENGINES (Meta-level)
+  # ---------------------------------------------------------------------------
+  meta_consensus:
+    name: "Meta Engine (Consensus)"
+    description: "Aggregate lens rankings using voting methods"
+    module: "engine_core.orchestration.consensus"
+    class: "ConsensusEngine"
+    category: "weighting"
+    lens: false
+    compatible_panels: ["*"]
+    compatible_resolutions: ["*"]
+    inputs:
+      required: ["lens_rankings"]
+      optional:
+        - name: "method"
+          type: "string"
+          default: "borda"
+          choices: ["borda", "score_fusion", "voting"]
+        - name: "custom_weights"
+          type: "dict"
+          default: null
+    outputs: ["consensus_ranking", "confidence_scores"]
+    computation_weight: 1
+
+  ml_weighting:
+    name: "ML Engine (Learned)"
+    description: "ML-based indicator weighting from trained models"
+    module: "engines.weighting.ml_engine"
+    class: "MLWeightingEngine"
+    category: "weighting"
+    lens: false
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily"]
+    inputs:
+      required: ["feature_vector"]
+      optional:
+        - name: "model_name"
+          type: "string"
+          default: "regime_rf_pro"
+    outputs: ["predictions", "probabilities", "feature_importance"]
+    computation_weight: 1
+
+  hybrid_weighting:
+    name: "Hybrid Engine (Meta + ML)"
+    description: "Combines consensus and ML approaches"
+    module: "engines.weighting.hybrid_engine"
+    class: "HybridWeightingEngine"
+    category: "weighting"
+    lens: false
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily"]
+    inputs:
+      required: ["lens_rankings", "feature_vector"]
+      optional:
+        - name: "meta_weight"
+          type: "float"
+          default: 0.5
+    outputs: ["hybrid_ranking", "signal", "interpretation"]
+    computation_weight: 2
+
+  # ---------------------------------------------------------------------------
+  # REGIME COMPARISON ENGINES
+  # ---------------------------------------------------------------------------
+  regime_fingerprint:
+    name: "Regime Fingerprint"
+    description: "Extract and compare regime fingerprints"
+    module: "engine_core.regime_fingerprint"
+    class: "RegimeFingerprintAnalyzer"
+    category: "regime"
+    lens: false
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "comparison_periods"
+          type: "list"
+          default: ["2001_dotcom", "2008_gfc", "2020_covid", "2022_bear"]
+    outputs: ["fingerprints", "similarities", "interpretation"]
+    computation_weight: 3
+
+  # ---------------------------------------------------------------------------
+  # DIAGNOSTIC ENGINES
+  # ---------------------------------------------------------------------------
+  validation:
+    name: "Cross-Lens Validation"
+    description: "Validate consistency across lenses"
+    module: "validation.cross_lens_validator"
+    class: "CrossLensValidator"
+    category: "diagnostics"
+    lens: false
+    compatible_panels: ["*"]
+    compatible_resolutions: ["*"]
+    inputs:
+      required: ["lens_results"]
+      optional: []
+    outputs: ["consistency_scores", "disagreement_analysis"]
+    computation_weight: 1
+
+  stress_test:
+    name: "Stress Testing"
+    description: "Stress test indicator sensitivity"
+    module: "engine.prism_stress_engine"
+    class: "StressEngine"
+    category: "diagnostics"
+    lens: false
+    compatible_panels: ["market", "market_economy"]
+    compatible_resolutions: ["daily"]
+    inputs:
+      required: ["panel_data"]
+      optional:
+        - name: "scenarios"
+          type: "list"
+          default: ["vol_spike", "correlation_spike", "drawdown"]
+    outputs: ["stress_results", "vulnerability_scores"]
+    computation_weight: 3
+
+# =============================================================================
+# DEFAULT CONFIGURATIONS
+# =============================================================================
+defaults:
+  lens_set: "full"  # or "quick" for subset
+
+  lens_sets:
+    full:
+      - pca
+      - granger
+      - clustering
+      - network
+      - tda
+      - anomaly
+      - correlation
+      - volatility
+      - momentum
+      - mean_reversion
+      - cointegration
+      - wavelet
+      - entropy
+      - causality
+
+    quick:
+      - pca
+      - correlation
+      - volatility
+      - clustering
+
+    geometry_only:
+      - pca
+      - tda
+      - correlation
+
+    causality_only:
+      - granger
+      - network
+      - causality
+      - cointegration
