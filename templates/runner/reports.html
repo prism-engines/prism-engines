@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}PRISM Reports{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon">📄</span>
+        <div>
+            <div class="card-title">Recent Reports</div>
+            <div class="card-description">Previously generated analysis reports</div>
+        </div>
+    </div>
+
+    {% if reports %}
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="border-bottom: 2px solid var(--border);">
+                <th style="text-align: left; padding: 0.75rem;">Report</th>
+                <th style="text-align: left; padding: 0.75rem;">Generated</th>
+                <th style="text-align: left; padding: 0.75rem;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 0.75rem;">
+                    <strong>{{ report.name }}</strong>
+                </td>
+                <td style="padding: 0.75rem;">
+                    <span class="text-muted">{{ report.modified }}</span>
+                </td>
+                <td style="padding: 0.75rem;">
+                    <a href="/output/{{ report.path }}" target="_blank" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                        Open ↗️
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
+        <p>No reports generated yet.</p>
+        <a href="/" class="btn btn-primary mt-2">Run Analysis</a>
+    </div>
+    {% endif %}
+</div>
+
+<div style="text-align: center;">
+    <a href="/" class="btn btn-primary">
+        ← Back to Runner
+    </a>
+</div>
+
+{% endblock %}

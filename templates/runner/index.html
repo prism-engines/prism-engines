@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}PRISM Runner{% endblock %}
+
+{% block content %}
+<form id="runForm" action="/run" method="POST">
+
+    <!-- Panel Selection -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">📊</span>
+            <div>
+                <div class="card-title">Select Panel Domain</div>
+                <div class="card-description">Choose the data domain to analyze</div>
+            </div>
+        </div>
+
+        <div class="option-group">
+            {% for panel in panels %}
+            <label class="option-card" data-panel="{{ panel.key }}">
+                <input type="radio" name="panel" value="{{ panel.key }}"
+                       {% if loop.first %}checked{% endif %}>
+                <div class="option-icon">{{ panel.icon }}</div>
+                <div class="option-title">{{ panel.name }}</div>
+                <div class="option-desc">{{ panel.description }}</div>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Workflow Selection -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">🔄</span>
+            <div>
+                <div class="card-title">Select Workflow</div>
+                <div class="card-description">Choose the analysis to run</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <select name="workflow" id="workflowSelect" class="form-select">
+                {% for workflow in workflows %}
+                <option value="{{ workflow.key }}"
+                        data-runtime="{{ workflow.runtime }}"
+                        data-description="{{ workflow.description }}">
+                    {{ workflow.name }} {% if workflow.runtime %}({{ workflow.runtime }}){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <p class="form-help" id="workflowDescription">
+                Compare current market regime to historical periods
+            </p>
+        </div>
+    </div>
+
+    <!-- Weighting Method -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">⚖️</span>
+            <div>
+                <div class="card-title">Engine Weighting</div>
+                <div class="card-description">How should indicators be weighted?</div>
+            </div>
+        </div>
+
+        <div class="option-group">
+            {% for method in weighting_methods %}
+            <label class="option-card" data-weighting="{{ method.key }}">
+                <input type="radio" name="weighting" value="{{ method.key }}"
+                       {% if method.key == 'hybrid' %}checked{% endif %}>
+                <div class="option-title">{{ method.name }}</div>
+                <div class="option-desc">{{ method.description }}</div>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Timeframe (Collapsible) -->
+    <div class="card">
+        <div class="collapsible-header" onclick="toggleSection('timeframe')">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span class="card-icon">📅</span>
+                <div>
+                    <div class="card-title">Timeframe</div>
+                    <div class="card-description">Optional: Configure date range</div>
+                </div>
+            </div>
+            <span id="timeframe-arrow">▼</span>
+        </div>
+
+        <div class="collapsible-content" id="timeframe-content">
+            <div class="form-group">
+                <label class="form-label">Timeframe Option</label>
+                <select name="timeframe" class="form-select" onchange="toggleCustomDates(this)">
+                    <option value="default">Default (workflow determines)</option>
+                    <option value="last_run">Same as last run</option>
+                    <option value="custom">Custom date range</option>
+                </select>
+            </div>
+
+            <div id="customDates" class="hidden">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" name="start_date" class="form-input" value="2020-01-01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">End Date</label>
+                        <input type="date" name="end_date" class="form-input" value="2025-12-01">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Periods (for regime_comparison workflow) -->
+    <div class="card" id="comparisonPeriods">
+        <div class="collapsible-header" onclick="toggleSection('periods')">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span class="card-icon">🔬</span>
+                <div>
+                    <div class="card-title">Comparison Periods</div>
+                    <div class="card-description">Select historical periods to compare against</div>
+                </div>
+            </div>
+            <span id="periods-arrow">▼</span>
+        </div>
+
+        <div class="collapsible-content show" id="periods-content">
+            <div class="option-group">
+                <label class="option-card selected">
+                    <input type="checkbox" name="comparison_periods" value="2001_dotcom" checked>
+                    <div class="option-title">2001 Dot-com</div>
+                    <div class="option-desc">Tech bubble crash</div>
+                </label>
+                <label class="option-card selected">
+                    <input type="checkbox" name="comparison_periods" value="2008_gfc" checked>
+                    <div class="option-title">2008 GFC</div>
+                    <div class="option-desc">Global financial crisis</div>
+                </label>
+                <label class="option-card selected">
+                    <input type="checkbox" name="comparison_periods" value="2020_covid" checked>
+                    <div class="option-title">2020 COVID</div>
+                    <div class="option-desc">Pandemic crash</div>
+                </label>
+                <label class="option-card selected">
+                    <input type="checkbox" name="comparison_periods" value="2022_bear" checked>
+                    <div class="option-title">2022 Bear</div>
+                    <div class="option-desc">Inflation tightening</div>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Run Button -->
+    <div class="run-button-container">
+        <button type="submit" class="btn btn-run btn-lg" id="runButton">
+            <span id="runButtonText">▶ RUN ANALYSIS</span>
+            <span id="runButtonSpinner" class="spinner hidden"></span>
+        </button>
+        <p class="text-muted mt-1" id="estimatedTime">Estimated time: 2-5 minutes</p>
+    </div>
+
+</form>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner" style="width: 3rem; height: 3rem;"></div>
+    <div class="loading-text">Running analysis...</div>
+    <div class="text-muted" id="loadingStatus">Initializing...</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Option card selection
+    document.querySelectorAll('.option-card').forEach(card => {
+        const input = card.querySelector('input');
+
+        card.addEventListener('click', function(e) {
+            if (e.target.tagName === 'INPUT') return;
+
+            if (input.type === 'radio') {
+                // Deselect siblings
+                const parent = card.closest('.option-group');
+                parent.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                input.checked = true;
+            } else {
+                // Toggle checkbox
+                input.checked = !input.checked;
+                card.classList.toggle('selected', input.checked);
+            }
+        });
+
+        // Initialize state
+        if (input.checked) {
+            card.classList.add('selected');
+        }
+    });
+
+    // Workflow selection
+    const workflowSelect = document.getElementById('workflowSelect');
+    const workflowDescription = document.getElementById('workflowDescription');
+    const estimatedTime = document.getElementById('estimatedTime');
+    const comparisonPeriods = document.getElementById('comparisonPeriods');
+
+    workflowSelect.addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        workflowDescription.textContent = selected.dataset.description || '';
+        estimatedTime.textContent = 'Estimated time: ' + (selected.dataset.runtime || 'varies');
+
+        // Show/hide comparison periods based on workflow
+        if (this.value === 'regime_comparison') {
+            comparisonPeriods.style.display = 'block';
+        } else {
+            comparisonPeriods.style.display = 'none';
+        }
+    });
+
+    // Trigger initial state
+    workflowSelect.dispatchEvent(new Event('change'));
+
+    // Collapsible sections
+    function toggleSection(section) {
+        const content = document.getElementById(section + '-content');
+        const arrow = document.getElementById(section + '-arrow');
+
+        content.classList.toggle('show');
+        arrow.textContent = content.classList.contains('show') ? '▼' : '▶';
+    }
+
+    // Custom dates toggle
+    function toggleCustomDates(select) {
+        const customDates = document.getElementById('customDates');
+        customDates.classList.toggle('hidden', select.value !== 'custom');
+    }
+
+    // Form submission
+    const runForm = document.getElementById('runForm');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const runButton = document.getElementById('runButton');
+    const runButtonText = document.getElementById('runButtonText');
+    const runButtonSpinner = document.getElementById('runButtonSpinner');
+
+    runForm.addEventListener('submit', function(e) {
+        // Show loading state
+        runButtonText.textContent = 'Running...';
+        runButtonSpinner.classList.remove('hidden');
+        runButton.disabled = true;
+        loadingOverlay.classList.remove('hidden');
+
+        // Update loading status
+        const statuses = [
+            'Loading panel data...',
+            'Running lenses...',
+            'Extracting fingerprints...',
+            'Comparing periods...',
+            'Generating report...'
+        ];
+
+        let statusIndex = 0;
+        const statusInterval = setInterval(() => {
+            statusIndex = (statusIndex + 1) % statuses.length;
+            document.getElementById('loadingStatus').textContent = statuses[statusIndex];
+        }, 2000);
+
+        // Form will submit normally
+    });
+</script>
+{% endblock %}
