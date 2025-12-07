@@ -39,23 +39,11 @@ def get_db_connection():
     """Get database connection."""
     try:
         import sqlite3
-        # Try common database locations
-        possible_paths = [
-            DATA_DIR / "prism.db",
-            PROJECT_ROOT / "data" / "prism.db",
-            PROJECT_ROOT / "prism.db",
-        ]
-        
-        for db_path in possible_paths:
-            if db_path.exists():
-                print(f"Using database: {db_path}")
-                return sqlite3.connect(db_path)
-        
-        print("ERROR: Could not find prism.db")
-        print("Looked in:")
-        for p in possible_paths:
-            print(f"  - {p}")
-        return None
+        from data.sql.db_path import get_db_path
+
+        db_path = get_db_path()
+        print(f"Using database: {db_path}")
+        return sqlite3.connect(db_path)
     except Exception as e:
         print(f"Database connection error: {e}")
         return None

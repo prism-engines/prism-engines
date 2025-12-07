@@ -37,8 +37,6 @@ from output_config import OUTPUT_DIR, DATA_DIR
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-DB_PATH = DATA_DIR / "prism.db"
-
 
 def load_from_database():
     """Load all data from unified indicator_values table."""

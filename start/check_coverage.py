@@ -16,10 +16,11 @@ if __name__ == "__main__":
     if str(_script_dir) not in sys.path:
         sys.path.insert(0, str(_script_dir))
 from output_config import OUTPUT_DIR, DATA_DIR
+from data.sql.db_path import get_db_path
 # === END PATH CONFIG ===
 
 
-DB_PATH = DATA_DIR / "prism.db"
+DB_PATH = get_db_path()
 
 conn = sqlite3.connect(DB_PATH)
 

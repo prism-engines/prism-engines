@@ -37,10 +37,9 @@ from datetime import datetime
 import pandas as pd
 
 from output_config import OUTPUT_DIR, DATA_DIR
+from data.sql.db_path import get_db_path
 
-DB_PATH = DATA_DIR / "prism.db"
-if not DB_PATH.exists():
-    DB_PATH = Path.home() / "prism_data" / "prism.db"
+DB_PATH = get_db_path()
 
 
 # =============================================================================
