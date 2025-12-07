@@ -105,6 +105,7 @@ def fetch_all_indicators(
     Fetch all indicators and write to indicator_values (Schema v2).
 
     Uses indicator_name as the key (no indicator_id).
+    Routes to appropriate source (FRED or Tiingo) based on registry.
 
     Returns:
         Number of indicators successfully fetched.
@@ -114,11 +115,15 @@ def fetch_all_indicators(
 
     # Group by source
     fred_indicators = {k: v for k, v in indicators.items() if v.get("source") == "fred"}
+    tiingo_indicators = {k: v for k, v in indicators.items() if v.get("source") == "tiingo"}
 
     count = 0
 
+    # -------------------------------------------------------------------------
     # Fetch FRED indicators
+    # -------------------------------------------------------------------------
     if fred_indicators:
+        logger.info(f"Fetching {len(fred_indicators)} FRED indicators...")
         try:
             from fetch.fetcher_fred import FREDFetcher
             fetcher = FREDFetcher()
@@ -177,6 +182,59 @@ def fetch_all_indicators(
 
         except ImportError:
             logger.warning("FRED fetcher not available")
+
+    # -------------------------------------------------------------------------
+    # Fetch Tiingo indicators
+    # -------------------------------------------------------------------------
+    if tiingo_indicators:
+        logger.info(f"Fetching {len(tiingo_indicators)} Tiingo indicators...")
+        try:
+            from fetch.fetcher_tiingo import TiingoFetcher
+            fetcher = TiingoFetcher()
+
+            for name, config in tiingo_indicators.items():
+                source_id = config.get("source_id")
+                if not source_id:
+                    logger.warning(f"No source_id for {name}, skipping")
+                    continue
+
+                try:
+                    df = fetcher.fetch_single(source_id, start_date=start_date, end_date=end_date)
+
+                    if df is None or df.empty:
+                        logger.warning(f"No data for {name} ({source_id})")
+                        continue
+
+                    # Tiingo fetcher already returns [date, value] format
+                    # Just ensure proper date formatting
+                    df = df[["date", "value"]].dropna()
+
+                    if df.empty:
+                        logger.warning(f"All values NaN for {name}")
+                        continue
+
+                    # Format dates
+                    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+
+                    # Register indicator (Schema v2)
+                    add_indicator(name, source="tiingo")
+
+                    # Write to indicator_values (Schema v2)
+                    rows = write_dataframe(
+                        df,
+                        table="indicator_values",
+                        indicator_name=name,
+                        provenance="tiingo"
+                    )
+
+                    count += 1
+                    logger.info(f"  {name}: {rows} rows written")
+
+                except Exception as e:
+                    logger.error(f"Error fetching {name} ({source_id}): {e}")
+
+        except ImportError:
+            logger.warning("Tiingo fetcher not available")
 
     return count
 
