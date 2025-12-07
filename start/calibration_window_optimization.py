@@ -57,39 +57,21 @@ WINDOWS = [5, 10, 21, 42, 63, 126, 252]
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    """Load the master panel."""
-    db_path = DATA_DIR / "prism.db"
-    if not db_path.exists():
-        db_path = Path.home() / "prism_data" / "prism.db"
-    
-    conn = sqlite3.connect(db_path)
-    
-    market = pd.read_sql("""
-        SELECT date, ticker, value 
-        FROM market_prices 
-        WHERE value IS NOT NULL
-    """, conn)
-    
-    econ = pd.read_sql("""
-        SELECT date, series_id, value 
-        FROM econ_values 
-        WHERE value IS NOT NULL
-    """, conn)
-    
-    conn.close()
-    
-    market_wide = market.pivot(index='date', columns='ticker', values='value')
-    econ_wide = econ.pivot(index='date', columns='series_id', values='value')
-    
-    panel = pd.concat([market_wide, econ_wide], axis=1)
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
-    
+    """Load the master panel from unified indicator_values table."""
+    from data.sql.db_connector import load_all_indicators_wide
+
+    # Use unified loader (falls back to legacy tables if needed)
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        print("⚠️ No data found in database")
+        return pd.DataFrame()
+
     cutoff = panel.index.max() - pd.Timedelta(days=10*365)
     panel = panel.loc[cutoff:]
-    
+
     print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
-    
+
     return panel
 
 

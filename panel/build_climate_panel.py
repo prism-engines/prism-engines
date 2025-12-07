@@ -17,30 +17,58 @@ import pandas as pd
 import sqlite3
 from pathlib import Path
 import logging
+import warnings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path.home() / "prism_data" / "climate.db"
+# Legacy paths (kept for backward compatibility)
+LEGACY_DB_PATH = Path.home() / "prism_data" / "climate.db"
 OUTPUT_PATH = Path.home() / "prism_data" / "climate_panel.csv"
 
 
 def build_panel():
-    """Build climate panel from database."""
+    """Build climate panel from unified indicator_values table."""
     print("=" * 60)
     print("🌍 BUILDING CLIMATE PANEL")
     print("=" * 60)
-    
-    if not DB_PATH.exists():
-        print(f"❌ Database not found: {DB_PATH}")
-        print("   Run: python fetch_climate.py")
-        return None
-    
-    conn = sqlite3.connect(DB_PATH)
-    
-    # Load all data
-    df = pd.read_sql("SELECT indicator, date, value FROM climate_values ORDER BY date", conn)
-    conn.close()
+
+    # Try unified indicator_values first
+    try:
+        from data.sql.db_connector import get_connection, list_indicators
+
+        # Get climate indicators from unified table
+        climate_indicators = list_indicators(system='climate')
+
+        if climate_indicators:
+            print("   Using unified indicator_values table (Schema v2)")
+            conn = get_connection()
+            placeholders = ",".join("?" for _ in climate_indicators)
+            df = pd.read_sql(
+                f"SELECT indicator_name AS indicator, date, value FROM indicator_values "
+                f"WHERE indicator_name IN ({placeholders}) ORDER BY date",
+                conn, params=climate_indicators
+            )
+            conn.close()
+        else:
+            raise ValueError("No climate indicators found in unified table")
+
+    except Exception as e:
+        # Fallback to legacy climate.db
+        warnings.warn(
+            f"Could not load from unified indicator_values: {e}. "
+            "Falling back to legacy climate.db.",
+            DeprecationWarning
+        )
+
+        if not LEGACY_DB_PATH.exists():
+            print(f"❌ Database not found: {LEGACY_DB_PATH}")
+            print("   Run: python fetch_climate.py")
+            return None
+
+        conn = sqlite3.connect(LEGACY_DB_PATH)
+        df = pd.read_sql("SELECT indicator, date, value FROM climate_values ORDER BY date", conn)
+        conn.close()
     
     print(f"   Loaded {len(df)} records")
     print(f"   Indicators: {df['indicator'].unique().tolist()}")

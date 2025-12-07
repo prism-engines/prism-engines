@@ -37,6 +37,7 @@ import logging
 import os
 import re
 import sqlite3
+import warnings
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -507,6 +508,9 @@ def upsert_market_prices(
     """
     Bulk upsert market prices from a DataFrame.
 
+    DEPRECATED: Use data.sql.db_connector.write_dataframe() instead.
+    This function writes to the legacy market_prices table.
+
     Args:
         df: DataFrame with price data
         ticker: Stock ticker symbol
@@ -520,6 +524,12 @@ def upsert_market_prices(
     Returns:
         Number of rows inserted/updated
     """
+    warnings.warn(
+        "upsert_market_prices() is DEPRECATED. Use data.sql.db_connector.write_dataframe() "
+        "which writes to the unified indicator_values table.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     if df.empty:
         return 0
 
@@ -686,6 +696,9 @@ def upsert_econ_values(
     """
     Bulk upsert economic values from a DataFrame.
 
+    DEPRECATED: Use data.sql.db_connector.write_dataframe() instead.
+    This function writes to the legacy econ_values table.
+
     Args:
         df: DataFrame with economic data
         code: Series code
@@ -701,6 +714,12 @@ def upsert_econ_values(
     Returns:
         Number of rows inserted/updated
     """
+    warnings.warn(
+        "upsert_econ_values() is DEPRECATED. Use data.sql.db_connector.write_dataframe() "
+        "which writes to the unified indicator_values table.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     if df.empty:
         return 0
 
@@ -746,6 +765,9 @@ def load_market_prices(
     """
     Load market prices for a ticker.
 
+    DEPRECATED: Use data.sql.db_connector.load_indicator() instead.
+    This function reads from the legacy market_prices table.
+
     Args:
         ticker: Stock ticker symbol
         start_date: Optional start date (inclusive)
@@ -755,6 +777,12 @@ def load_market_prices(
     Returns:
         DataFrame with date index and price columns
     """
+    warnings.warn(
+        "load_market_prices() is DEPRECATED. Use data.sql.db_connector.load_indicator() "
+        "which reads from the unified indicator_values table.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     with get_connection(db_path) as conn:
         query = """
             SELECT date, price, ret, price_z, price_log
@@ -792,6 +820,9 @@ def load_econ_values(
     """
     Load economic values for a series.
 
+    DEPRECATED: Use data.sql.db_connector.load_indicator() instead.
+    This function reads from the legacy econ_values table.
+
     Args:
         code: Series code
         start_date: Optional start date (inclusive)
@@ -803,6 +834,12 @@ def load_econ_values(
     Returns:
         DataFrame with date index and value columns
     """
+    warnings.warn(
+        "load_econ_values() is DEPRECATED. Use data.sql.db_connector.load_indicator() "
+        "which reads from the unified indicator_values table.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     with get_connection(db_path) as conn:
         if revision_asof:
             query = """

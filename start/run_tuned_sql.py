@@ -156,21 +156,14 @@ def run_tuned_sql():
     
     # Load data
     print("\n📊 Loading market data...")
-    db_path = DATA_DIR / "prism.db"
-    if not db_path.exists():
-        db_path = Path.home() / "prism_data" / "prism.db"
-    
-    conn = sqlite3.connect(db_path)
-    
-    market = pd.read_sql("SELECT date, ticker, value FROM market_prices WHERE value IS NOT NULL", conn)
-    econ = pd.read_sql("SELECT date, series_id, value FROM econ_values WHERE value IS NOT NULL", conn)
-    conn.close()
-    
-    market_wide = market.pivot(index='date', columns='ticker', values='value')
-    econ_wide = econ.pivot(index='date', columns='series_id', values='value')
-    panel = pd.concat([market_wide, econ_wide], axis=1)
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
+    from data.sql.db_connector import load_all_indicators_wide
+
+    # Use unified loader (falls back to legacy tables if needed)
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        print("❌ No data found in database")
+        return
     
     # Filter to active indicators
     available = [i for i in active_indicators if i in panel.columns]

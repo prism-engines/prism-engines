@@ -131,51 +131,21 @@ CONFIG = {
 # ============================================================================
 
 def load_from_database():
-    """Load all data from PRISM database."""
+    """Load all data from unified indicator_values table."""
     print("\n📥 LOADING DATA FROM DATABASE...")
-    
-    conn = sqlite3.connect(DB_PATH)
-    
-    # Load market prices
-    market_df = pd.read_sql(
-        "SELECT date, ticker, value FROM market_prices ORDER BY date", 
-        conn
-    )
-    if not market_df.empty:
-        market_wide = market_df.pivot(index='date', columns='ticker', values='value')
-        print(f"   Market data: {len(market_wide)} days, {len(market_wide.columns)} tickers")
-    else:
-        market_wide = pd.DataFrame()
-        print("   ⚠️ No market data found")
-    
-    # Load economic data
-    econ_df = pd.read_sql(
-        "SELECT date, series_id, value FROM econ_values ORDER BY date", 
-        conn
-    )
-    if not econ_df.empty:
-        econ_wide = econ_df.pivot(index='date', columns='series_id', values='value')
-        print(f"   Economic data: {len(econ_wide)} days, {len(econ_wide.columns)} series")
-    else:
-        econ_wide = pd.DataFrame()
-        print("   ⚠️ No economic data found")
-    
-    conn.close()
-    
-    # Merge
-    if not market_wide.empty and not econ_wide.empty:
-        panel = market_wide.join(econ_wide, how='outer')
-    elif not market_wide.empty:
-        panel = market_wide
-    else:
-        panel = econ_wide
-    
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
-    
+
+    from data.sql.db_connector import load_all_indicators_wide
+
+    # Use unified loader (falls back to legacy tables if needed)
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        print("   ⚠️ No data found in database")
+        return pd.DataFrame()
+
     print(f"   Combined panel: {len(panel)} days, {len(panel.columns)} indicators")
     print(f"   Date range: {panel.index.min().date()} to {panel.index.max().date()}")
-    
+
     return panel
 
 

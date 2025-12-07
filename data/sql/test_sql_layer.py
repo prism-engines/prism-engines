@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-test_sql_layer.py - Sanity checks for the unified SQL layer.
+test_sql_layer.py - Sanity checks for the unified SQL layer (Schema v2).
 
 This script validates that:
 1. All modules import without errors
 2. connect() returns a connection
-3. init_database() creates DB tables
+3. init_database() creates DB tables (including indicator_values)
 4. add_indicator(), get_indicator(), list_indicators() work
-5. write_dataframe() writes to market_prices and econ_values
-6. load_indicator() returns combined unified results
+5. write_dataframe() writes to indicator_values (unified table)
+6. load_indicator() returns data from indicator_values
+
+Schema v2 uses indicator_values as the single source of truth.
+Legacy tables (market_prices, econ_values) are deprecated.
 
 Usage:
     python -m data.sql.test_sql_layer
@@ -174,46 +177,48 @@ def test_indicator_operations():
 
 
 def test_write_dataframe():
-    """Test write_dataframe for market_prices and econ_values."""
+    """Test write_dataframe for indicator_values (Schema v2)."""
     print("\nTesting write_dataframe...")
 
     import pandas as pd
-    from data.sql import write_dataframe, init_database
+    from data.sql import write_dataframe, init_database, add_indicator
 
     # Ensure tables exist
     init_database()
 
-    # Test writing to market_prices
+    # Register indicators first
+    add_indicator("SPY", system="market", source="test")
+    add_indicator("GDP", system="economic", source="test")
+
+    # Test writing to indicator_values (Schema v2 - unified table)
     try:
         market_df = pd.DataFrame({
-            "ticker": ["SPY", "SPY", "SPY"],
             "date": ["2024-01-01", "2024-01-02", "2024-01-03"],
             "value": [100.0, 101.0, 102.0]
         })
-        rows = write_dataframe(market_df, "market_prices")
-        print(f"  [OK] write_dataframe() to market_prices: {rows} rows")
+        rows = write_dataframe(market_df, "indicator_values", indicator_name="SPY", provenance="test")
+        print(f"  [OK] write_dataframe() to indicator_values (SPY): {rows} rows")
     except Exception as e:
-        print(f"  [FAIL] write_dataframe() to market_prices: {e}")
+        print(f"  [FAIL] write_dataframe() to indicator_values (SPY): {e}")
         return False
 
-    # Test writing to econ_values
+    # Test writing another indicator
     try:
         econ_df = pd.DataFrame({
-            "series_id": ["GDP", "GDP", "GDP"],
             "date": ["2024-01-01", "2024-01-02", "2024-01-03"],
             "value": [1000.0, 1001.0, 1002.0]
         })
-        rows = write_dataframe(econ_df, "econ_values")
-        print(f"  [OK] write_dataframe() to econ_values: {rows} rows")
+        rows = write_dataframe(econ_df, "indicator_values", indicator_name="GDP", provenance="test")
+        print(f"  [OK] write_dataframe() to indicator_values (GDP): {rows} rows")
     except Exception as e:
-        print(f"  [FAIL] write_dataframe() to econ_values: {e}")
+        print(f"  [FAIL] write_dataframe() to indicator_values (GDP): {e}")
         return False
 
     return True
 
 
 def test_load_indicator():
-    """Test load_indicator returns unified results."""
+    """Test load_indicator returns unified results from indicator_values."""
     print("\nTesting load_indicator...")
 
     from data.sql import load_indicator
@@ -222,7 +227,7 @@ def test_load_indicator():
     try:
         df = load_indicator("SPY")
         assert len(df) > 0, "load_indicator('SPY') returned empty DataFrame"
-        assert "indicator" in df.columns, "Missing 'indicator' column"
+        assert "indicator_name" in df.columns, "Missing 'indicator_name' column"
         assert "date" in df.columns, "Missing 'date' column"
         assert "value" in df.columns, "Missing 'value' column"
         print(f"  [OK] load_indicator('SPY') returned {len(df)} rows")
@@ -251,7 +256,7 @@ def test_load_multiple_indicators():
     try:
         df = load_multiple_indicators(["SPY", "GDP"])
         assert len(df) > 0, "load_multiple_indicators() returned empty DataFrame"
-        unique_indicators = df["indicator"].unique()
+        unique_indicators = df["indicator_name"].unique()
         assert len(unique_indicators) == 2, f"Expected 2 indicators, got {len(unique_indicators)}"
         print(f"  [OK] load_multiple_indicators(['SPY', 'GDP']) returned {len(df)} rows")
     except Exception as e:
@@ -277,21 +282,21 @@ def test_statistics():
         print(f"  [FAIL] database_stats(): {e}")
         return False
 
-    # Test get_table_stats
+    # Test get_table_stats on unified table
     try:
-        stats = get_table_stats("market_prices")
+        stats = get_table_stats("indicator_values")
         assert "row_count" in stats, "get_table_stats missing 'row_count' key"
-        print(f"  [OK] get_table_stats('market_prices') returned {stats['row_count']} rows")
+        print(f"  [OK] get_table_stats('indicator_values') returned {stats['row_count']} rows")
     except Exception as e:
         print(f"  [FAIL] get_table_stats(): {e}")
         return False
 
-    # Test get_date_range
+    # Test get_date_range on unified table
     try:
-        date_range = get_date_range("market_prices", "SPY")
+        date_range = get_date_range(indicator_name="SPY")
         assert "min_date" in date_range, "get_date_range missing 'min_date' key"
         assert "max_date" in date_range, "get_date_range missing 'max_date' key"
-        print(f"  [OK] get_date_range('market_prices', 'SPY'): {date_range['min_date']} to {date_range['max_date']}")
+        print(f"  [OK] get_date_range(indicator_name='SPY'): {date_range['min_date']} to {date_range['max_date']}")
     except Exception as e:
         print(f"  [FAIL] get_date_range(): {e}")
         return False
