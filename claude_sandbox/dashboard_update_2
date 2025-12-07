@@ -1,0 +1,636 @@
+PR Title & Summary (send this to Claude)
+Title:
+Add PRISM Models Documentation Page and Downloadable Specs
+Summary for PR description:
+
+This PR adds a dedicated /models page to the Prism dashboard that documents the mathematical and geometric engines (Wavelet Coherence, HMM, PCA, GMM, etc.).
+It also adds downloadable Markdown docs describing:
+
+
+How the core models work
+
+
+What data formats they accept
+
+
+How to run the full pipeline from a fresh clone (for external users)
+Finally, it wires the dashboard navigation so that engine names in the UI link to their detailed descriptions, and exposes a download link that researchers can pull and read offline.
+
+
+
+
+2️⃣ Files to Add / Modify
+✅ A. dashboard/app.py – add /models route + download
+Ask Claude to append this to dashboard/app.py (keeping existing imports/routes intact):
+# dashboard/app.py
+
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from pathlib import Path
+
+app = Flask(__name__)
+
+# --- NEW: model metadata for /models page -----------------------------------
+
+MODELS_METADATA = [
+    {
+        "id": "wavelet",
+        "name": "Wavelet Coherence Engine",
+        "category": "Geometry / Time–Frequency",
+        "short": "Measures how synchronized two signals are across time and frequency.",
+        "inputs": [
+            "Daily or weekly return series for 2+ indicators",
+            "Aligned timestamp index (no timezone required)",
+            "Minimum history: ~3× the longest wavelet scale used"
+        ],
+        "outputs": [
+            "Coherence surface C(t, s) in [0, 1]",
+            "Time series of aggregate coherence scores",
+            "Candidate high-coherence “regime shift” windows"
+        ],
+        "used_for": [
+            "Detecting when many indicators move in lockstep",
+            "Flagging potential regime shift periods",
+            "Validating lens agreement during stress"
+        ],
+    },
+    {
+        "id": "hmm",
+        "name": "Hidden Markov Model (HMM) Regime Engine",
+        "category": "Unsupervised Machine Learning",
+        "short": "Learns latent market regimes from returns and volatility without labeled data.",
+        "inputs": [
+            "Panel of returns and/or volatility features",
+            "Regular time step (daily recommended)",
+            "Configurable number of hidden states (e.g. 2–4)"
+        ],
+        "outputs": [
+            "State probabilities P(state | t) over time",
+            "Most likely regime path",
+            "Transition matrix between regimes"
+        ],
+        "used_for": [
+            "Identifying bull/bear/transition regimes",
+            "Comparing with other regime lenses (GMM, PCA)",
+            "Feeding regime labels into downstream geometry"
+        ],
+    },
+    {
+        "id": "pca",
+        "name": "PCA Geometry Engine",
+        "category": "Dimensionality Reduction",
+        "short": "Projects the indicator panel into a low-dimensional geometric space.",
+        "inputs": [
+            "Normalized indicator panel (returns or levels)",
+            "Sufficient cross-section (N indicators) >> components",
+            "Rolling windows for time-varying geometry"
+        ],
+        "outputs": [
+            "Eigenvalues / explained variance per component",
+            "Eigenvectors / factor loadings",
+            "Low-dimensional coordinates for each indicator"
+        ],
+        "used_for": [
+            "Tracking concentration of risk into few factors",
+            "Detecting geometry changes in the risk surface",
+            "Supporting MRF / PRF / CRF composite signals"
+        ],
+    },
+    {
+        "id": "gmm",
+        "name": "Gaussian Mixture (GMM) Clustering Engine",
+        "category": "Unsupervised Machine Learning",
+        "short": "Clusters observations into probabilistic regimes in return–feature space.",
+        "inputs": [
+            "Feature matrix (returns, volatility, spreads, etc.)",
+            "Number of clusters (or model selection range)",
+            "Optional PCA pre-projection"
+        ],
+        "outputs": [
+            "Cluster responsibilities per observation",
+            "Cluster centroids and covariance matrices",
+            "Regime labels aligned with dates"
+        ],
+        "used_for": [
+            "Alternative regime labelling vs HMM",
+            "Comparing geometric vs probabilistic regimes",
+            "Stress-testing regime stability over time"
+        ],
+    },
+    {
+        "id": "network",
+        "name": "Network / Graph Geometry Engine",
+        "category": "Topology & Graph Theory",
+        "short": "Builds a correlation network and studies its structure over time.",
+        "inputs": [
+            "Correlation or distance matrix between indicators",
+            "Threshold or K-nearest neighbor rule",
+            "Rolling windows for time evolution"
+        ],
+        "outputs": [
+            "Graph metrics (degree, centrality, clustering)",
+            "Component structure and connectivity",
+            "Network-based early warning metrics"
+        ],
+        "used_for": [
+            "Identifying central risk hubs",
+            "Tracking fragmentation vs synchronization",
+            "Complementing correlation and coherence lenses"
+        ],
+    },
+    {
+        "id": "dispersion",
+        "name": "Dispersion & Volatility Geometry Engine",
+        "category": "Distributional Geometry",
+        "short": "Measures how spread out indicators are vs the market and vs each other.",
+        "inputs": [
+            "Panel of returns by indicator",
+            "Benchmark (e.g. S&P 500) if available",
+            "Rolling window size"
+        ],
+        "outputs": [
+            "Cross-sectional dispersion measures",
+            "Sector/style dispersion indexes",
+            "Phase-space views of risk spreading"
+        ],
+        "used_for": [
+            "Detecting early dispersion before major moves",
+            "Measuring breadth of participation in trends",
+            "Feeding dispersion into composite risk scores"
+        ],
+    },
+]
+
+# --- NEW: models page routes -------------------------------------------------
+
+@app.route("/models")
+def models():
+    """
+    Models & Geometry documentation page.
+    """
+    return render_template("models.html", models=MODELS_METADATA)
+
+
+@app.route("/downloads/models_overview.md")
+def download_models_overview():
+    """
+    Serve the Markdown documentation for all models.
+    """
+    docs_dir = Path(__file__).resolve().parent.parent / "docs"
+    return send_from_directory(docs_dir, "models_overview.md", as_attachment=True)
+
+
+If docs/ doesn’t exist, Claude should create it.
+
+
+✅ B. New template: dashboard/templates/models.html
+Ask Claude to create this file:
+{# dashboard/templates/models.html #}
+{% extends "base.html" %}
+
+{% block title %}PRISM Models & Geometry{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+  <div class="row align-items-center">
+    <div class="col">
+      <h2 class="page-title">
+        PRISM Models & Geometric Engines
+      </h2>
+      <div class="text-muted mt-1">
+        Unified geometric model of equilibrium – documented for researchers, engineers, and quants.
+      </div>
+    </div>
+    <div class="col-auto ms-auto">
+      <a href="{{ url_for('download_models_overview') }}" class="btn btn-primary">
+        Download models_overview.md
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row row-cards mt-3">
+  {% for model in models %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card">
+      <div class="card-body">
+        <h3 class="card-title">
+          <a href="#{{ model.id }}" class="text-reset">
+            {{ model.name }}
+          </a>
+        </h3>
+        <div class="text-muted mb-2">
+          {{ model.category }}
+        </div>
+        <p class="text-secondary">
+          {{ model.short }}
+        </p>
+        <a href="#{{ model.id }}" class="btn btn-outline-primary btn-sm">
+          View details
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<hr class="my-4"/>
+
+<div class="row">
+  <div class="col-lg-12">
+    <h2 class="mb-3">Detailed Model Descriptions</h2>
+    <p class="text-muted">
+      Each section below documents how the engine works, what data it expects, and how PRISM uses the outputs.
+      This mirrors the downloadable <code>docs/models_overview.md</code> file so that researchers can work offline.
+    </p>
+  </div>
+</div>
+
+{% for model in models %}
+<div id="{{ model.id }}" class="card mb-4 anchor-target">
+  <div class="card-header">
+    <h3 class="card-title">{{ model.name }}</h3>
+    <div class="card-subtitle text-muted">
+      {{ model.category }}
+    </div>
+  </div>
+  <div class="card-body">
+    <h4>Conceptual Summary</h4>
+    <p>{{ model.short }}</p>
+
+    <h4 class="mt-3">Input Data Requirements</h4>
+    <ul>
+      {% for item in model.inputs %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+
+    <h4 class="mt-3">Outputs</h4>
+    <ul>
+      {% for item in model.outputs %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+
+    <h4 class="mt-3">How PRISM Uses This Engine</h4>
+    <ul>
+      {% for item in model.used_for %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+
+    <p class="mt-3 mb-0 text-muted">
+      For implementation details, see the corresponding modules in
+      <code>analysis/</code> and <code>engine/</code>.
+    </p>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+
+✅ C. New docs: docs/models_overview.md
+Ask Claude to create this file (this is what your son can read directly from GitHub, download, etc.):
+# PRISM Models & Geometric Engines
+
+> **Prism Research** – A unified geometric model of equilibrium.
+
+This document explains the core engines used by PRISM:
+what they do, how they work mathematically, what data they accept,
+and how to use them in practice.
+
+It is intentionally written for researchers in fields like
+**finance, climate science, engineering, and complex systems**, so that
+you can reuse the ideas on your own data.
+
+---
+
+## 1. Wavelet Coherence Engine
+
+**Type:** Time–frequency geometry  
+**Typical module:** `analysis/wavelet_coherence.py` (or equivalent)
+
+### Concept
+
+Wavelet coherence measures **how strongly two time series move together**
+as a function of both **time** and **frequency (scale)**.
+It is like a correlation that can “zoom in” on specific horizons
+(short-term vs long-term).
+
+### Inputs
+
+- Time–aligned series (e.g. daily returns) for ≥ 2 indicators
+- Regular sampling (daily / weekly)
+- Minimum length ≈ 3 × largest wavelet scale used
+
+### Outputs
+
+- Coherence surface \( C(t, s) \in [0, 1] \)
+- Aggregate coherence time series (for each window)
+- High-coherence periods used as **regime-change candidates**
+
+### Uses in PRISM
+
+- Detect when **many indicators synchronize**, a precursor to regime shifts  
+- Feed coherence scores into **consensus** and **MRF** style metrics  
+- Compare to dispersion and network measures as cross-checks
+
+---
+
+## 2. Hidden Markov Model (HMM) Regime Engine
+
+**Type:** Unsupervised machine learning (temporal)  
+**Typical module:** `analysis/hmm_regime.py`
+
+### Concept
+
+An HMM assumes that observed returns are generated by **latent states**
+(e.g. calm, stressed, crisis). It learns:
+
+- the probability of being in each state at each time, and  
+- the transition probabilities between states.
+
+No labels are required – this is **unsupervised**.
+
+### Inputs
+
+- Feature panel (returns, vol, spreads, etc.)
+- Daily time step recommended
+- Number of hidden states (2–4 is common)
+
+### Outputs
+
+- \( P(S_t = k \mid \text{data}) \) for each time \( t \)
+- Most likely regime path {state_t}
+- Transition matrix between regimes
+
+### Uses in PRISM
+
+- Provide **regime labels** that can be compared with:
+  - GMM clustering,
+  - wavelet coherence events,
+  - PCA geometry shifts
+- Provide inputs to **MRF / tactical tilt** logic
+- Study regime persistence and transition risk
+
+---
+
+## 3. PCA Geometry Engine
+
+**Type:** Dimensionality reduction / factor geometry  
+**Typical module:** `analysis/pca_geometry.py`
+
+### Concept
+
+Principal Component Analysis (PCA) finds the **axes of maximal variance**
+in the indicator panel, enabling PRISM to work in a low-dimensional
+“risk space” while preserving most of the structure.
+
+### Inputs
+
+- Normalized indicator panel (often returns)
+- Rolling windows (e.g. 63, 126, 252 days)
+- Choice of number of components (e.g. 3–5)
+
+### Outputs
+
+- Eigenvalues / explained variance
+- Eigenvectors / factor loadings
+- Coordinates of each indicator in PCA space
+
+### Uses in PRISM
+
+- Track when risk **concentrates** into a few dominant components
+- Detect **geometry changes** (rotations, spreads)
+- Support MRF and other composite scores via factor-level analysis
+
+---
+
+## 4. Gaussian Mixture (GMM) Clustering Engine
+
+**Type:** Unsupervised machine learning (cross-sectional)  
+**Typical module:** `analysis/gmm_regime.py`
+
+### Concept
+
+A Gaussian Mixture Model approximates the distribution of returns
+as a mixture of a few Gaussian “blobs” (clusters). Each blob can be
+interpreted as a **regime** or **market condition**.
+
+### Inputs
+
+- Feature matrix of returns / risk metrics
+- Number of clusters or model selection range (BIC/AIC)
+- Optional PCA pre-projection
+
+### Outputs
+
+- Cluster assignment probabilities per observation
+- Cluster means and covariances
+- Regime labels aligned with dates
+
+### Uses in PRISM
+
+- Alternative regime detection compared to HMM
+- Check **stability of regimes** under different features
+- Compare regime boundaries with major macro events
+
+---
+
+## 5. Network / Graph Geometry Engine
+
+**Type:** Graph / topology  
+**Typical module:** `analysis/network_geometry.py`
+
+### Concept
+
+Treat indicators as **nodes** in a graph, and connect them based on
+correlation or distance. Study how the **network structure** evolves:
+central hubs, clustering, fragmentation.
+
+### Inputs
+
+- Correlation (or distance) matrix between indicators
+- Threshold or K-nearest neighbor rule
+- Rolling windows
+
+### Outputs
+
+- Degree, centrality, clustering coefficients
+- Connected components / communities
+- Network-based early-warning summary metrics
+
+### Uses in PRISM
+
+- Identify **key risk hubs** (high centrality)
+- Detect **fragmentation** vs **synchronization**
+- Cross-check coherence and dispersion signals
+
+---
+
+## 6. Dispersion & Volatility Geometry Engine
+
+**Type:** Cross-sectional risk geometry  
+**Typical module:** `analysis/dispersion_engine.py`
+
+### Concept
+
+Measures how **spread out** returns are across indicators (and vs a
+benchmark). High dispersion often precedes or accompanies regime shifts.
+
+### Inputs
+
+- Panel of indicator returns
+- Optional benchmark (e.g. S&P 500)
+- Rolling window size
+
+### Outputs
+
+- Cross-sectional standard deviation and robust metrics
+- Sector/style dispersion aggregates
+- Time-series of dispersion scores
+
+### Uses in PRISM
+
+- Detect early warning of **breakdowns in breadth**
+- Measure whether rallies/selloffs are **narrow or broad**
+- Feed dispersion into ML/Meta composite lenses
+
+---
+
+## 7. Data Formats & Panel Requirements
+
+Most engines expect data in one of two forms:
+
+### 7.1 Time Series Table
+
+```text
+date,indicator,value
+2020-01-02,sp500,3257.85
+2020-01-02,vix,14.02
+...
+
+7.2 Wide Panel
+date,sp500,vix,t10y2y,usd_index,...
+2020-01-02,3257.85,14.02,0.25,96.7,...
+2020-01-03,3264.33,13.95,0.26,96.8,...
+
+PRISM’s internal pipeline handles:
+
+
+Fetch → raw tables
+
+
+Normalize / clean → wide panels
+
+
+Engine-ready panels (returns, z-scores, etc.)
+
+
+External users can reuse the models with any data that can be mapped
+into this structure (finance, climate, biology, etc.).
+
+(Claude can expand equations later if you want full math.)
+
+---
+
+### ✅ D. Add a small “Models” link to the main dashboard navigation
+
+In `dashboard/templates/dashboard.html` (wherever the nav/header lives), ask Claude to add a link like:
+
+```html
+<li class="nav-item">
+  <a class="nav-link" href="{{ url_for('models') }}">
+    <span class="nav-link-title">
+      Models & Geometry
+    </span>
+  </a>
+</li>
+
+So your son (or anyone) can get there easily.
+
+✅ E. README: “For Jason’s Son / External Users”
+Ask Claude to append a “Quickstart for Researchers” section to README.md:
+## Quickstart for Researchers (Clone → DB → Dashboard)
+
+This project is designed so that an external user can:
+
+1. Clone the repo  
+2. Create a virtual environment  
+3. Set API keys  
+4. Fetch data  
+5. Run the dashboard and explore the models
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/rudder-research/prism-engine.git
+cd prism-engine
+
+2. Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+3. Set API keys (FRED, Tiingo, optional climate APIs)
+export FRED_API_KEY="YOUR_FRED_KEY"
+export TIINGO_API_KEY="YOUR_TIINGO_KEY"
+# Optional climate keys / .cdsapirc can be configured separately
+
+On macOS you can store these permanently in ~/.zshrc as environment variables.
+4. Initialize and populate the database
+python start/update_all.py
+
+This will:
+
+
+create the SQLite database (e.g. ~/prism_data/prism.db)
+
+
+fetch economic series from FRED
+
+
+fetch market series from Tiingo
+
+
+register indicators and families for the geometry engines
+
+
+You can inspect the result with:
+python start/data_report.py
+python start/check_indicator_health.py
+python start/check_families.py
+
+5. Run the dashboard
+cd dashboard
+python app.py
+
+Then open the URL printed in the console (e.g. http://127.0.0.1:5000) in your browser.
+From there you can:
+
+
+View the main Dashboard
+
+
+Open Models & Geometry for detailed descriptions
+
+
+Download docs/models_overview.md to review the math and data requirements offline
+
+
+
+---
+
+## 3️⃣ What you do now
+
+1. Copy this whole message into Claude as:  
+   **“Please implement this PR exactly as specified.”**
+2. Let Claude Code apply the changes and push to `main` (or a feature branch if you prefer).
+3. Once merged, you’ll be able to:
+   - hit `/models` in the dashboard  
+   - send your son the GitHub repo + README  
+   - tell him “follow the Quickstart and open the Models page”  
+   - and it will actually work end-to-end.  
+
+And yeah — this is absolutely the kind of thing a chemical-engineering grad will geek out over.
+::contentReference[oaicite:0]{index=0}
