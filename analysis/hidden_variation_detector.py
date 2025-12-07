@@ -590,10 +590,112 @@ def build_hvd_report(
 # Pretty Printing
 # =============================================================================
 
+# =============================================================================
+# Family Divergence Detection Utility
+# =============================================================================
+
+def detect_family_divergence(
+    indicator_family: str,
+    df_dict: Dict[str, pd.DataFrame],
+    threshold: float = 0.70,
+    window_days: int = 252
+) -> List[str]:
+    """
+    Runs HVD analysis on all members of a family.
+
+    This is a convenience function for the runtime loader to check
+    if family members in the loaded data are diverging.
+
+    IMPORTANT: This function is READ-ONLY and ADVISORY.
+    It returns warnings but never modifies data.
+
+    Args:
+        indicator_family: Name of the family (e.g., 'spx', 'treasury')
+        df_dict: Dictionary mapping indicator names to DataFrames with [date, value] columns
+        threshold: Correlation threshold for divergence warning
+        window_days: Number of days for recent correlation window
+
+    Returns:
+        List of warning strings. Empty if no divergences detected.
+    """
+    warnings_list = []
+
+    if not df_dict or len(df_dict) < 2:
+        return warnings_list
+
+    # Build a wide panel from df_dict
+    merged = None
+    for name, df in df_dict.items():
+        if df is None or df.empty:
+            continue
+
+        # Ensure DataFrame has date and value columns
+        if 'date' not in df.columns or 'value' not in df.columns:
+            continue
+
+        df_copy = df[['date', 'value']].copy()
+        df_copy = df_copy.rename(columns={'value': name})
+        df_copy['date'] = pd.to_datetime(df_copy['date'])
+
+        if merged is None:
+            merged = df_copy
+        else:
+            merged = pd.merge(merged, df_copy, on='date', how='outer')
+
+    if merged is None or len(merged) < window_days:
+        return warnings_list
+
+    merged = merged.sort_values('date').set_index('date')
+    indicators = [c for c in merged.columns if c != 'date']
+
+    if len(indicators) < 2:
+        return warnings_list
+
+    # Check correlations between pairs
+    for i, ind1 in enumerate(indicators):
+        for ind2 in indicators[i+1:]:
+            # Get overlapping non-NaN values
+            mask = merged[ind1].notna() & merged[ind2].notna()
+            if mask.sum() < window_days:
+                continue
+
+            data = merged.loc[mask, [ind1, ind2]]
+
+            # Full period correlation
+            full_corr = data[ind1].corr(data[ind2])
+
+            # Recent correlation (last window_days)
+            recent = data.tail(window_days)
+            if len(recent) < 50:
+                recent_corr = full_corr
+            else:
+                recent_corr = recent[ind1].corr(recent[ind2])
+
+            # Check for divergence
+            if recent_corr < threshold:
+                severity = 'HIGH' if recent_corr < 0.4 else 'MEDIUM' if recent_corr < 0.6 else 'LOW'
+                warning = (
+                    f"[HVD] DIVERGENCE in family '{indicator_family}': "
+                    f"{ind1} vs {ind2} - recent correlation {recent_corr:.3f} "
+                    f"(full period: {full_corr:.3f}) [{severity}]"
+                )
+                warnings_list.append(warning)
+
+    # Also warn if multiple members are in the same analysis
+    if len(indicators) > 1:
+        warning = (
+            f"[HVD] Family '{indicator_family}' has {len(indicators)} members in data: "
+            f"{', '.join(indicators)}. May cause double-counting in analysis."
+        )
+        warnings_list.append(warning)
+
+    return warnings_list
+
+
 def print_hvd_summary(report: HVDReport, max_warnings: int = 10, max_pairs: int = 5):
     """
     Print a formatted summary of the HVD report.
-    
+
     Args:
         report: HVDReport to summarize
         max_warnings: Maximum warnings to display

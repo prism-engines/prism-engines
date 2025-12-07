@@ -212,6 +212,279 @@ retail_sales:
   source_id: RSAFS
 
 # =============================================================================
+# FRED INDICATORS - Growth & Output
+# =============================================================================
+
+gdp:
+  source: fred
+  source_id: GDP
+  system: economic
+  canonical_name: "Gross Domestic Product"
+  history_start: 1947
+  purpose:
+    - calibration
+    - regime_history
+    - secular_trends
+
+gdpc1:
+  source: fred
+  source_id: GDPC1
+  system: economic
+  canonical_name: "Real GDP"
+  history_start: 1947
+  purpose:
+    - calibration
+    - regime_history
+    - macro_trend
+
+indpro:
+  source: fred
+  source_id: INDPRO
+  system: economic
+  canonical_name: "Industrial Production Index"
+  history_start: 1919
+  purpose:
+    - geometry
+    - calibration
+    - regime_history
+
+retail_sales_sa:
+  source: fred
+  source_id: RETAILSMSA
+  system: economic
+  canonical_name: "Retail Sales (Seasonally Adjusted)"
+  history_start: 1992
+  purpose:
+    - geometry
+    - calibration
+
+business_inventories:
+  source: fred
+  source_id: BUSINV
+  system: economic
+  canonical_name: "Business Inventories"
+  history_start: 1992
+  purpose:
+    - calibration
+    - regime_history
+
+capacity_utilization:
+  source: fred
+  source_id: TCU
+  system: economic
+  canonical_name: "Total Capacity Utilization"
+  history_start: 1967
+  purpose:
+    - geometry
+    - calibration
+    - regime_history
+
+# =============================================================================
+# FRED INDICATORS - Labor
+# =============================================================================
+
+unrate:
+  source: fred
+  source_id: UNRATE
+  system: economic
+  canonical_name: "Unemployment Rate"
+  history_start: 1948
+  purpose:
+    - geometry
+    - calibration
+    - regime_history
+
+nfp:
+  source: fred
+  source_id: PAYEMS
+  system: economic
+  canonical_name: "Nonfarm Payrolls"
+  history_start: 1939
+  purpose:
+    - geometry
+    - calibration
+    - regime_history
+
+icsa:
+  source: fred
+  source_id: ICSA
+  system: economic
+  canonical_name: "Initial Claims (Weekly)"
+  history_start: 1967
+  purpose:
+    - geometry
+    - calibration
+    - short_term_coherence
+
+# =============================================================================
+# FRED INDICATORS - Inflation (Additional)
+# =============================================================================
+
+cpiaucsl:
+  source: fred
+  source_id: CPIAUCSL
+  system: economic
+  canonical_name: "CPI All Urban Consumers"
+  history_start: 1947
+  purpose:
+    - calibration
+    - regime_history
+    - inflation_regime
+
+cpilfens:
+  source: fred
+  source_id: CPILFENS
+  system: economic
+  canonical_name: "Core CPI Less Food and Energy (NSA)"
+  history_start: 1957
+  purpose:
+    - calibration
+    - regime_history
+
+pcepi_index:
+  source: fred
+  source_id: PCEPI
+  system: economic
+  canonical_name: "PCE Price Index"
+  history_start: 1959
+  purpose:
+    - geometry
+    - calibration
+    - inflation_regime
+
+pcepilfe:
+  source: fred
+  source_id: PCEPILFE
+  system: economic
+  canonical_name: "Core PCE Price Index"
+  history_start: 1959
+  purpose:
+    - geometry
+    - calibration
+    - inflation_regime
+
+# =============================================================================
+# FRED INDICATORS - Credit & Financial Conditions
+# =============================================================================
+
+gs2:
+  source: fred
+  source_id: GS2
+  system: economic
+  canonical_name: "2-Year Treasury Constant Maturity"
+  history_start: 1976
+  purpose:
+    - geometry
+    - calibration
+    - yield_curve
+
+gs5:
+  source: fred
+  source_id: GS5
+  system: economic
+  canonical_name: "5-Year Treasury Constant Maturity"
+  history_start: 1953
+  purpose:
+    - geometry
+    - calibration
+    - yield_curve
+
+gs7:
+  source: fred
+  source_id: GS7
+  system: economic
+  canonical_name: "7-Year Treasury Constant Maturity"
+  history_start: 1969
+  purpose:
+    - geometry
+    - calibration
+    - yield_curve
+
+gs20:
+  source: fred
+  source_id: GS20
+  system: economic
+  canonical_name: "20-Year Treasury Constant Maturity"
+  history_start: 1953
+  purpose:
+    - geometry
+    - calibration
+    - yield_curve
+
+corp_bond_yield:
+  source: fred
+  source_id: AAA
+  system: economic
+  canonical_name: "AAA Corporate Bond Yield"
+  history_start: 1919
+  purpose:
+    - geometry
+    - calibration
+    - credit_regime
+
+baa_bond_yield:
+  source: fred
+  source_id: BAA
+  system: economic
+  canonical_name: "BAA Corporate Bond Yield"
+  history_start: 1919
+  purpose:
+    - geometry
+    - calibration
+    - credit_regime
+
+# =============================================================================
+# FRED INDICATORS - Liquidity & Balance Sheet
+# =============================================================================
+
+rrpontsyd:
+  source: fred
+  source_id: RRPONTSYD
+  system: economic
+  canonical_name: "Overnight Reverse Repo Rate"
+  history_start: 2003
+  purpose:
+    - geometry
+    - liquidity_regime
+
+soma:
+  source: fred
+  source_id: WSHOSHO
+  system: economic
+  canonical_name: "SOMA Holdings"
+  history_start: 2002
+  purpose:
+    - calibration
+    - liquidity_regime
+    - regime_history
+
+# =============================================================================
+# FRED INDICATORS - Sentiment (Additional)
+# =============================================================================
+
+umcsent1:
+  source: fred
+  source_id: UMCSENT1
+  system: economic
+  canonical_name: "Consumer Sentiment (Current Conditions)"
+  history_start: 1978
+  purpose:
+    - geometry
+    - calibration
+    - sentiment_regime
+
+umcsent5:
+  source: fred
+  source_id: UMCSENT5
+  system: economic
+  canonical_name: "Consumer Sentiment (5-Year Expectations)"
+  history_start: 1978
+  purpose:
+    - geometry
+    - calibration
+    - sentiment_regime
+
+# =============================================================================
 # TIINGO INDICATORS - ETF Adjusted Close Data
 # =============================================================================
 
@@ -219,107 +492,215 @@ retail_sales:
 spy:
   source: tiingo
   source_id: SPY
+  system: market
+  resolution: daily
 
 qqq:
   source: tiingo
   source_id: QQQ
+  system: market
+  resolution: daily
 
 dia:
   source: tiingo
   source_id: DIA
+  system: market
+  resolution: daily
 
 iwm:
   source: tiingo
   source_id: IWM
+  system: market
+  resolution: daily
+
+# US Equity Style ETFs
+iwb:
+  source: tiingo
+  source_id: IWB
+  system: market
+  resolution: daily
+
+iwf:
+  source: tiingo
+  source_id: IWF
+  system: market
+  resolution: daily
+
+iwd:
+  source: tiingo
+  source_id: IWD
+  system: market
+  resolution: daily
 
 # Sector ETFs (SPDR Select Sector)
 xlk:
   source: tiingo
   source_id: XLK
+  system: market
+  resolution: daily
 
 xlf:
   source: tiingo
   source_id: XLF
+  system: market
+  resolution: daily
 
 xle:
   source: tiingo
   source_id: XLE
+  system: market
+  resolution: daily
 
 xli:
   source: tiingo
   source_id: XLI
+  system: market
+  resolution: daily
 
 xlv:
   source: tiingo
   source_id: XLV
+  system: market
+  resolution: daily
 
 xly:
   source: tiingo
   source_id: XLY
+  system: market
+  resolution: daily
 
 xlp:
   source: tiingo
   source_id: XLP
+  system: market
+  resolution: daily
 
 xlu:
   source: tiingo
   source_id: XLU
+  system: market
+  resolution: daily
 
 xlb:
   source: tiingo
   source_id: XLB
+  system: market
+  resolution: daily
 
 xlre:
   source: tiingo
   source_id: XLRE
+  system: market
+  resolution: daily
 
 xlc:
   source: tiingo
   source_id: XLC
+  system: market
+  resolution: daily
+
+# Biotech ETF
+xbi:
+  source: tiingo
+  source_id: XBI
+  system: market
+  resolution: daily
 
 # Bond ETFs
 tlt:
   source: tiingo
   source_id: TLT
+  system: market
+  resolution: daily
 
 ief:
   source: tiingo
   source_id: IEF
+  system: market
+  resolution: daily
 
 shy:
   source: tiingo
   source_id: SHY
+  system: market
+  resolution: daily
 
 hyg:
   source: tiingo
   source_id: HYG
+  system: market
+  resolution: daily
 
 lqd:
   source: tiingo
   source_id: LQD
+  system: market
+  resolution: daily
+
+agg:
+  source: tiingo
+  source_id: AGG
+  system: market
+  resolution: daily
 
 # Commodity ETFs
 gld:
   source: tiingo
   source_id: GLD
+  system: market
+  resolution: daily
 
 slv:
   source: tiingo
   source_id: SLV
+  system: market
+  resolution: daily
 
 uso:
   source: tiingo
   source_id: USO
+  system: market
+  resolution: daily
+
+dbc:
+  source: tiingo
+  source_id: DBC
+  system: market
+  resolution: daily
+
+dba:
+  source: tiingo
+  source_id: DBA
+  system: market
+  resolution: daily
 
 # International
 efa:
   source: tiingo
   source_id: EFA
+  system: market
+  resolution: daily
 
 eem:
   source: tiingo
   source_id: EEM
+  system: market
+  resolution: daily
 
 vwo:
   source: tiingo
   source_id: VWO
+  system: market
+  resolution: daily
+
+fxi:
+  source: tiingo
+  source_id: FXI
+  system: market
+  resolution: daily
+
+ewz:
+  source: tiingo
+  source_id: EWZ
+  system: market
+  resolution: daily

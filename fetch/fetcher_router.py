@@ -12,6 +12,11 @@ API Keys:
 - FRED: Set FRED_API_KEY environment variable
 - Tiingo: Set TIINGO_API_KEY environment variable
 
+Features:
+- Automatic recognition of new FRED codes and Tiingo tickers
+- Routes based on source field in indicators.yaml
+- Fetch log for diagnostic tracking
+
 Usage:
     from fetch.fetcher_router import SourceRouter
 
@@ -23,16 +28,34 @@ Usage:
     # Fetch by source explicitly
     df = router.fetch_from_source("fred", "SP500")
     df = router.fetch_from_source("tiingo", "SPY")
+
+    # Get fetch statistics
+    stats = router.get_fetch_stats()
 """
 
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+from datetime import datetime
 
 import pandas as pd
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Router-level fetch log
+_router_fetch_log: List[Dict[str, Any]] = []
+
+
+def get_router_fetch_log() -> List[Dict[str, Any]]:
+    """Return the router fetch log."""
+    return _router_fetch_log.copy()
+
+
+def clear_router_fetch_log() -> None:
+    """Clear the router fetch log."""
+    global _router_fetch_log
+    _router_fetch_log = []
 
 # Project root for finding registry
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -299,6 +322,64 @@ class SourceRouter:
             results["tiingo"] = False
 
         return results
+
+    def get_fred_indicators(self) -> List[str]:
+        """Get all FRED indicators from registry."""
+        return [
+            name for name, config in self.registry.items()
+            if config.get("source") == "fred"
+        ]
+
+    def get_tiingo_indicators(self) -> List[str]:
+        """Get all Tiingo indicators from registry."""
+        return [
+            name for name, config in self.registry.items()
+            if config.get("source") == "tiingo"
+        ]
+
+    def get_fetch_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about fetch operations.
+
+        Returns:
+            Dict with fetch statistics
+        """
+        by_source = self.list_indicators_by_source()
+
+        return {
+            "total_indicators": len(self.registry),
+            "fred_count": len(by_source.get("fred", [])),
+            "tiingo_count": len(by_source.get("tiingo", [])),
+            "sources": list(by_source.keys()),
+            "fetch_log_entries": len(_router_fetch_log)
+        }
+
+    def validate_registry(self) -> Dict[str, Any]:
+        """
+        Validate the registry for issues.
+
+        Returns:
+            Dict with validation results
+        """
+        issues = []
+
+        for name, config in self.registry.items():
+            source = config.get("source")
+            source_id = config.get("source_id")
+
+            if not source:
+                issues.append(f"{name}: missing 'source' field")
+            elif source not in ["fred", "tiingo"]:
+                issues.append(f"{name}: unknown source '{source}'")
+
+            if not source_id:
+                issues.append(f"{name}: missing 'source_id' field")
+
+        return {
+            "valid": len(issues) == 0,
+            "issue_count": len(issues),
+            "issues": issues
+        }
 
 
 # Backward compatibility - HybridFetcher is now SourceRouter

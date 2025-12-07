@@ -11,6 +11,11 @@ Tiingo provides:
 Documentation: https://api.tiingo.com/documentation
 
 API Key: Set TIINGO_API_KEY environment variable
+
+Normalization:
+- adjusted_close → value
+- date parsing with YYYY-MM-DD format
+- All errors logged to fetch_log
 """
 
 import os
@@ -18,12 +23,45 @@ import pandas as pd
 import requests
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+from datetime import datetime
 import logging
 import time
 
 from fetch.fetcher_base import BaseFetcher
 
 logger = logging.getLogger(__name__)
+
+# Fetch log for tracking all fetch operations
+_fetch_log: List[Dict[str, Any]] = []
+
+
+def get_fetch_log() -> List[Dict[str, Any]]:
+    """Return the fetch log for diagnostic purposes."""
+    return _fetch_log.copy()
+
+
+def clear_fetch_log() -> None:
+    """Clear the fetch log."""
+    global _fetch_log
+    _fetch_log = []
+
+
+def _log_fetch(ticker: str, status: str, rows: int = 0, error: str = None) -> None:
+    """Log a fetch operation."""
+    entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "source": "tiingo",
+        "ticker": ticker,
+        "status": status,
+        "rows": rows,
+        "error": error
+    }
+    _fetch_log.append(entry)
+
+    if status == "error":
+        logger.error(f"[Tiingo] FETCH_ERROR {ticker}: {error}")
+    elif status == "success":
+        logger.info(f"[Tiingo] FETCH_OK {ticker}: {rows} rows")
 
 # Retry configuration
 MAX_RETRIES = 3
@@ -162,16 +200,23 @@ class TiingoFetcher(BaseFetcher):
 
                 df = pd.DataFrame(data)
 
-                # Standardize columns
+                # Standardize columns with robust normalization
                 df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
 
                 # Use adjusted close as the value (Schema v2 format)
+                # This is the primary normalization: adjClose → value
                 df["value"] = df["adjClose"]
 
                 # Filter to standard [date, value] format
                 out = df[["date", "value"]].copy()
                 out = out.sort_values("date").reset_index(drop=True)
 
+                # Enforce YYYY-MM-DD date format for consistency
+                out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+                out["date"] = pd.to_datetime(out["date"])
+
+                # Log successful fetch
+                _log_fetch(clean_ticker, "success", len(out))
                 logger.info(f"Tiingo: {clean_ticker} -> {len(out)} rows")
                 return out
 
@@ -182,9 +227,11 @@ class TiingoFetcher(BaseFetcher):
                     logger.debug(f"Tiingo request error: {e}, retrying in {delay}s...")
                     time.sleep(delay)
                 else:
+                    _log_fetch(clean_ticker, "error", error=str(e))
                     logger.error(f"Tiingo request failed for {clean_ticker}: {e}")
             except Exception as e:
                 last_error = e
+                _log_fetch(clean_ticker, "error", error=str(e))
                 logger.error(f"Tiingo error for {clean_ticker}: {e}")
                 break
 
