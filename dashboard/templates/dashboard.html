@@ -17,6 +17,70 @@
         </div>
       </div>
 
+      <!-- Engine vs Series Visualization -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title">Engine vs Series</h3>
+          <p class="card-subtitle text-muted">
+            Compare PRISM engine outputs (bars) vs a selected indicator or group (line).
+          </p>
+        </div>
+        <div class="card-body">
+          <form id="engine-series-form" class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label for="engineSelect" class="form-label">Engine (Bars)</label>
+              <select id="engineSelect" class="form-select">
+                <option value="coherence">Coherence Engine</option>
+                <option value="hmm_regime">HMM Regime Probabilities</option>
+                <option value="pca_instability">PCA Instability</option>
+                <option value="dispersion">Dispersion Engine</option>
+                <option value="meta">Meta-Lens Composite</option>
+                <option value="composite">PRISM Composite</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="seriesSelect" class="form-label">Line Series</label>
+              <select id="seriesSelect" class="form-select">
+                <option value="sp500">S&P 500 (sp500)</option>
+                <option value="nasdaq">NASDAQ Composite (nasdaq)</option>
+                <option value="t10y2y">Yield Curve (T10Y2Y)</option>
+                <option value="vix">VIX (vix)</option>
+                <option value="m2sl">Money Supply (M2SL)</option>
+                <option value="dgs10">10Y Treasury (DGS10)</option>
+                <option value="dgs2">2Y Treasury (DGS2)</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label for="startDate" class="form-label">Start Date</label>
+              <input type="date" id="startDate" class="form-control" />
+            </div>
+            <div class="col-md-2">
+              <label for="endDate" class="form-label">End Date</label>
+              <input type="date" id="endDate" class="form-control" />
+            </div>
+            <div class="col-md-2">
+              <label for="frequencySelect" class="form-label">Frequency</label>
+              <select id="frequencySelect" class="form-select">
+                <option value="daily" selected>Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div class="col-12 mt-3">
+              <button type="button" id="runEngineSeriesBtn" class="btn btn-primary">
+                Run Engine vs Series
+              </button>
+              <span id="engine-series-status" class="ms-3 text-secondary small">Ready.</span>
+            </div>
+          </form>
+
+          <div id="engine-series-chart-container" class="mt-4" style="height: 400px;">
+            <canvas id="engineSeriesChart"></canvas>
+          </div>
+          <div id="engine-series-error" class="alert alert-warning mt-3" style="display: none;"></div>
+        </div>
+      </div>
+
       <div class="row row-cards">
         <!-- Left: Controls -->
         <div class="col-md-4">
