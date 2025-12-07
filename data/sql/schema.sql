@@ -40,11 +40,12 @@ INSERT OR IGNORE INTO systems(system) VALUES
 CREATE TABLE IF NOT EXISTS indicators (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,             -- e.g., 'SPY', 'DXY', 'M2SL'
-    system TEXT NOT NULL,                  -- e.g., 'finance', 'market', 'economic'
+    system TEXT NOT NULL DEFAULT 'market', -- e.g., 'finance', 'market', 'economic'
     frequency TEXT NOT NULL DEFAULT 'daily',
     source TEXT,                           -- e.g., 'yahoo', 'fred', 'stooq'
     units TEXT,
     description TEXT,
+    metadata TEXT,                         -- JSON metadata for backward compatibility
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (system) REFERENCES systems(system)

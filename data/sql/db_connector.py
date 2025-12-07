@@ -49,80 +49,96 @@ def connect() -> sqlite3.Connection:
 # DATABASE INITIALIZATION
 # =============================================================================
 
+def _get_sql_dir() -> Path:
+    """Return the directory containing SQL files."""
+    return Path(__file__).parent
+
+
+def _execute_schema(conn: sqlite3.Connection) -> None:
+    """Execute the main schema.sql file."""
+    schema_path = _get_sql_dir() / "schema.sql"
+    if schema_path.exists():
+        with open(schema_path, "r") as f:
+            conn.executescript(f.read())
+        print(f"  + Executed schema.sql")
+    else:
+        raise FileNotFoundError(f"schema.sql not found at {schema_path}")
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Run all SQL migrations in numeric order."""
+    migrations_dir = _get_sql_dir() / "migrations"
+    if not migrations_dir.exists():
+        print(f"  - No migrations directory found")
+        return
+
+    # Get all .sql files sorted by name (numeric prefix)
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+
+    for migration_file in migration_files:
+        with open(migration_file, "r") as f:
+            sql_content = f.read()
+
+        # Execute each statement separately to handle IF NOT EXISTS gracefully
+        for statement in sql_content.split(';'):
+            statement = statement.strip()
+            if statement:
+                try:
+                    conn.execute(statement)
+                except sqlite3.OperationalError as e:
+                    # Ignore "table already exists" errors
+                    if "already exists" not in str(e):
+                        raise
+
+        print(f"  + Executed migration: {migration_file.name}")
+
+
 def init_database() -> None:
     """
-    Initialize the database with all required tables.
-    Creates: indicators, market_prices, econ_values, fetch_log
+    Initialize the database by executing schema.sql and all migrations.
+
+    Creates tables:
+      - systems (domain registry)
+      - indicators (indicator metadata)
+      - indicator_values (primary time series data)
+      - fetch_log (fetch operation logs)
+      - market_prices (legacy compatibility)
+      - econ_values (legacy compatibility)
+      - metadata (key-value store)
     """
-    conn = get_connection()
+    import os
 
-    # Enable WAL mode for better concurrency
-    conn.execute("PRAGMA journal_mode=WAL;")
+    db_path = get_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    # Create indicators table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS indicators (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            system TEXT DEFAULT 'market',
-            source TEXT,
-            frequency TEXT DEFAULT 'daily',
-            metadata TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    print(f"Initializing database at: {db_path}")
 
-    # Create market_prices table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS market_prices (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticker TEXT NOT NULL,
-            date TEXT NOT NULL,
-            value REAL,
-            UNIQUE(ticker, date)
-        )
-    """)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
 
-    # Create econ_values table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS econ_values (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            series_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            value REAL,
-            UNIQUE(series_id, date)
-        )
-    """)
+    try:
+        # Enable WAL mode for better concurrency
+        conn.execute("PRAGMA journal_mode=WAL;")
 
-    # Create fetch_log table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS fetch_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source TEXT,
-            entity TEXT,
-            operation TEXT,
-            status TEXT,
-            rows_fetched INTEGER DEFAULT 0,
-            rows_inserted INTEGER DEFAULT 0,
-            rows_updated INTEGER DEFAULT 0,
-            error_message TEXT,
-            started_at TEXT,
-            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            duration_ms INTEGER
-        )
-    """)
+        # Execute main schema
+        _execute_schema(conn)
 
-    # Create indexes for performance
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_market_prices_ticker ON market_prices(ticker)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_market_prices_date ON market_prices(date)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_econ_values_series ON econ_values(series_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_econ_values_date ON econ_values(date)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_indicators_name ON indicators(name)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_indicators_system ON indicators(system)")
+        # Run all migrations
+        _run_migrations(conn)
 
-    conn.commit()
-    conn.close()
+        # Ensure metadata table exists (required by acceptance test)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+
+        conn.commit()
+        print("Database initialized successfully!")
+
+    finally:
+        conn.close()
 
 
 # =============================================================================
