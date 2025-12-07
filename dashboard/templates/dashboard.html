@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="row">
+    <div class="col-3">
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Controls</h3>
+            </div>
+            <div class="card-body">
+
+                <!-- Diagnostics -->
+                <label class="form-label">Diagnostics</label>
+                <select id="diagnostics" class="form-select mb-3">
+                    <option value="none">None</option>
+                    <option value="full">Full System ★</option>
+                    <option value="db">Database Health</option>
+                    <option value="fetch">Fetcher Health</option>
+                    <option value="lenses">Lens Execution</option>
+                    <option value="engines">Engine Runtime</option>
+                </select>
+
+                <!-- Data Fetch -->
+                <label class="form-label">Data Fetch</label>
+                <select id="fetch-source" class="form-select mb-3" multiple>
+                    <option value="none" selected>No Fetch</option>
+                    <option value="fred">FRED</option>
+                    <option value="tiingo">Tiingo</option>
+                    <option value="climate">Climate</option>
+                </select>
+
+                <label class="form-label">Fetch Range</label>
+                <select id="fetch-range" class="form-select mb-3">
+                    <option value="none">None</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="90d">Last 90 Days</option>
+                    <option value="full">Full History</option>
+                </select>
+
+                <!-- Analysis -->
+                <label class="form-label">Analysis</label>
+                <select id="analysis" class="form-select mb-3">
+                    <option value="none">None</option>
+                    <option value="coherence">Market Coherence</option>
+                    <option value="correlation">Correlation Matrix</option>
+                    <option value="families">Cross-Family Correlation</option>
+                    <option value="calibrated">Calibrated Engine</option>
+                    <option value="regime">Regime Detection</option>
+                    <option value="20yr">20-Year Full ★</option>
+                    <option value="40yr">40-Year Full ★</option>
+                </select>
+
+                <!-- ML / Meta -->
+                <label class="form-label">ML / Meta Mode</label>
+                <select id="mlmeta" class="form-select mb-3">
+                    <option value="none">None</option>
+                    <option value="ml">ML Only</option>
+                    <option value="meta">Meta Only</option>
+                    <option value="mlmeta">ML + Meta</option>
+                </select>
+
+                <!-- Systems -->
+                <label class="form-label">Systems / Domains</label>
+                <select id="system-domain" class="form-select mb-3" multiple>
+                    <option value="market" selected>Market</option>
+                    <option value="liquidity">Liquidity</option>
+                    <option value="credit">Credit</option>
+                    <option value="macro">Macro & Rates</option>
+                    <option value="vol">Volatility</option>
+                    <option value="climate">Climate</option>
+                </select>
+
+                <!-- Run -->
+                <button id="run-btn" class="btn btn-primary w-100 mt-3">
+                    ▶ Run PRISM
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- OUTPUT AREA -->
+    <div class="col-9">
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Output</h3></div>
+            <div class="card-body">
+                <pre id="output" style="min-height:400px;">Waiting for PRISM run...</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById("run-btn").onclick = async () => {
+    const payload = {
+        diagnostics: document.getElementById("diagnostics").value,
+        fetch_source: [...document.getElementById("fetch-source").selectedOptions].map(o => o.value),
+        fetch_range: document.getElementById("fetch-range").value,
+        analysis: document.getElementById("analysis").value,
+        mlmeta: document.getElementById("mlmeta").value,
+        systems: [...document.getElementById("system-domain").selectedOptions].map(o => o.value)
+    };
+
+    const resp = await fetch("/run", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json();
+
+    document.getElementById("output").textContent =
+        JSON.stringify(data, null, 2);
+};
+</script>
+
+{% endblock %}
