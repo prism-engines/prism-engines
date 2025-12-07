@@ -1,0 +1,25 @@
+# Tiingo API Configuration
+# =========================
+#
+# API key is read from environment variable TIINGO_API_KEY.
+# No keys should be hardcoded in this file.
+#
+# Get a free API key at: https://api.tiingo.com
+# Free tier: 500 requests/day
+
+tiingo:
+  api_key: "${TIINGO_API_KEY}"
+  base_url: "https://api.tiingo.com/tiingo/daily/"
+
+  # Rate limiting
+  rate_limit:
+    requests_per_day: 500
+    retry_delay_base: 1  # seconds
+    max_retries: 3
+
+  # Data settings
+  data:
+    # Use adjusted close prices (accounts for splits/dividends)
+    use_adjusted: true
+    # Output format matches Schema v2: [date, value]
+    output_columns: ["date", "value"]

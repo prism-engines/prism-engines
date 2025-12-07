@@ -9,8 +9,11 @@ Tiingo provides:
 - Free tier: 500 requests/day
 
 Documentation: https://api.tiingo.com/documentation
+
+API Key: Set TIINGO_API_KEY environment variable
 """
 
+import os
 import pandas as pd
 import requests
 from typing import Optional, List, Dict, Any
@@ -36,11 +39,11 @@ class TiingoFetcher(BaseFetcher):
     Fetcher for Tiingo financial data.
 
     Supports:
-    - US stocks and ETFs via EOD endpoint
+    - US stocks and ETFs via EOD endpoint (adjusted close only)
     - Cryptocurrencies via crypto endpoint
 
     Example usage:
-        fetcher = TiingoFetcher(api_key="your_key")
+        fetcher = TiingoFetcher()  # Uses TIINGO_API_KEY env var
         df = fetcher.fetch_single("SPY")
         df_crypto = fetcher.fetch_crypto("btcusd")
     """
@@ -54,19 +57,25 @@ class TiingoFetcher(BaseFetcher):
         Initialize Tiingo fetcher.
 
         Args:
-            api_key: Tiingo API key (required)
+            api_key: Tiingo API key (optional - defaults to TIINGO_API_KEY env var)
             checkpoint_dir: Optional checkpoint directory
         """
         super().__init__(checkpoint_dir)
-        self.api_key = api_key
+
+        # Use provided key or read from environment
+        self.api_key = api_key or os.getenv("TIINGO_API_KEY")
 
         if not self.api_key:
-            raise ValueError("Tiingo API key is required")
+            logger.warning(
+                "No Tiingo API key found. Set TIINGO_API_KEY environment variable. "
+                "Get a free key at https://api.tiingo.com"
+            )
 
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Token {self.api_key}"
         }
+        if self.api_key:
+            self.headers["Authorization"] = f"Token {self.api_key}"
 
     def validate_response(self, response: Any) -> bool:
         """Validate Tiingo API response."""
@@ -86,7 +95,7 @@ class TiingoFetcher(BaseFetcher):
         **kwargs
     ) -> Optional[pd.DataFrame]:
         """
-        Fetch daily EOD data for a single ticker.
+        Fetch daily adjusted close data for a single ticker.
 
         Args:
             ticker: Stock/ETF ticker symbol (e.g., 'SPY', 'QQQ')
@@ -94,8 +103,12 @@ class TiingoFetcher(BaseFetcher):
             end_date: End date (YYYY-MM-DD)
 
         Returns:
-            DataFrame with date and price columns, or None on failure
+            DataFrame with [date, value] columns, or None on failure
         """
+        if not self.api_key:
+            logger.error("Cannot fetch without Tiingo API key")
+            return None
+
         # Clean ticker - remove common suffixes from other sources
         clean_ticker = self._clean_ticker(ticker)
 
@@ -152,12 +165,11 @@ class TiingoFetcher(BaseFetcher):
                 # Standardize columns
                 df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
 
-                # Create ticker-named column for close price
-                ticker_col = clean_ticker.lower().replace("-", "_")
-                df[ticker_col] = df["adjClose"]  # Use adjusted close
+                # Use adjusted close as the value (Schema v2 format)
+                df["value"] = df["adjClose"]
 
-                # Filter columns
-                out = df[["date", ticker_col]].copy()
+                # Filter to standard [date, value] format
+                out = df[["date", "value"]].copy()
                 out = out.sort_values("date").reset_index(drop=True)
 
                 logger.info(f"Tiingo: {clean_ticker} -> {len(out)} rows")

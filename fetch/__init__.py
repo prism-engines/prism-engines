@@ -1,34 +1,44 @@
 """
-PRISM Engine - Data Fetching Module
+PRISM Engine - Data Fetching Module (Registry v2)
+==================================================
 
-Fetchers for various data sources:
-- PRISMFetcher: Unified fetcher (FRED for economy, Tiingo for market)
-- StooqFetcher: Primary market data (US ETFs, stocks, commodities)
-- TiingoFetcher: Reliable backup + crypto data
-- FREDFetcher: Economic data from FRED
+Source-based fetchers for PRISM's unified indicator system:
+
+- SourceRouter: Registry-aware routing to FRED or Tiingo
+- FREDFetcher: Economic data from Federal Reserve (FRED)
+- TiingoFetcher: ETF/Stock adjusted close prices
+
+API Keys (via environment variables):
+- FRED_API_KEY: Get free key at https://fred.stlouisfed.org/docs/api/api_key.html
+- TIINGO_API_KEY: Get free key at https://api.tiingo.com
 
 Usage:
-    from fetch import PRISMFetcher, TiingoFetcher, FREDFetcher
+    from fetch import SourceRouter, FREDFetcher, TiingoFetcher
 
-    # Unified fetcher (recommended)
-    fetcher = PRISMFetcher()
-    economy_df = fetcher.fetch_panel('economy')  # Uses FRED
-    market_df = fetcher.fetch_panel('market')    # Uses Tiingo
+    # Recommended: Use SourceRouter for registry-based fetching
+    router = SourceRouter()
+    df = router.fetch("sp500")   # Routes to FRED based on registry
+    df = router.fetch("spy")     # Routes to Tiingo based on registry
 
-    # Individual fetchers
-    tiingo = TiingoFetcher(api_key="your_key")
+    # Direct fetcher usage
+    fred = FREDFetcher()
+    df = fred.fetch_single("DGS10")
+
+    tiingo = TiingoFetcher()
     df = tiingo.fetch_single("SPY")
-    df = tiingo.fetch_crypto("btcusd")
 """
 
 from .fetcher_base import BaseFetcher
 from .fetcher_fred import FREDFetcher, FetcherFRED
-from .fetcher_stooq import StooqFetcher
 from .fetcher_tiingo import TiingoFetcher, FetcherTiingo
-from .fetcher_unified import PRISMFetcher, fetch_prism_data
+from .fetcher_router import SourceRouter, HybridFetcher
 
-# Legacy Yahoo fetcher (deprecated)
-from .fetcher_yahoo import YahooFetcher, FetcherYahoo
+# Legacy unified fetcher (may still be used by some code)
+try:
+    from .fetcher_unified import PRISMFetcher, fetch_prism_data
+except ImportError:
+    PRISMFetcher = None
+    fetch_prism_data = None
 
 # Optional fetchers (may not be fully implemented)
 try:
@@ -41,17 +51,36 @@ try:
 except ImportError:
     CustomFetcher = None
 
+# Deprecated: Yahoo and Stooq fetchers
+# These are kept for backward compatibility but should not be used
+try:
+    from .fetcher_yahoo import YahooFetcher, FetcherYahoo
+except ImportError:
+    YahooFetcher = None
+    FetcherYahoo = None
+
+try:
+    from .fetcher_stooq import StooqFetcher
+except ImportError:
+    StooqFetcher = None
+
 __all__ = [
+    # Core
     'BaseFetcher',
-    'PRISMFetcher',
-    'fetch_prism_data',
+    'SourceRouter',
+    # Primary fetchers
     'FREDFetcher',
     'FetcherFRED',
-    'StooqFetcher',
     'TiingoFetcher',
     'FetcherTiingo',
+    # Legacy (deprecated)
+    'HybridFetcher',  # Alias for SourceRouter
+    'PRISMFetcher',
+    'fetch_prism_data',
     'YahooFetcher',
     'FetcherYahoo',
+    'StooqFetcher',
+    # Optional
     'ClimateFetcher',
     'CustomFetcher',
 ]
