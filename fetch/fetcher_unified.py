@@ -448,6 +448,69 @@ class PRISMFetcher:
             source = 'FRED' if panel_name in FRED_INDICATORS else 'Tiingo'
             print(f"  {panel_name:12s}: {len(df.columns):3d} indicators ({source})")
 
+    def save_to_db(self, verbose: bool = True) -> Dict[str, int]:
+        """
+        Save all fetched data to indicator_values table (Schema v2).
+
+        This writes to the universal indicator_values table, NOT the
+        deprecated market_prices or econ_values tables.
+
+        Returns:
+            Dict mapping indicator names to rows written
+        """
+        from data.sql.db_connector import add_indicator, write_dataframe
+
+        results = {}
+
+        for panel_name, df in self.data.items():
+            if df.empty:
+                continue
+
+            source = 'fred' if panel_name in FRED_INDICATORS else 'tiingo'
+
+            for indicator_name in df.columns:
+                # Get metadata for this indicator
+                meta = self.metadata.get(indicator_name, {})
+
+                # Register indicator in indicators table
+                add_indicator(
+                    name=indicator_name,
+                    system=meta.get('category', 'market'),
+                    source=source,
+                    frequency=meta.get('frequency', 'daily'),
+                    description=meta.get('description'),
+                    metadata={
+                        'symbol': meta.get('symbol'),
+                        'panel': panel_name,
+                    }
+                )
+
+                # Prepare data for indicator_values table
+                series = df[indicator_name].dropna()
+                if series.empty:
+                    continue
+
+                indicator_df = pd.DataFrame({
+                    'indicator_name': indicator_name,
+                    'date': series.index,
+                    'value': series.values,
+                })
+
+                # Write to indicator_values
+                rows = write_dataframe(
+                    indicator_df,
+                    table='indicator_values',
+                    provenance=source,
+                    quality_flag='verified'
+                )
+
+                results[indicator_name] = rows
+
+                if verbose:
+                    print(f"  + {indicator_name}: {rows} rows saved")
+
+        return results
+
     @staticmethod
     def list_indicators(panel: Optional[str] = None) -> pd.DataFrame:
         """List all available indicators."""

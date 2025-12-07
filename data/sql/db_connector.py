@@ -2,25 +2,48 @@
 db_connector.py
 Modern indicator-management API for PRISM Engine.
 
+Schema v2 - Panel-Agnostic Architecture
+========================================
+All data flows through the universal `indicator_values` table.
+Domain-specific tables (market_prices, econ_values) are DEPRECATED.
+
 This module provides:
-  - Connection management (wraps prism_db)
+  - Connection management
   - Indicator registry: add/get/list
+  - Data IO: write_dataframe, load_indicator (using indicator_values)
   - Fetch logging
   - Database statistics
-  - Bulk loading utilities
-  - Data IO wrappers
+  - Migration utilities
 
 db.py imports ONLY from this module to avoid direct prism_db dependencies.
 """
 
 import sqlite3
 import json
+import warnings
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 import pandas as pd
 
 from .db_path import get_db_path
+
+
+# =============================================================================
+# DEPRECATED TABLE WARNINGS
+# =============================================================================
+
+_DEPRECATED_TABLES = {'market_prices', 'econ_values', 'timeseries'}
+
+def _warn_deprecated_table(table: str) -> None:
+    """Issue deprecation warning for old tables."""
+    if table in _DEPRECATED_TABLES:
+        warnings.warn(
+            f"Table '{table}' is DEPRECATED. Use 'indicator_values' instead. "
+            f"This table will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=3
+        )
 
 
 # =============================================================================
@@ -97,14 +120,14 @@ def init_database() -> None:
     """
     Initialize the database by executing schema.sql and all migrations.
 
-    Creates tables:
+    Creates tables (Schema v2 - Panel-Agnostic):
       - systems (domain registry)
       - indicators (indicator metadata)
-      - indicator_values (primary time series data)
+      - indicator_values (THE universal time series table)
       - fetch_log (fetch operation logs)
-      - market_prices (legacy compatibility)
-      - econ_values (legacy compatibility)
       - metadata (key-value store)
+      - market_prices (DEPRECATED - backward compatibility)
+      - econ_values (DEPRECATED - backward compatibility)
     """
     import os
 
@@ -126,14 +149,6 @@ def init_database() -> None:
         # Run all migrations
         _run_migrations(conn)
 
-        # Ensure metadata table exists (required by acceptance test)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS metadata (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        """)
-
         conn.commit()
         print("Database initialized successfully!")
 
@@ -148,25 +163,41 @@ def init_database() -> None:
 def add_indicator(
     name: str,
     system: str = "market",
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    source: Optional[str] = None,
+    frequency: str = "daily",
+    description: Optional[str] = None,
+    units: Optional[str] = None
 ) -> None:
     """
-    Create an indicator entry in the indicators table.
+    Create or update an indicator entry in the indicators table.
 
     Args:
-        name: Unique identifier for the indicator
-        system: Category system ('market', 'econ', etc.)
+        name: Unique identifier for the indicator (e.g., 'SPY', 'GDPC1', 'co2_level')
+        system: Domain system ('market', 'economic', 'climate', etc.)
         metadata: Optional JSON-serializable metadata dict
+        source: Data source (e.g., 'fred', 'yahoo', 'noaa')
+        frequency: Data frequency ('daily', 'weekly', 'monthly', 'quarterly')
+        description: Human-readable description
+        units: Units of measurement
     """
     meta_json = json.dumps(metadata) if metadata else None
 
     conn = get_connection()
     conn.execute(
         """
-        INSERT OR REPLACE INTO indicators (name, system, metadata, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO indicators (name, system, metadata, source, frequency, description, units, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(name) DO UPDATE SET
+            system = excluded.system,
+            metadata = excluded.metadata,
+            source = excluded.source,
+            frequency = excluded.frequency,
+            description = excluded.description,
+            units = excluded.units,
+            updated_at = CURRENT_TIMESTAMP
         """,
-        (name, system, meta_json),
+        (name, system, meta_json, source, frequency, description, units),
     )
     conn.commit()
     conn.close()
@@ -202,7 +233,7 @@ def list_indicators(system: Optional[str] = None) -> List[str]:
     List indicator names, optionally filtered by system.
 
     Args:
-        system: Filter by system type (e.g., 'market', 'econ')
+        system: Filter by system type (e.g., 'market', 'economic', 'climate')
 
     Returns:
         List of indicator names
@@ -228,70 +259,35 @@ def list_indicators(system: Optional[str] = None) -> List[str]:
 # =============================================================================
 
 def log_fetch(
+    indicator_name: str,
     source: str,
-    entity: str,
-    operation: str,
     status: str,
     *,
     rows_fetched: int = 0,
-    rows_inserted: int = 0,
-    rows_updated: int = 0,
     error_message: Optional[str] = None,
-    started_at: Optional[str] = None,
-    duration_ms: Optional[int] = None,
 ) -> int:
     """
     Log a fetch operation in the fetch_log table.
 
     Args:
-        source: Data source (e.g., 'yahoo', 'fred')
-        entity: Entity fetched (e.g., ticker symbol)
-        operation: Operation type ('fetch', 'update', etc.)
-        status: Result status ('success', 'error', etc.)
+        indicator_name: Name of the indicator fetched
+        source: Data source (e.g., 'yahoo', 'fred', 'tiingo')
+        status: Result status ('success', 'error', 'partial')
         rows_fetched: Number of rows fetched
-        rows_inserted: Number of rows inserted
-        rows_updated: Number of rows updated
         error_message: Error message if status is 'error'
-        started_at: ISO timestamp when operation started
-        duration_ms: Duration in milliseconds
 
     Returns:
         ID of the inserted log entry, or -1 if table doesn't exist
     """
-    if started_at is None:
-        started_at = datetime.now().isoformat()
-
     conn = get_connection()
-
-    # Ensure table exists
-    exists = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='fetch_log'"
-    ).fetchone()
-
-    if exists is None:
-        conn.close()
-        return -1
 
     cursor = conn.execute(
         """
         INSERT INTO fetch_log
-            (source, entity, operation, status,
-             rows_fetched, rows_inserted, rows_updated,
-             error_message, started_at, completed_at, duration_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            (indicator_name, source, fetch_date, rows_fetched, status, error_message)
+        VALUES (?, ?, datetime('now'), ?, ?, ?)
         """,
-        (
-            source,
-            entity,
-            operation,
-            status,
-            rows_fetched,
-            rows_inserted,
-            rows_updated,
-            error_message,
-            started_at,
-            duration_ms,
-        ),
+        (indicator_name, source, rows_fetched, status, error_message),
     )
     conn.commit()
     last_id = cursor.lastrowid
@@ -316,6 +312,7 @@ def database_stats() -> Dict[str, Any]:
         "tables": {},
         "total_rows": 0,
         "db_path": str(get_db_path()),
+        "schema_version": "v2",
     }
 
     # Get all tables
@@ -374,32 +371,50 @@ def get_table_stats(table: str) -> Dict[str, Any]:
     return stats
 
 
-def get_date_range(table: str, indicator: Optional[str] = None) -> Dict[str, Optional[str]]:
+def get_date_range(
+    indicator_name: Optional[str] = None,
+    table: str = "indicator_values"
+) -> Dict[str, Optional[str]]:
     """
-    Get the date range for data in a table, optionally filtered by indicator.
+    Get the date range for data, optionally filtered by indicator.
 
     Args:
-        table: Table name ('market_prices' or 'econ_values')
-        indicator: Optional indicator name to filter by
+        indicator_name: Optional indicator name to filter by
+        table: Table name (default: 'indicator_values')
 
     Returns:
         Dictionary with 'min_date' and 'max_date' keys
     """
     conn = get_connection()
 
-    # Determine the indicator column based on table
-    if table == "market_prices":
-        id_col = "ticker"
-    elif table == "econ_values":
-        id_col = "series_id"
-    else:
-        id_col = None
+    # Handle deprecated tables
+    if table in _DEPRECATED_TABLES:
+        _warn_deprecated_table(table)
 
-    if indicator and id_col:
-        result = conn.execute(
-            f"SELECT MIN(date), MAX(date) FROM [{table}] WHERE [{id_col}] = ?",
-            (indicator,)
-        ).fetchone()
+    if table == "indicator_values":
+        if indicator_name:
+            result = conn.execute(
+                "SELECT MIN(date), MAX(date) FROM indicator_values WHERE indicator_name = ?",
+                (indicator_name,)
+            ).fetchone()
+        else:
+            result = conn.execute("SELECT MIN(date), MAX(date) FROM indicator_values").fetchone()
+    elif table == "market_prices":
+        if indicator_name:
+            result = conn.execute(
+                "SELECT MIN(date), MAX(date) FROM market_prices WHERE ticker = ?",
+                (indicator_name,)
+            ).fetchone()
+        else:
+            result = conn.execute("SELECT MIN(date), MAX(date) FROM market_prices").fetchone()
+    elif table == "econ_values":
+        if indicator_name:
+            result = conn.execute(
+                "SELECT MIN(date), MAX(date) FROM econ_values WHERE series_id = ?",
+                (indicator_name,)
+            ).fetchone()
+        else:
+            result = conn.execute("SELECT MIN(date), MAX(date) FROM econ_values").fetchone()
     else:
         result = conn.execute(f"SELECT MIN(date), MAX(date) FROM [{table}]").fetchone()
 
@@ -412,20 +427,36 @@ def get_date_range(table: str, indicator: Optional[str] = None) -> Dict[str, Opt
 
 
 # =============================================================================
-# DATA IO
+# DATA IO - Schema v2 (Panel-Agnostic)
 # =============================================================================
 
-def write_dataframe(df: pd.DataFrame, table: str) -> int:
+def write_dataframe(
+    df: pd.DataFrame,
+    table: str = "indicator_values",
+    indicator_name: Optional[str] = None,
+    provenance: Optional[str] = None,
+    quality_flag: Optional[str] = None
+) -> int:
     """
-    Write a DataFrame into a SQL table.
+    Write a DataFrame into the database.
 
-    Required columns:
-      - market_prices: ticker, date, value
-      - econ_values: series_id, date, value
+    Schema v2: All data should go to 'indicator_values' table.
+    Legacy tables (market_prices, econ_values) are supported but deprecated.
+
+    For indicator_values, expected columns:
+      - indicator_name (or provide via parameter)
+      - date
+      - value
+      - quality_flag (optional)
+      - provenance (optional)
+      - extra (optional, JSON)
 
     Args:
         df: DataFrame to write
-        table: Target table name
+        table: Target table (default: 'indicator_values')
+        indicator_name: Indicator name (required for indicator_values if not in df)
+        provenance: Data provenance/source (e.g., 'fred', 'yahoo')
+        quality_flag: Data quality flag (e.g., 'verified', 'estimated')
 
     Returns:
         Number of rows written
@@ -433,13 +464,63 @@ def write_dataframe(df: pd.DataFrame, table: str) -> int:
     if df.empty:
         return 0
 
+    # Warn about deprecated tables
+    if table in _DEPRECATED_TABLES:
+        _warn_deprecated_table(table)
+
     conn = get_connection()
+    df_copy = df.copy()
 
     # Ensure date column is string
-    df_copy = df.copy()
     if "date" in df_copy.columns:
-        df_copy["date"] = df_copy["date"].astype(str)
+        df_copy["date"] = pd.to_datetime(df_copy["date"]).dt.strftime('%Y-%m-%d')
 
+    # Handle indicator_values table specially
+    if table == "indicator_values":
+        # Add indicator_name if provided and not in df
+        if indicator_name and "indicator_name" not in df_copy.columns:
+            df_copy["indicator_name"] = indicator_name
+
+        # Add provenance if provided
+        if provenance and "provenance" not in df_copy.columns:
+            df_copy["provenance"] = provenance
+
+        # Add quality_flag if provided
+        if quality_flag and "quality_flag" not in df_copy.columns:
+            df_copy["quality_flag"] = quality_flag
+
+        # Ensure required columns exist
+        if "indicator_name" not in df_copy.columns:
+            raise ValueError("indicator_name required for indicator_values table")
+
+        # Use INSERT OR REPLACE for upsert behavior
+        rows_written = 0
+        for _, row in df_copy.iterrows():
+            try:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO indicator_values
+                        (indicator_name, date, value, quality_flag, provenance, extra)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row.get("indicator_name"),
+                        row.get("date"),
+                        row.get("value"),
+                        row.get("quality_flag"),
+                        row.get("provenance"),
+                        row.get("extra"),
+                    )
+                )
+                rows_written += 1
+            except sqlite3.IntegrityError:
+                pass  # Skip duplicates
+
+        conn.commit()
+        conn.close()
+        return rows_written
+
+    # Handle legacy tables
     rows_before = conn.execute(f"SELECT COUNT(*) FROM [{table}]").fetchone()[0]
     df_copy.to_sql(table, conn, if_exists="append", index=False)
     rows_after = conn.execute(f"SELECT COUNT(*) FROM [{table}]").fetchone()[0]
@@ -450,70 +531,150 @@ def write_dataframe(df: pd.DataFrame, table: str) -> int:
     return rows_after - rows_before
 
 
-def load_indicator(name: str) -> pd.DataFrame:
+def load_indicator(name: str, include_metadata: bool = False) -> pd.DataFrame:
     """
-    Load data from market_prices or econ_values by indicator name.
+    Load time series data for an indicator from indicator_values.
+
+    Falls back to legacy tables (market_prices, econ_values) if not found
+    in indicator_values.
 
     Args:
-        name: Indicator name (ticker or series_id)
+        name: Indicator name
+        include_metadata: Include quality_flag, provenance, extra columns
 
     Returns:
-        DataFrame with columns: indicator, date, value
+        DataFrame with columns: indicator_name, date, value, [quality_flag, provenance, extra]
     """
     conn = get_connection()
 
-    query = """
-        SELECT ticker AS indicator, date, value
-        FROM market_prices
-        WHERE ticker = ?
+    # Try indicator_values first (Schema v2)
+    if include_metadata:
+        query = """
+            SELECT indicator_name, date, value, quality_flag, provenance, extra
+            FROM indicator_values
+            WHERE indicator_name = ?
+            ORDER BY date ASC
+        """
+    else:
+        query = """
+            SELECT indicator_name, date, value
+            FROM indicator_values
+            WHERE indicator_name = ?
+            ORDER BY date ASC
+        """
 
-        UNION ALL
+    df = pd.read_sql(query, conn, params=[name])
 
-        SELECT series_id AS indicator, date, value
-        FROM econ_values
-        WHERE series_id = ?
+    # If found in indicator_values, return it
+    if not df.empty:
+        conn.close()
+        return df
 
-        ORDER BY date ASC
-    """
+    # Fallback to legacy tables (with deprecation warning)
+    warnings.warn(
+        f"Indicator '{name}' not found in indicator_values. "
+        "Falling back to deprecated tables (market_prices, econ_values). "
+        "Please migrate data to indicator_values.",
+        DeprecationWarning,
+        stacklevel=2
+    )
 
-    df = pd.read_sql(query, conn, params=[name, name])
+    # Try market_prices
+    df = pd.read_sql(
+        "SELECT ticker AS indicator_name, date, value FROM market_prices WHERE ticker = ? ORDER BY date ASC",
+        conn, params=[name]
+    )
+
+    if not df.empty:
+        conn.close()
+        return df
+
+    # Try econ_values
+    df = pd.read_sql(
+        "SELECT series_id AS indicator_name, date, value FROM econ_values WHERE series_id = ? ORDER BY date ASC",
+        conn, params=[name]
+    )
+
     conn.close()
     return df
 
 
-def load_multiple_indicators(names: List[str]) -> pd.DataFrame:
+def load_multiple_indicators(
+    names: List[str],
+    include_metadata: bool = False
+) -> pd.DataFrame:
     """
     Load multiple indicators into a single DataFrame.
 
     Args:
         names: List of indicator names
+        include_metadata: Include quality_flag, provenance, extra columns
 
     Returns:
-        DataFrame with columns: indicator, date, value
+        DataFrame with columns: indicator_name, date, value, [quality_flag, provenance, extra]
     """
     if not names:
         return pd.DataFrame()
 
+    conn = get_connection()
     placeholders = ",".join("?" for _ in names)
 
-    sql = f"""
-        SELECT ticker AS indicator, date, value
-        FROM market_prices
-        WHERE ticker IN ({placeholders})
+    if include_metadata:
+        query = f"""
+            SELECT indicator_name, date, value, quality_flag, provenance, extra
+            FROM indicator_values
+            WHERE indicator_name IN ({placeholders})
+            ORDER BY indicator_name, date ASC
+        """
+    else:
+        query = f"""
+            SELECT indicator_name, date, value
+            FROM indicator_values
+            WHERE indicator_name IN ({placeholders})
+            ORDER BY indicator_name, date ASC
+        """
 
-        UNION ALL
+    df = pd.read_sql(query, conn, params=names)
 
-        SELECT series_id AS indicator, date, value
-        FROM econ_values
-        WHERE series_id IN ({placeholders})
+    # Check if any indicators are missing from indicator_values
+    found_indicators = set(df['indicator_name'].unique()) if not df.empty else set()
+    missing_indicators = set(names) - found_indicators
 
-        ORDER BY indicator, date ASC
-    """
+    if missing_indicators:
+        # Fallback to legacy tables for missing indicators
+        warnings.warn(
+            f"Indicators {missing_indicators} not found in indicator_values. "
+            "Falling back to deprecated tables.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
-    conn = get_connection()
-    df = pd.read_sql(sql, conn, params=names + names)
+        missing_placeholders = ",".join("?" for _ in missing_indicators)
+        missing_list = list(missing_indicators)
+
+        # Try market_prices
+        legacy_df = pd.read_sql(
+            f"SELECT ticker AS indicator_name, date, value FROM market_prices WHERE ticker IN ({missing_placeholders})",
+            conn, params=missing_list
+        )
+
+        if not legacy_df.empty:
+            df = pd.concat([df, legacy_df], ignore_index=True)
+
+        # Try econ_values
+        legacy_df = pd.read_sql(
+            f"SELECT series_id AS indicator_name, date, value FROM econ_values WHERE series_id IN ({missing_placeholders})",
+            conn, params=missing_list
+        )
+
+        if not legacy_df.empty:
+            df = pd.concat([df, legacy_df], ignore_index=True)
+
+        # Sort again after concatenation
+        if not df.empty:
+            df = df.sort_values(['indicator_name', 'date']).reset_index(drop=True)
+
     conn.close()
-
     return df
 
 
@@ -545,11 +706,93 @@ def export_to_csv(table: str, filepath: str) -> int:
     Returns:
         Number of rows exported
     """
+    if table in _DEPRECATED_TABLES:
+        _warn_deprecated_table(table)
+
     conn = get_connection()
     df = pd.read_sql(f"SELECT * FROM [{table}]", conn)
     df.to_csv(filepath, index=False)
     conn.close()
     return len(df)
+
+
+# =============================================================================
+# MIGRATION UTILITIES
+# =============================================================================
+
+def migrate_legacy_tables(dry_run: bool = False) -> Dict[str, int]:
+    """
+    Migrate data from legacy tables (market_prices, econ_values) to indicator_values.
+
+    Args:
+        dry_run: If True, only report what would be migrated without actually migrating
+
+    Returns:
+        Dictionary with migration statistics
+    """
+    conn = get_connection()
+
+    stats = {
+        "market_prices_rows": 0,
+        "econ_values_rows": 0,
+        "total_migrated": 0,
+        "errors": 0,
+    }
+
+    # Count rows in legacy tables
+    try:
+        stats["market_prices_rows"] = conn.execute(
+            "SELECT COUNT(*) FROM market_prices"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        stats["econ_values_rows"] = conn.execute(
+            "SELECT COUNT(*) FROM econ_values"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
+
+    if dry_run:
+        print(f"DRY RUN - Would migrate:")
+        print(f"  market_prices: {stats['market_prices_rows']} rows")
+        print(f"  econ_values: {stats['econ_values_rows']} rows")
+        conn.close()
+        return stats
+
+    # Migrate market_prices
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO indicator_values (indicator_name, date, value, provenance)
+            SELECT ticker, date, value, 'migration:market_prices'
+            FROM market_prices
+            WHERE ticker IS NOT NULL AND date IS NOT NULL AND value IS NOT NULL
+        """)
+        stats["total_migrated"] += stats["market_prices_rows"]
+        print(f"  + Migrated {stats['market_prices_rows']} rows from market_prices")
+    except sqlite3.Error as e:
+        print(f"  ! Error migrating market_prices: {e}")
+        stats["errors"] += 1
+
+    # Migrate econ_values
+    try:
+        conn.execute("""
+            INSERT OR IGNORE INTO indicator_values (indicator_name, date, value, provenance)
+            SELECT series_id, date, value, 'migration:econ_values'
+            FROM econ_values
+            WHERE series_id IS NOT NULL AND date IS NOT NULL AND value IS NOT NULL
+        """)
+        stats["total_migrated"] += stats["econ_values_rows"]
+        print(f"  + Migrated {stats['econ_values_rows']} rows from econ_values")
+    except sqlite3.Error as e:
+        print(f"  ! Error migrating econ_values: {e}")
+        stats["errors"] += 1
+
+    conn.commit()
+    conn.close()
+
+    return stats
 
 
 # =============================================================================
@@ -578,4 +821,6 @@ __all__ = [
     "load_multiple_indicators",
     "query",
     "export_to_csv",
+    # Migration
+    "migrate_legacy_tables",
 ]
