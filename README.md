@@ -183,6 +183,79 @@ Roadmap
 
  Documentation site
 
+## Quickstart for Researchers (Clone → DB → Dashboard)
+
+This project is designed so that an external user can:
+
+1. Clone the repo
+2. Create a virtual environment
+3. Set API keys
+4. Fetch data
+5. Run the dashboard and explore the models
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/rudder-research/prism-engine.git
+cd prism-engine
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 3. Set API keys (FRED, Tiingo, optional climate APIs)
+
+```bash
+export FRED_API_KEY="YOUR_FRED_KEY"
+export TIINGO_API_KEY="YOUR_TIINGO_KEY"
+# Optional climate keys / .cdsapirc can be configured separately
+```
+
+On macOS you can store these permanently in `~/.zshrc` as environment variables.
+
+### 4. Initialize and populate the database
+
+```bash
+python start/update_all.py
+```
+
+This will:
+
+- create the SQLite database (e.g. `~/prism_data/prism.db`)
+- fetch economic series from FRED
+- fetch market series from Tiingo
+- register indicators and families for the geometry engines
+
+You can inspect the result with:
+
+```bash
+python start/data_report.py
+python start/check_indicator_health.py
+python start/check_families.py
+```
+
+### 5. Run the dashboard
+
+```bash
+cd dashboard
+python app.py
+```
+
+Then open the URL printed in the console (e.g. `http://127.0.0.1:5000`) in your browser.
+
+From there you can:
+
+- View the main **Dashboard**
+- Open **Models & Geometry** for detailed descriptions
+- Download `docs/models_overview.md` to review the math and data requirements offline
+
+---
+
 ## Climate Module (Frozen)
 
 A future standalone project. Present in repository but not active.
