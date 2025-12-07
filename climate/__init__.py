@@ -1,3 +1,8 @@
+raise ImportError(
+    "The PRISM climate module is currently frozen and not active. "
+    "Do not import or integrate until the climate project begins."
+)
+
 """
 PRISM-CLIMATE Module v0.1 - Climate Data Integration Skeleton
 

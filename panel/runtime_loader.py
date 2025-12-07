@@ -27,6 +27,7 @@ def load_panel(
     indicator_names: List[str],
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    panel_name: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Load a panel of indicators at runtime.
@@ -40,6 +41,7 @@ def load_panel(
         indicator_names: List of indicator names to include
         start_date: Optional start date filter (YYYY-MM-DD)
         end_date: Optional end date filter (YYYY-MM-DD)
+        panel_name: Optional panel name for validation
 
     Returns:
         Wide-format DataFrame with:
@@ -47,6 +49,10 @@ def load_panel(
             - Columns: indicator names
             - Values: indicator values
     """
+    # Never load climate indicators until project is active
+    if panel_name and panel_name.lower().startswith("climate"):
+        raise RuntimeError("Climate panels are currently frozen and inactive.")
+
     from data.sql.db_connector import load_all_indicators_wide
 
     return load_all_indicators_wide(
