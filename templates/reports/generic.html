@@ -1,0 +1,58 @@
+{% extends "reports/base_report.html" %}
+
+{% block report_title %}{{ workflow_type | default(workflow) | replace('_', ' ') | title }} Report{% endblock %}
+{% block report_subtitle %}Analysis results for {{ panel | default('') | title }} panel{% endblock %}
+
+{% block report_content %}
+
+<!-- Raw Results -->
+<div class="card">
+    <div class="card-header">
+        <span class="icon">=</span>
+        <h2>Analysis Results</h2>
+    </div>
+
+    {% if workflow_type %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Workflow Type:</strong> {{ workflow_type }}</span>
+    </div>
+    {% endif %}
+
+    {% if note %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Note:</strong> {{ note }}</span>
+    </div>
+    {% endif %}
+
+    {% if time_periods_analyzed %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Time Periods:</strong> {{ time_periods_analyzed }}</span>
+    </div>
+    {% endif %}
+
+    {% if resolution %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Resolution:</strong> {{ resolution }}</span>
+    </div>
+    {% endif %}
+
+    {% if update_date %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Update Date:</strong> {{ update_date }}</span>
+    </div>
+    {% endif %}
+
+    {% if indicators_updated %}
+    <div class="list-item">
+        <span class="bullet"></span>
+        <span><strong>Indicators Updated:</strong> {{ indicators_updated }}</span>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

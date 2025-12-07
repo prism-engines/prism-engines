@@ -1,0 +1,81 @@
+{% extends "reports/base_report.html" %}
+
+{% block report_title %}Regime Comparison Analysis{% endblock %}
+{% block report_subtitle %}Historical regime similarity analysis for {{ panel | default('market') | title }} panel{% endblock %}
+
+{% block report_content %}
+
+<!-- Closest Match Highlight -->
+{% if closest_match %}
+<div class="card" style="background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%); border: 2px solid var(--primary);">
+    <div class="card-header" style="border-bottom-color: rgba(37, 99, 235, 0.2);">
+        <span class="icon">[!]</span>
+        <h2>Closest Historical Match</h2>
+    </div>
+    <div style="text-align: center; padding: 1rem;">
+        <div style="font-size: 3rem; font-weight: 700; color: var(--primary);">{{ closest_match }}</div>
+        <div class="text-muted mt-1">Current market conditions most closely resemble this period</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Similarity Scores -->
+{% if similarities %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">#</span>
+        <h2>Regime Similarity Scores</h2>
+    </div>
+    <p class="text-muted mb-2">How closely current conditions match historical regimes:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Period</th>
+                <th>Similarity</th>
+                <th style="width: 50%;">Visual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for period, score in similarities.items() | sort(attribute='1', reverse=true) %}
+            <tr>
+                <td>
+                    <strong>{{ period }}</strong>
+                    {% if period == closest_match %}
+                    <span class="badge badge-success" style="margin-left: 0.5rem;">Best Match</span>
+                    {% endif %}
+                </td>
+                <td class="font-mono">{{ (score * 100) | round(1) }}%</td>
+                <td>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ (score * 100) | round }}%;"></div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Comparison Periods -->
+{% if comparison_periods %}
+<div class="card">
+    <div class="card-header">
+        <span class="icon">@</span>
+        <h2>Comparison Periods</h2>
+    </div>
+    <div class="grid grid-{{ comparison_periods | length if comparison_periods | length <= 4 else 4 }}">
+        {% for period in comparison_periods %}
+        <div class="stat-card" style="background: var(--gray-50); border-radius: 8px;">
+            <div style="font-size: 1.5rem; font-weight: 600;">{{ period }}</div>
+            <div class="text-muted" style="font-size: 0.875rem;">Historical Period</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

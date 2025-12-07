@@ -166,3 +166,33 @@ class OutputManager:
         print("\n" + "+" + "=" * (width - 2) + "+")
         print("|" + title.center(width - 2) + "|")
         print("+" + "=" * (width - 2) + "+")
+
+    def generate_html_report(
+        self,
+        results: Dict[str, Any],
+        open_browser: bool = False
+    ) -> Optional[Path]:
+        """
+        Generate an HTML report from results.
+
+        Args:
+            results: Analysis results dictionary
+            open_browser: Whether to open in browser
+
+        Returns:
+            Path to generated report or None
+        """
+        try:
+            from .report_generator import generate_report
+
+            run_dir = self.get_run_directory()
+            report_path = run_dir / "report.html"
+
+            return generate_report(results, report_path, open_browser)
+
+        except ImportError:
+            logger.warning("Report generator not available")
+            return None
+        except Exception as e:
+            logger.error(f"HTML report generation failed: {e}")
+            return None
