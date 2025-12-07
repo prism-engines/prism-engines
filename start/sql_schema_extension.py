@@ -41,6 +41,9 @@ from data.sql.db_path import get_db_path
 
 DB_PATH = get_db_path()
 
+# Track if schema has been ensured this session
+_schema_ensured = False
+
 
 # =============================================================================
 # SCHEMA EXTENSION
@@ -164,8 +167,76 @@ def extend_schema():
     
     conn.commit()
     conn.close()
-    
+
     print("\n✅ Schema extension complete")
+
+
+def ensure_schema(verbose: bool = False):
+    """
+    Ensure all required tables exist. Safe to call multiple times.
+
+    This function is designed to be called at import time or before any
+    database operations to guarantee schema consistency.
+
+    Args:
+        verbose: If True, print status messages
+    """
+    global _schema_ensured
+
+    if _schema_ensured:
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    for statement in SCHEMA_EXTENSION.split(';'):
+        statement = statement.strip()
+        if statement:
+            try:
+                cursor.execute(statement)
+            except sqlite3.Error:
+                pass  # Table/index already exists or other benign error
+
+    conn.commit()
+    conn.close()
+
+    _schema_ensured = True
+
+    if verbose:
+        print("✅ Database schema verified")
+
+
+def table_exists(table_name: str) -> bool:
+    """Check if a table exists in the database."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name=?
+    """, (table_name,))
+
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
+
+
+def get_table_row_count(table_name: str) -> int:
+    """Get the number of rows in a table. Returns 0 if table doesn't exist."""
+    if not table_exists(table_name):
+        return 0
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+        count = cursor.fetchone()[0]
+    except sqlite3.Error:
+        count = 0
+
+    conn.close()
+    return count
 
 
 # =============================================================================
@@ -192,9 +263,11 @@ class PrismDB:
         history = db.get_ranking_history(indicator='VIXCLS', days=30)
     """
     
-    def __init__(self, db_path: Path = None):
+    def __init__(self, db_path: Path = None, auto_migrate: bool = True):
         self.db_path = db_path or DB_PATH
-        
+        if auto_migrate:
+            ensure_schema()
+
     def _connect(self):
         return sqlite3.connect(self.db_path)
     
