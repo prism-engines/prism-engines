@@ -678,6 +678,98 @@ def load_multiple_indicators(
     return df
 
 
+def load_all_indicators_wide(
+    indicators: Optional[List[str]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> pd.DataFrame:
+    """
+    Load indicators from indicator_values and pivot to wide format.
+
+    This is the primary data loading function for analysis scripts.
+    Returns a DataFrame with date as index and indicators as columns.
+
+    Falls back to legacy tables if indicator_values is empty.
+
+    Args:
+        indicators: Optional list of indicator names to load (None = all)
+        start_date: Optional start date filter (YYYY-MM-DD)
+        end_date: Optional end date filter (YYYY-MM-DD)
+
+    Returns:
+        Wide-format DataFrame with date index and indicator columns
+    """
+    conn = get_connection()
+
+    # Build query
+    if indicators:
+        placeholders = ",".join("?" for _ in indicators)
+        query = f"""
+            SELECT indicator_name, date, value
+            FROM indicator_values
+            WHERE indicator_name IN ({placeholders})
+        """
+        params = list(indicators)
+    else:
+        query = "SELECT indicator_name, date, value FROM indicator_values WHERE 1=1"
+        params = []
+
+    if start_date:
+        query += " AND date >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+
+    query += " ORDER BY date, indicator_name"
+
+    df = pd.read_sql(query, conn, params=params)
+
+    # Fallback to legacy tables if indicator_values is empty
+    if df.empty:
+        warnings.warn(
+            "indicator_values is empty. Falling back to legacy tables "
+            "(market_prices, econ_values). Please migrate data using migrate_legacy_tables().",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
+        # Load from market_prices
+        market_df = pd.read_sql(
+            "SELECT ticker AS indicator_name, date, value FROM market_prices ORDER BY date",
+            conn
+        )
+
+        # Load from econ_values
+        econ_df = pd.read_sql(
+            "SELECT series_id AS indicator_name, date, value FROM econ_values ORDER BY date",
+            conn
+        )
+
+        df = pd.concat([market_df, econ_df], ignore_index=True)
+
+        if not df.empty:
+            # Apply filters
+            if indicators:
+                df = df[df['indicator_name'].isin(indicators)]
+            if start_date:
+                df = df[df['date'] >= start_date]
+            if end_date:
+                df = df[df['date'] <= end_date]
+
+    conn.close()
+
+    if df.empty:
+        return pd.DataFrame()
+
+    # Pivot to wide format
+    df['date'] = pd.to_datetime(df['date'])
+    df_wide = df.pivot(index='date', columns='indicator_name', values='value')
+    df_wide = df_wide.sort_index()
+
+    return df_wide
+
+
 def query(sql: str, params: Optional[tuple] = None) -> pd.DataFrame:
     """
     Run an arbitrary SQL query and return a DataFrame.
@@ -819,6 +911,7 @@ __all__ = [
     "write_dataframe",
     "load_indicator",
     "load_multiple_indicators",
+    "load_all_indicators_wide",
     "query",
     "export_to_csv",
     # Migration

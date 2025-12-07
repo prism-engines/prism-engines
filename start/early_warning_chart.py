@@ -44,21 +44,17 @@ def load_multiresolution():
     return None
 
 def load_spy_prices():
-    """Load SP500 prices from database."""
-    conn = sqlite3.connect(DB_PATH)
-    
-    # Try different possible column names
-    df = pd.read_sql("""
-        SELECT date, value 
-        FROM econ_values 
-        WHERE series_id = 'SP500'
-        ORDER BY date
-    """, conn)
-    
-    conn.close()
-    
+    """Load SP500 prices from unified indicator_values table."""
+    from data.sql.db_connector import load_indicator
+
+    # Use unified loader (falls back to legacy tables if needed)
+    df = load_indicator('SP500')
+
+    if df.empty:
+        return pd.DataFrame(columns=['date', 'value'])
+
     df['date'] = pd.to_datetime(df['date'])
-    return df
+    return df[['date', 'value']]
 
 def create_early_warning_chart(window_size=63):
     """Create the early warning visualization."""

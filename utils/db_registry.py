@@ -121,9 +121,9 @@ def get_connection(
 
     Example:
         with get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM market_prices")
+            cursor = conn.execute("SELECT * FROM indicator_values WHERE indicator_name = 'SPY'")
             for row in cursor:
-                print(row['ticker'], row['date'])
+                print(row['indicator_name'], row['date'], row['value'])
     """
     path = db_path or get_db_path()
 

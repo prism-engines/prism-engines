@@ -158,42 +158,32 @@ CONFIG = {
 # ============================================================================
 
 def load_data():
-    """Load and prepare data."""
+    """Load and prepare data from unified indicator_values table."""
     print("\n" + "=" * 70)
     print("📥 LOADING DATA")
     print("=" * 70)
-    
-    conn = sqlite3.connect(DB_PATH)
-    
-    market_df = pd.read_sql(
-        "SELECT date, ticker, value FROM market_prices ORDER BY date", conn
-    )
-    econ_df = pd.read_sql(
-        "SELECT date, series_id, value FROM econ_values ORDER BY date", conn
-    )
-    conn.close()
-    
-    # Pivot to wide format
-    market_wide = market_df.pivot(index='date', columns='ticker', values='value')
-    econ_wide = econ_df.pivot(index='date', columns='series_id', values='value')
-    
-    # Merge
-    panel = market_wide.join(econ_wide, how='outer')
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
-    
+
+    from data.sql.db_connector import load_all_indicators_wide
+
+    # Use unified loader (falls back to legacy tables if needed)
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        print("   ⚠️ No data found in database")
+        return pd.DataFrame(), pd.DataFrame()
+
     # Filter to analysis period
     cutoff = panel.index.max() - pd.DateOffset(years=CONFIG['years_back'])
     panel = panel[panel.index >= cutoff]
-    
+
     # Keep columns with 50%+ coverage
     valid_cols = panel.columns[panel.notna().sum() > len(panel) * 0.5]
     panel = panel[valid_cols].ffill().bfill().dropna(axis=1)
-    
+
     # Compute returns
     returns = panel.pct_change().dropna()
     returns = returns.replace([np.inf, -np.inf], np.nan).fillna(0)
-    
+
     print(f"   Date range: {panel.index.min().date()} to {panel.index.max().date()}")
     print(f"   Indicators: {len(panel.columns)}")
     print(f"   Trading days: {len(returns)}")
