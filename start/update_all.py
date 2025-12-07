@@ -418,10 +418,11 @@ def main() -> int:
 
         # Step 2: Initialize DB
         step_header(2, "INITIALIZE DATABASE")
-        from data.sql.prism_db import get_db_path, initialize_db
+        from data.sql.db_connector import init_database
+        from data.sql.db_path import get_db_path
 
         db_path = get_db_path()
-        initialize_db()
+        init_database()
         print(f"Database path:        {db_path}")
 
         conn = sqlite3.connect(str(db_path))
