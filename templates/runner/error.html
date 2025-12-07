@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}PRISM - Error{% endblock %}
+
+{% block content %}
+<!-- Error Alert -->
+<div class="alert alert-error">
+    <span class="alert-icon">&#x274C;</span>
+    <div>
+        <strong>Analysis Failed</strong>
+        <span>An error occurred during execution</span>
+    </div>
+</div>
+
+<!-- Error Details -->
+<div class="card result-card error">
+    <div class="card-header">
+        <span class="card-icon">&#x26A0;&#xFE0F;</span>
+        <div>
+            <div class="card-title">Error Details</div>
+            <div class="card-description">The analysis encountered an error</div>
+        </div>
+    </div>
+
+    <div style="background: var(--danger-light); padding: 1rem; border-radius: var(--radius-sm); border-left: 4px solid var(--danger); font-family: monospace; font-size: 0.875rem; overflow-x: auto;">
+        {{ error }}
+    </div>
+
+    {% if panel or workflow %}
+    <div class="mt-2">
+        <div class="grid grid-2">
+            <div>
+                <div class="text-muted" style="font-size: 0.875rem;">Panel</div>
+                <div style="font-weight: 600;">{{ panel | default('N/A') | title }}</div>
+            </div>
+            <div>
+                <div class="text-muted" style="font-size: 0.875rem;">Workflow</div>
+                <div style="font-weight: 600;">{{ workflow | default('N/A') | replace('_', ' ') | title }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Suggestions -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon">&#x1F4A1;</span>
+        <div>
+            <div class="card-title">Suggestions</div>
+            <div class="card-description">Try these steps to resolve the issue</div>
+        </div>
+    </div>
+
+    <ul style="margin-left: 1.5rem; line-height: 2;">
+        <li>Check that all required data sources are available</li>
+        <li>Verify the selected panel has sufficient indicators</li>
+        <li>Try a simpler workflow like "lens_validation"</li>
+        <li>Check the server logs for more details</li>
+        <li>Ensure all dependencies are installed correctly</li>
+    </ul>
+</div>
+
+<!-- Actions -->
+<div class="card">
+    <div style="display: flex; gap: 1rem; justify-content: center;">
+        <a href="/" class="btn btn-primary">
+            &#x2190; Try Again
+        </a>
+        <a href="/reports" class="btn btn-secondary">
+            View Reports
+        </a>
+    </div>
+</div>
+
+{% endblock %}

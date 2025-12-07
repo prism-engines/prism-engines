@@ -7,14 +7,18 @@ Unified runner system for executing PRISM analyses.
 Modes:
 - CLI: Interactive menu-based interface
 - Direct: Command-line arguments for scripting
-- HTML: Web-based interface
+- Web: Browser-based interface (Flask)
+- HTML: Legacy HTML runner
 
 Usage:
-    # Interactive mode
+    # Interactive CLI
     python prism_run.py
 
     # Direct mode
     python prism_run.py --panel market --workflow regime_comparison
+
+    # Web server
+    python prism_run.py --web
 
     # List available options
     python prism_run.py --list-panels
@@ -45,6 +49,15 @@ except ImportError:
     ReportGenerator = None
     generate_report = None
 
+# Import web server (optional - requires flask)
+try:
+    from .web_server import create_app, run_server
+    _WEB_AVAILABLE = True
+except ImportError:
+    _WEB_AVAILABLE = False
+    create_app = None
+    run_server = None
+
 __all__ = [
     "CLIRunner",
     "run_cli",
@@ -58,4 +71,10 @@ if _REPORTS_AVAILABLE:
     __all__.extend([
         "ReportGenerator",
         "generate_report",
+    ])
+
+if _WEB_AVAILABLE:
+    __all__.extend([
+        "create_app",
+        "run_server",
     ])
