@@ -22,7 +22,12 @@ from .hidden_variation_detector import (
 )
 
 # Phase 8: Statistical Foundation
-from .stationarity import StationarityTester
+from .stationarity import (
+    StationarityAnalyzer,
+    StationarityReport,
+    StationarityTestResult,
+    IntegrationOrder
+)
 from .uncertainty import UncertaintyEstimator
 from .multiple_testing import bonferroni, holm, benjamini_hochberg, benjamini_yekutieli
 from .cointegration import CointegrationAnalyzer
@@ -47,7 +52,10 @@ __all__ = [
     'FamilyDivergence',
     'HVDReport',
     # Phase 8
-    'StationarityTester',
+    'StationarityAnalyzer',
+    'StationarityReport',
+    'StationarityTestResult',
+    'IntegrationOrder',
     'UncertaintyEstimator',
     'bonferroni',
     'holm',
