@@ -1,7 +1,8 @@
 """
-Regime Switching Lens - Market regime detection
+Regime Switching Lens - System state detection
 
-Identifies different market states/regimes over time.
+Identifies different system states (regimes) over time.
+Domain-agnostic: works for any domain (finance, climate, biology, etc.).
 """
 
 from typing import Dict, Any, Optional, List
@@ -16,16 +17,18 @@ from .base_lens import BaseLens
 
 class RegimeSwitchingLens(BaseLens):
     """
-    Regime Switching Lens: Detect market regimes.
+    Regime Switching Lens: Detect system states (regimes).
+
+    Domain-agnostic state detection using Gaussian Mixture Models.
 
     Provides:
-    - Regime identification (e.g., bull/bear, low/high volatility)
-    - Regime transition probabilities
-    - Indicator behavior per regime
+    - State identification (e.g., stable/unstable, low/high activity)
+    - State transition probabilities
+    - Indicator behavior per state
     """
 
     name = "regime"
-    description = "Market regime detection and analysis"
+    description = "System state detection and analysis"
     category = "advanced"
 
     def analyze(
@@ -35,14 +38,14 @@ class RegimeSwitchingLens(BaseLens):
         **kwargs
     ) -> Dict[str, Any]:
         """
-        Detect and analyze market regimes.
+        Detect and analyze system states (regimes).
 
         Args:
             df: Input DataFrame
-            n_regimes: Number of regimes to detect
+            n_regimes: Number of states to detect
 
         Returns:
-            Dictionary with regime analysis results
+            Dictionary with state analysis results
         """
         start_time = time.time()
 

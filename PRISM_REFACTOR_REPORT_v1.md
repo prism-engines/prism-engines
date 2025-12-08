@@ -299,7 +299,19 @@ git push origin --delete claude/add-engine-series-visualization-012Wx5nWV5LCRhzf
 | `PRISM_REFACTOR_REPORT_v1.md` | Added | This comprehensive audit report |
 | `utils/db_registry.py` | Modified | Fixed `data_fetch/` -> `data/registry/` path |
 | `utils/registry_validator.py` | Modified | Fixed `data_fetch/` -> `data/registry/` paths (4 locations) |
-| `utils/fetch_validator.py` | Modified | Fixed `data_fetch/` -> `data/registry/` paths (4 locations) |
+| `utils/fetch_validator.py` | Modified | Fixed `data_fetch/` -> `data/registry/` paths (4 locations), fixed syntax |
+| `utils/__init__.py` | Modified | Fixed truncated file |
+| `start/lens_contributions.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/overnight_lite.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/run_regime_analysis.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/run_tuned.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/correlation_movie.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/early_warning_clean.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/check_coverage.py` | Modified | Migrated to unified `indicator_values` table |
+| `start/calibration_lens_benchmark.py` | Modified | Migrated to unified `indicator_values` table |
+| `panel/__init__.py` | Modified | Updated docstring examples to domain-agnostic |
+| `panel/runtime_loader.py` | Modified | Updated docstring to domain-agnostic |
+| `engine_core/lenses/regime_switching_lens.py` | Modified | Updated descriptions to domain-agnostic |
 
 ### 9.2 Files Deleted
 
@@ -315,8 +327,23 @@ git push origin --delete claude/add-engine-series-visualization-012Wx5nWV5LCRhzf
 | `claude_sandbox/calibratedengine` | 1KB | Text dump |
 | `claude_sandbox/dashboard_update_*` | 37KB | Text dumps (2 files) |
 | `claude_sandbox/databaselocation` | 1KB | Text dump |
+| `test_phase1.py` through `test_phase7_universal.py` | 50KB | Root test files (user has copies) |
 
-**Total Space Freed:** ~3.2 MB (before git gc)
+**Total Space Freed:** ~3.3 MB (before git gc)
+
+### 9.3 SQL Migration Summary
+
+All start scripts now use `data.sql.db_connector.load_all_indicators_wide()` which reads from the unified `indicator_values` table instead of deprecated `market_prices` and `econ_values` tables.
+
+Scripts with deprecation warning shims (will warn if data needs migration):
+- `start/lens_contributions.py`
+- `start/overnight_lite.py`
+- `start/run_regime_analysis.py`
+- `start/run_tuned.py`
+- `start/correlation_movie.py`
+- `start/early_warning_clean.py`
+- `start/check_coverage.py`
+- `start/calibration_lens_benchmark.py`
 
 ---
 

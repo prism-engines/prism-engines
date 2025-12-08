@@ -4,7 +4,8 @@ Runtime Panel Loader (Domain-Agnostic)
 
 Panels are defined at runtime by the UI, not in files.
 This module provides a simple interface to load any combination
-of indicators as a panel.
+of indicators as a panel. Works across any domain (finance, climate,
+biology, energy, etc.).
 
 Includes HVD (Hidden Variation Detector) integration to warn
 about family duplicates. HVD is advisory-only and never modifies data.
@@ -13,7 +14,7 @@ Usage:
     from panel.runtime_loader import load_panel
 
     # UI sends a list of indicator names
-    selected = ["sp500", "vix", "t10y2y"]
+    selected = ["indicator_a", "indicator_b", "indicator_c"]
     panel = load_panel(selected)
 
     # Panel is a wide-format DataFrame

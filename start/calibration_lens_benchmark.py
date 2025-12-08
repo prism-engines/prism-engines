@@ -246,50 +246,29 @@ LENSES = {
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    """Load the master panel from database."""
-    db_path = DATA_DIR / "prism.db"
-    
-    if not db_path.exists():
-        # Try local path
-        db_path = Path.home() / "prism_data" / "prism.db"
-    
-    if not db_path.exists():
-        raise FileNotFoundError(f"Database not found at {db_path}")
-    
-    conn = sqlite3.connect(db_path)
-    
-    # Load market data
-    market = pd.read_sql("""
-        SELECT date, ticker, value 
-        FROM market_prices 
-        WHERE value IS NOT NULL
-    """, conn)
-    
-    # Load economic data
-    econ = pd.read_sql("""
-        SELECT date, series_id, value 
-        FROM econ_values 
-        WHERE value IS NOT NULL
-    """, conn)
-    
-    conn.close()
-    
-    # Pivot to wide format
-    market_wide = market.pivot(index='date', columns='ticker', values='value')
-    econ_wide = econ.pivot(index='date', columns='series_id', values='value')
-    
-    # Combine
-    panel = pd.concat([market_wide, econ_wide], axis=1)
+    """Load the master panel from database using unified indicator_values table."""
+    from data.sql.db_connector import load_all_indicators_wide
+
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        import warnings
+        warnings.warn(
+            "indicator_values table is empty. Data may need migration.",
+            DeprecationWarning
+        )
+        raise RuntimeError("No data available in indicator_values table")
+
     panel.index = pd.to_datetime(panel.index)
     panel = panel.sort_index()
-    
+
     # Filter to recent 15 years for speed
     cutoff = panel.index.max() - pd.Timedelta(days=15*365)
     panel = panel.loc[cutoff:]
-    
+
     print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
     print(f"   Date range: {panel.index.min().date()} to {panel.index.max().date()}")
-    
+
     return panel
 
 

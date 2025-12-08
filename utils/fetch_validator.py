@@ -569,6 +569,9 @@ def comprehensive_validate(
     report["final_rows"] = len(df_clean)
 
     return df_clean, report
+
+
+"""
 Fetch Validator - Registry validation utilities
 
 Provides validation functions for registry entries to ensure
