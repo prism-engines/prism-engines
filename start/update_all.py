@@ -1,15 +1,16 @@
 """
-PRISM Engine - Full Data Pipeline Orchestrator (Registry v2)
+PRISM Engine - Data Pipeline (FRED + Tiingo)
 
-Domain-agnostic data pipeline using indicators.yaml registry.
+Fetches economic and market data from:
+- FRED (Federal Reserve Economic Data) - economic indicators
+- Tiingo - market/price data
 
 This script:
 1. Loads indicators from data/registry/indicators.yaml
-2. Fetches data from sources (FRED, etc.)
+2. Fetches data from FRED and Tiingo
 3. Writes to unified indicator_values table (Schema v2)
 4. Builds synthetic time series
 5. Builds technical indicators
-6. Verifies geometry engine inputs
 
 CLI Usage:
     python start/update_all.py
@@ -23,18 +24,11 @@ import argparse
 import logging
 import sqlite3
 import sys
-import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-
-# Climate module freeze warning
-warnings.warn(
-    "Climate module detected but is currently frozen and NOT part of the pipeline.",
-    RuntimeWarning
-)
 
 # ---------------------------------------------------------------------
 # Path setup
