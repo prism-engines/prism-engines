@@ -246,30 +246,26 @@ LENSES = {
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    """Load the master panel from database using unified indicator_values table."""
-    from data.sql.db_connector import load_all_indicators_wide
+    """Load the master panel using central runtime loader."""
+    from panel.runtime_loader import load_calibrated_panel
+    from datetime import datetime, timedelta
 
-    panel = load_all_indicators_wide()
+    try:
+        # Load last 15 years
+        end_date = datetime.today().strftime('%Y-%m-%d')
+        start_date = (datetime.today() - timedelta(days=15*365)).strftime('%Y-%m-%d')
 
-    if panel.empty:
-        import warnings
-        warnings.warn(
-            "indicator_values table is empty. Data may need migration.",
-            DeprecationWarning
-        )
-        raise RuntimeError("No data available in indicator_values table")
+        panel = load_calibrated_panel(start_date=start_date, end_date=end_date)
 
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
+        if not panel.empty:
+            print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
+            print(f"   Date range: {panel.index.min().date()} to {panel.index.max().date()}")
+            return panel
 
-    # Filter to recent 15 years for speed
-    cutoff = panel.index.max() - pd.Timedelta(days=15*365)
-    panel = panel.loc[cutoff:]
+    except Exception as e:
+        print(f"⚠️ Central loader failed: {e}")
 
-    print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
-    print(f"   Date range: {panel.index.min().date()} to {panel.index.max().date()}")
-
-    return panel
+    raise RuntimeError("No data available - check database connection")
 
 
 # =============================================================================

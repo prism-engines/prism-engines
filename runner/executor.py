@@ -28,7 +28,7 @@ class WorkflowExecutor:
     def panel_loader(self):
         """Lazy-load panel loader."""
         if self._panel_loader is None:
-            from panels import PanelLoader
+            from panel.loader import PanelLoader
             self._panel_loader = PanelLoader()
         return self._panel_loader
 
