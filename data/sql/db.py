@@ -4,10 +4,10 @@ PRISM Engine - SQLite Database Layer
 This module provides a clean, modern API for storing and retrieving
 indicator time-series across multiple systems (finance, economic, climate, etc.).
 
-The DB path can be configured via:
-1. PRISM_DB environment variable
-2. system_registry.json paths configuration
-3. Default: data/sql/prism.db
+The DB path is resolved via data.sql.db_path.get_db_path() which:
+1. Checks --db CLI argument or set_db_path() override
+2. Checks PRISM_DB environment variable
+3. Auto-detects ~/prism_data/prism.db or data/sql/prism.db (whichever is valid)
 
 Tables are created automatically from schema.sql.
 
@@ -28,7 +28,6 @@ Usage:
     data = load_indicator('SPY', system='market')
 """
 
-import json
 import os
 import sqlite3
 from pathlib import Path
@@ -36,54 +35,8 @@ from typing import Optional, List, Dict, Any
 
 import pandas as pd
 
-
-# ============================================================
-# PATH RESOLUTION
-# ============================================================
-
-def _get_project_root() -> Path:
-    """Get the project root directory."""
-    return Path(__file__).parent.parent.parent
-
-
-def get_db_path() -> str:
-    """
-    Determine where the SQLite database should live.
-
-    Priority:
-    1. Environment variable: PRISM_DB
-    2. Registry configuration: paths.database.{active_db_path}
-    3. Default location: data/sql/prism.db
-    
-    Returns:
-        Absolute path to the database file
-    """
-    # 1. Environment variable takes precedence
-    env_path = os.getenv("PRISM_DB")
-    if env_path:
-        return os.path.expanduser(env_path)
-    
-    # 2. Check registry for configured path
-    root = _get_project_root()
-    registry_path = root / "data" / "registry" / "system_registry.json"
-    
-    if registry_path.exists():
-        try:
-            with open(registry_path, "r") as f:
-                registry = json.load(f)
-            
-            paths = registry.get("paths", {})
-            database_paths = paths.get("database", {})
-            active_key = paths.get("active_db_path", "default")
-            
-            if active_key in database_paths:
-                db_path = database_paths[active_key]
-                return os.path.expanduser(db_path)
-        except (json.JSONDecodeError, KeyError):
-            pass  # Fall through to default
-    
-    # 3. Default location
-    return str(root / "data" / "sql" / "prism.db")
+# Use centralized DB path resolution
+from .db_path import get_db_path, set_db_path, get_db_info
 
 
 # ============================================================

@@ -32,7 +32,12 @@ import pandas as pd
 
 # Default paths
 _default_temporal_db = Path(__file__).parent.parent / "06_output" / "temporal" / "temporal.db"
-_default_prism_db = Path(__file__).parent.parent / "data" / "sql" / "prism.db"
+
+
+def _get_default_prism_db() -> Path:
+    """Get default prism DB path using centralized resolver."""
+    from data.sql.db_path import get_db_path
+    return Path(get_db_path())
 
 
 @dataclass
@@ -184,7 +189,7 @@ class AIContext:
             prism_db_path: Path to main PRISM database (for indicator metadata)
         """
         self.temporal_db_path = Path(temporal_db_path) if temporal_db_path else _default_temporal_db
-        self.prism_db_path = Path(prism_db_path) if prism_db_path else _default_prism_db
+        self.prism_db_path = Path(prism_db_path) if prism_db_path else _get_default_prism_db()
 
     @contextmanager
     def _temporal_connection(self):

@@ -259,12 +259,13 @@ def load_panel() -> pd.DataFrame:
     Returns:
         DataFrame with date index and indicator columns
     """
-    db_path = DATA_DIR / "prism.db"
-    if not db_path.exists():
-        db_path = Path.home() / "prism_data" / "prism.db"
+    from data.sql.db_path import get_db_path, get_db_info
 
-    if not db_path.exists():
-        logger.warning("⚠️  Database not found, using synthetic fallback data")
+    db_path = get_db_path()
+    db_info = get_db_info()
+
+    if not db_info['is_valid']:
+        logger.warning("⚠️  Database not found or empty, using synthetic fallback data")
         return _generate_synthetic_panel()
 
     conn = sqlite3.connect(db_path)
