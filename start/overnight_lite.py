@@ -23,6 +23,7 @@ Usage:
 
 import sys
 from pathlib import Path
+import argparse
 import pandas as pd
 import numpy as np
 import sqlite3
@@ -75,6 +76,7 @@ CONFIG = {
     'bootstrap_confidence': 0.95,
     'n_regimes': 3,
     'n_jobs': max(1, mp.cpu_count() - 1),
+    'use_parallel': True,  # Enable parallel processing
 }
 
 # ============================================================================
@@ -189,38 +191,74 @@ def compute_all_lenses(returns_window):
 # MULTI-RESOLUTION ANALYSIS
 # ============================================================================
 
-def run_multiresolution(panel, returns):
+def _process_single_window(args):
+    """Process a single window for multiresolution analysis (picklable for multiprocessing)."""
+    window_returns_values, window_returns_columns, window_date, window_size = args
+
+    # Reconstruct DataFrame from values (pickle-friendly)
+    window_returns = pd.DataFrame(window_returns_values, columns=window_returns_columns)
+
+    rankings = compute_all_lenses(window_returns)
+    rankings['date'] = window_date
+    rankings['window_size'] = window_size
+    rankings['indicator'] = rankings.index
+
+    return rankings
+
+
+def run_multiresolution(panel, returns, use_parallel=None):
     """Run analysis at multiple time scales."""
     print("\n" + "=" * 60)
     print("🔬 MULTI-RESOLUTION ANALYSIS")
     print("=" * 60)
-    
+
+    if use_parallel is None:
+        use_parallel = CONFIG.get('use_parallel', True)
+
+    n_jobs = CONFIG['n_jobs']
+
     all_results = []
-    
+
     for window_size in CONFIG['window_sizes']:
         print(f"\n   Window: {window_size} days")
-        
-        n_windows = (len(returns) - window_size) // CONFIG['step_size']
-        print(f"   Processing {n_windows} windows...")
-        
-        window_results = []
-        
+
+        # Prepare all window args
+        window_args = []
         for i in range(0, len(returns) - window_size, CONFIG['step_size']):
             window_returns = returns.iloc[i:i+window_size]
             window_date = returns.index[i + window_size]
-            
-            rankings = compute_all_lenses(window_returns)
-            rankings['date'] = window_date
-            rankings['window_size'] = window_size
-            rankings['indicator'] = rankings.index
-            
-            window_results.append(rankings)
-        
+            # Pass values and columns separately for pickle compatibility
+            window_args.append((
+                window_returns.values,
+                window_returns.columns.tolist(),
+                window_date,
+                window_size
+            ))
+
+        n_windows = len(window_args)
+        print(f"   Processing {n_windows} windows...")
+
+        start_time = time.time()
+
+        if use_parallel and n_windows > 10:
+            print(f"   Using {n_jobs} parallel workers...")
+            with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+                window_results = list(executor.map(_process_single_window, window_args))
+        else:
+            # Sequential processing
+            window_results = []
+            for j, args in enumerate(window_args):
+                result = _process_single_window(args)
+                window_results.append(result)
+                if (j + 1) % 100 == 0:
+                    print(f"      {j+1}/{n_windows} windows processed...")
+
         if window_results:
             df = pd.concat(window_results, ignore_index=True)
             all_results.append(df)
-            print(f"   ✅ {len(window_results)} windows completed")
-    
+            elapsed = time.time() - start_time
+            print(f"   ✅ {len(window_results)} windows completed in {elapsed:.1f}s")
+
     if all_results:
         return pd.concat(all_results, ignore_index=True)
     return pd.DataFrame()
@@ -230,43 +268,61 @@ def run_multiresolution(panel, returns):
 # BOOTSTRAP CONFIDENCE INTERVALS
 # ============================================================================
 
-def bootstrap_single(args):
-    """Single bootstrap iteration."""
-    returns_window, seed = args
+def _bootstrap_single(args):
+    """Single bootstrap iteration (picklable for multiprocessing)."""
+    returns_values, returns_columns, seed = args
     np.random.seed(seed)
-    
+
+    # Reconstruct DataFrame from values
+    returns_window = pd.DataFrame(returns_values, columns=returns_columns)
+
     # Resample rows with replacement
     boot_returns = resample(returns_window, random_state=seed)
     rankings = compute_all_lenses(boot_returns)
-    return rankings['consensus_rank']
+    return rankings['consensus_rank'].to_dict()
 
 
-def run_bootstrap(panel, returns, window_size=63):
+def run_bootstrap(panel, returns, window_size=63, use_parallel=None):
     """Bootstrap confidence intervals for consensus rankings."""
     print("\n" + "=" * 60)
     print("📊 BOOTSTRAP CONFIDENCE INTERVALS")
     print("=" * 60)
-    
+
+    if use_parallel is None:
+        use_parallel = CONFIG.get('use_parallel', True)
+
+    n_jobs = CONFIG['n_jobs']
+
     # Use most recent window
     recent_returns = returns.iloc[-window_size:]
     print(f"   Window: last {window_size} days")
     print(f"   Resamples: {CONFIG['n_bootstrap']}")
-    
-    # Run bootstrap
-    args = [(recent_returns, i) for i in range(CONFIG['n_bootstrap'])]
-    
-    boot_results = []
-    for arg in args:
-        result = bootstrap_single(arg)
-        boot_results.append(result)
-    
+
+    # Prepare args with pickle-friendly data
+    args = [
+        (recent_returns.values, recent_returns.columns.tolist(), i)
+        for i in range(CONFIG['n_bootstrap'])
+    ]
+
+    start_time = time.time()
+
+    if use_parallel and CONFIG['n_bootstrap'] > 10:
+        print(f"   Using {n_jobs} parallel workers...")
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            boot_results = list(executor.map(_bootstrap_single, args))
+    else:
+        boot_results = []
+        for arg in args:
+            result = _bootstrap_single(arg)
+            boot_results.append(result)
+
     # Combine results
     boot_df = pd.DataFrame(boot_results)
-    
+
     # Compute confidence intervals
     ci_low = (1 - CONFIG['bootstrap_confidence']) / 2
     ci_high = 1 - ci_low
-    
+
     summary = pd.DataFrame({
         'indicator': boot_df.columns,
         'mean_rank': boot_df.mean(),
@@ -274,10 +330,11 @@ def run_bootstrap(panel, returns, window_size=63):
         'ci_lower': boot_df.quantile(ci_low),
         'ci_upper': boot_df.quantile(ci_high),
     })
-    
+
     summary = summary.sort_values('mean_rank')
-    print(f"   ✅ Bootstrap complete")
-    
+    elapsed = time.time() - start_time
+    print(f"   ✅ Bootstrap complete in {elapsed:.1f}s")
+
     return summary
 
 
@@ -395,25 +452,54 @@ def create_visualizations(results, bootstrap, regimes, output_dir):
 # MAIN
 # ============================================================================
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='PRISM Overnight Analysis - Lite Version',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--parallel', dest='parallel', action='store_true', default=True,
+        help='Enable parallel processing (default: enabled)'
+    )
+    parser.add_argument(
+        '--no-parallel', dest='parallel', action='store_false',
+        help='Disable parallel processing for debugging'
+    )
+    parser.add_argument(
+        '--jobs', '-j', type=int, default=None,
+        help=f'Number of parallel workers (default: {mp.cpu_count() - 1})'
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
+    # Update config from CLI args
+    CONFIG['use_parallel'] = args.parallel
+    if args.jobs is not None:
+        CONFIG['n_jobs'] = args.jobs
+
     print("=" * 60)
     print("🚀 PRISM OVERNIGHT ANALYSIS - LITE")
     print("=" * 60)
     print(f"Started: {datetime.now()}")
     print(f"Config: {CONFIG['years_back']}yr, step={CONFIG['step_size']}, bootstrap={CONFIG['n_bootstrap']}")
-    
+    print(f"Parallel: {CONFIG['use_parallel']} (workers: {CONFIG['n_jobs']})")
+
     start_time = time.time()
-    
+
     # Load data
     panel, returns = load_data()
-    
+
     if len(returns) < 100:
         print("❌ Not enough data!")
         return
-    
+
     # Run analyses
-    results = run_multiresolution(panel, returns)
-    bootstrap = run_bootstrap(panel, returns, window_size=63)
+    results = run_multiresolution(panel, returns, use_parallel=CONFIG['use_parallel'])
+    bootstrap = run_bootstrap(panel, returns, window_size=63, use_parallel=CONFIG['use_parallel'])
     regimes = detect_regimes(returns)
     
     # Save results

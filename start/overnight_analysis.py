@@ -62,6 +62,7 @@ Date: December 2025
 
 import sys
 from pathlib import Path
+import argparse
 import pandas as pd
 import numpy as np
 import sqlite3
@@ -123,30 +124,31 @@ DB_PATH = get_db_path()
 CONFIG = {
     # Time range
     'years_back': 20,  # 2005-2025 (full coverage period)
-    
+
     # Multi-resolution settings
     'window_sizes': [21, 42, 63, 126, 252],  # 1mo, 2mo, 3mo, 6mo, 1yr
     'step_size': 1,  # DAILY resolution (this is what makes it heavy)
-    
+
     # Bootstrap settings
     'n_bootstrap': 100,  # Resamples per window for confidence intervals
     'bootstrap_confidence': 0.95,  # 95% CI
-    
+
     # Monte Carlo settings
     'n_monte_carlo': 500,  # Synthetic histories to generate
     'mc_block_size': 21,  # Block bootstrap size for synthetic data
-    
+
     # Regime detection
     'n_regimes': 3,
     'consensus_thresholds': [0.25, 0.30, 0.35, 0.40, 0.45],  # Test multiple (lowered)
-    
+
     # Statistical significance
     'p_value_threshold': 0.05,
-    
+
     # Performance
-    'n_jobs': -1,  # Use all CPU cores (-1 = auto)
+    'n_jobs': max(1, mp.cpu_count() - 1),  # Use all but one CPU core
     'chunk_size': 100,  # Process in chunks to manage memory
-    
+    'use_parallel': True,  # Enable parallel processing
+
     # What to run (set False to skip sections)
     'run_multiresolution': True,
     'run_bootstrap': True,
@@ -386,52 +388,88 @@ def compute_all_lenses(returns_window, prices_window, n_regimes=3):
 # MULTI-RESOLUTION ANALYSIS
 # ============================================================================
 
-def run_multiresolution_analysis(panel, returns):
+def _process_window_full(args):
+    """Process a single window for multiresolution analysis (picklable)."""
+    ret_values, ret_columns, ret_index, price_values, price_columns, window_date, window_size, n_regimes = args
+
+    # Reconstruct DataFrames
+    ret_window = pd.DataFrame(ret_values, columns=ret_columns, index=ret_index)
+    price_window = pd.DataFrame(price_values, columns=price_columns, index=ret_index)
+
+    scores = compute_all_lenses(ret_window, price_window, n_regimes)
+    scores['date'] = window_date
+    scores['window_size'] = window_size
+
+    return scores
+
+
+def run_multiresolution_analysis(panel, returns, use_parallel=None):
     """Run all lenses at multiple time scales."""
-    
+
     print("\n" + "=" * 70)
     print("🔬 MULTI-RESOLUTION ANALYSIS")
     print("=" * 70)
     print(f"   Window sizes: {CONFIG['window_sizes']}")
     print(f"   Step size: {CONFIG['step_size']} (daily)")
-    
+
+    if use_parallel is None:
+        use_parallel = CONFIG.get('use_parallel', True)
+
+    n_jobs = CONFIG['n_jobs']
+
     all_results = []
-    
+
     for window_size in CONFIG['window_sizes']:
         print(f"\n   Processing window size: {window_size} days...")
-        
-        n_windows = (len(returns) - window_size) // CONFIG['step_size']
-        print(f"      Windows to process: {n_windows}")
-        
-        window_results = []
-        start_time = time.time()
-        
-        for i, idx in enumerate(range(window_size, len(returns), CONFIG['step_size'])):
-            # Extract window
+
+        # Prepare all window args
+        window_args = []
+        for idx in range(window_size, len(returns), CONFIG['step_size']):
             ret_window = returns.iloc[idx-window_size:idx]
             price_window = panel.iloc[idx-window_size:idx]
-            
-            # Compute lenses
-            scores = compute_all_lenses(ret_window, price_window, CONFIG['n_regimes'])
-            scores['date'] = returns.index[idx]
-            scores['window_size'] = window_size
-            
-            window_results.append(scores)
-            
-            # Progress
-            if (i + 1) % 500 == 0:
-                elapsed = time.time() - start_time
-                rate = (i + 1) / elapsed
-                remaining = (n_windows - i - 1) / rate / 60
-                print(f"      {i+1}/{n_windows} ({100*(i+1)/n_windows:.1f}%) "
-                      f"- {remaining:.1f} min remaining")
-        
+            window_date = returns.index[idx]
+
+            window_args.append((
+                ret_window.values,
+                ret_window.columns.tolist(),
+                ret_window.index.tolist(),
+                price_window.values,
+                price_window.columns.tolist(),
+                window_date,
+                window_size,
+                CONFIG['n_regimes']
+            ))
+
+        n_windows = len(window_args)
+        print(f"      Windows to process: {n_windows}")
+
+        start_time = time.time()
+
+        if use_parallel and n_windows > 100:
+            print(f"      Using {n_jobs} parallel workers...")
+            with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+                window_results = list(executor.map(_process_window_full, window_args, chunksize=50))
+        else:
+            # Sequential processing with progress
+            window_results = []
+            for i, args in enumerate(window_args):
+                result = _process_window_full(args)
+                window_results.append(result)
+
+                if (i + 1) % 500 == 0:
+                    elapsed = time.time() - start_time
+                    rate = (i + 1) / elapsed
+                    remaining = (n_windows - i - 1) / rate / 60
+                    print(f"      {i+1}/{n_windows} ({100*(i+1)/n_windows:.1f}%) "
+                          f"- {remaining:.1f} min remaining")
+
         all_results.extend(window_results)
-        print(f"      ✅ Completed in {(time.time()-start_time)/60:.1f} min")
-        
+        elapsed = time.time() - start_time
+        print(f"      ✅ Completed in {elapsed/60:.1f} min")
+
         # Memory cleanup
         gc.collect()
-    
+
     results_df = pd.DataFrame(all_results)
     return results_df
 
@@ -440,71 +478,105 @@ def run_multiresolution_analysis(panel, returns):
 # BOOTSTRAP CONFIDENCE INTERVALS
 # ============================================================================
 
-def bootstrap_single_window(args):
-    """Bootstrap a single window - for parallel processing."""
-    returns_window, prices_window, n_bootstrap, n_regimes = args
-    
+def _bootstrap_single_window(args):
+    """Bootstrap a single window - for parallel processing (picklable)."""
+    ret_values, ret_columns, ret_index, price_values, price_columns, window_date, n_bootstrap, n_regimes = args
+
+    # Reconstruct DataFrames
+    returns_window = pd.DataFrame(ret_values, columns=ret_columns, index=ret_index)
+    prices_window = pd.DataFrame(price_values, columns=price_columns, index=ret_index)
+
     bootstrap_scores = []
     for _ in range(n_bootstrap):
         # Resample with replacement
         idx = resample(range(len(returns_window)), replace=True)
         ret_resampled = returns_window.iloc[idx]
         price_resampled = prices_window.iloc[idx]
-        
+
         scores = compute_all_lenses(ret_resampled, price_resampled, n_regimes)
         bootstrap_scores.append(scores)
-    
+
     # Compute confidence intervals
     bs_df = pd.DataFrame(bootstrap_scores)
     ci_low = bs_df.quantile(0.025)
     ci_high = bs_df.quantile(0.975)
     ci_mean = bs_df.mean()
-    
-    return ci_low.to_dict(), ci_mean.to_dict(), ci_high.to_dict()
+
+    return window_date, ci_low.to_dict(), ci_mean.to_dict(), ci_high.to_dict()
 
 
-def run_bootstrap_analysis(panel, returns, base_window=63):
+def run_bootstrap_analysis(panel, returns, base_window=63, use_parallel=None):
     """Run bootstrap analysis for confidence intervals."""
-    
+
     print("\n" + "=" * 70)
     print("📊 BOOTSTRAP CONFIDENCE INTERVALS")
     print("=" * 70)
     print(f"   Bootstrap samples: {CONFIG['n_bootstrap']}")
     print(f"   Window size: {base_window}")
-    
+
+    if use_parallel is None:
+        use_parallel = CONFIG.get('use_parallel', True)
+
+    n_jobs = CONFIG['n_jobs']
+
     # Sample every 5 days for bootstrap (too expensive for daily)
     step = 5
-    n_windows = (len(returns) - base_window) // step
-    print(f"   Windows to analyze: {n_windows}")
-    
-    results = []
-    start_time = time.time()
-    
-    for i, idx in enumerate(range(base_window, len(returns), step)):
+
+    # Prepare all window args
+    window_args = []
+    for idx in range(base_window, len(returns), step):
         ret_window = returns.iloc[idx-base_window:idx]
         price_window = panel.iloc[idx-base_window:idx]
-        
-        ci_low, ci_mean, ci_high = bootstrap_single_window(
-            (ret_window, price_window, CONFIG['n_bootstrap'], CONFIG['n_regimes'])
-        )
-        
+        window_date = returns.index[idx]
+
+        window_args.append((
+            ret_window.values,
+            ret_window.columns.tolist(),
+            ret_window.index.tolist(),
+            price_window.values,
+            price_window.columns.tolist(),
+            window_date,
+            CONFIG['n_bootstrap'],
+            CONFIG['n_regimes']
+        ))
+
+    n_windows = len(window_args)
+    print(f"   Windows to analyze: {n_windows}")
+
+    start_time = time.time()
+
+    if use_parallel and n_windows > 20:
+        print(f"   Using {n_jobs} parallel workers...")
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            raw_results = list(executor.map(_bootstrap_single_window, window_args, chunksize=10))
+    else:
+        # Sequential processing with progress
+        raw_results = []
+        for i, args in enumerate(window_args):
+            result = _bootstrap_single_window(args)
+            raw_results.append(result)
+
+            if (i + 1) % 100 == 0:
+                elapsed = time.time() - start_time
+                rate = (i + 1) / elapsed
+                remaining = (n_windows - i - 1) / rate / 60
+                print(f"   {i+1}/{n_windows} ({100*(i+1)/n_windows:.1f}%) "
+                      f"- {remaining:.1f} min remaining")
+
+    # Convert raw results to DataFrame
+    results = []
+    for window_date, ci_low, ci_mean, ci_high in raw_results:
         result = {
-            'date': returns.index[idx],
+            'date': window_date,
             **{f'{k}_mean': v for k, v in ci_mean.items()},
             **{f'{k}_ci_low': v for k, v in ci_low.items()},
             **{f'{k}_ci_high': v for k, v in ci_high.items()},
         }
         results.append(result)
-        
-        if (i + 1) % 100 == 0:
-            elapsed = time.time() - start_time
-            rate = (i + 1) / elapsed
-            remaining = (n_windows - i - 1) / rate / 60
-            print(f"   {i+1}/{n_windows} ({100*(i+1)/n_windows:.1f}%) "
-                  f"- {remaining:.1f} min remaining")
-    
-    print(f"   ✅ Completed in {(time.time()-start_time)/60:.1f} min")
-    
+
+    elapsed = time.time() - start_time
+    print(f"   ✅ Completed in {elapsed/60:.1f} min")
+
     return pd.DataFrame(results)
 
 
@@ -512,86 +584,125 @@ def run_bootstrap_analysis(panel, returns, base_window=63):
 # MONTE CARLO NULL DISTRIBUTION
 # ============================================================================
 
-def generate_synthetic_returns(returns, n_samples, block_size=21):
-    """Generate synthetic returns using block bootstrap."""
-    
-    n_obs, n_cols = returns.shape
+def _generate_synthetic_returns(ret_values, ret_columns, n_samples, block_size, seed):
+    """Generate synthetic returns using block bootstrap (picklable)."""
+    np.random.seed(seed)
+
+    n_obs = ret_values.shape[0]
     n_blocks = n_samples // block_size + 1
-    
+
     synthetic = []
     for _ in range(n_blocks):
         # Random starting point
         start = np.random.randint(0, n_obs - block_size)
-        block = returns.iloc[start:start+block_size].values
+        block = ret_values[start:start+block_size]
         synthetic.append(block)
-    
+
     synthetic = np.vstack(synthetic)[:n_samples]
-    return pd.DataFrame(synthetic, columns=returns.columns)
+    return pd.DataFrame(synthetic, columns=ret_columns)
 
 
-def run_montecarlo_analysis(panel, returns, base_window=63):
+def _run_single_mc_simulation(args):
+    """Run a single Monte Carlo simulation (picklable)."""
+    ret_values, ret_columns, ret_index, n_samples, base_window, block_size, n_regimes, sim_seed = args
+
+    np.random.seed(sim_seed)
+
+    # Generate synthetic data
+    syn_returns = _generate_synthetic_returns(ret_values, ret_columns, n_samples, block_size, sim_seed)
+
+    # Create synthetic prices (cumulative returns)
+    syn_prices = (1 + syn_returns).cumprod() * 100
+    syn_prices.index = ret_index[:len(syn_prices)]
+    syn_returns.index = ret_index[:len(syn_returns)]
+
+    # Run lenses on a sample of windows
+    sample_windows = np.random.choice(
+        range(base_window, len(syn_returns)),
+        size=min(50, len(syn_returns) - base_window),
+        replace=False
+    )
+
+    sim_scores = []
+    for idx in sample_windows:
+        ret_window = syn_returns.iloc[idx-base_window:idx]
+        price_window = syn_prices.iloc[idx-base_window:idx]
+        scores = compute_all_lenses(ret_window, price_window, n_regimes)
+        sim_scores.append(scores)
+
+    # Compute average consensus for this simulation
+    sim_df = pd.DataFrame(sim_scores)
+
+    # Normalize
+    for col in sim_df.columns:
+        min_val, max_val = sim_df[col].min(), sim_df[col].max()
+        if max_val > min_val:
+            sim_df[col] = (sim_df[col] - min_val) / (max_val - min_val)
+
+    # Consensus = fraction above 0.5
+    consensus = (sim_df > 0.5).sum(axis=1) / len(sim_df.columns)
+    return consensus.values.tolist()
+
+
+def run_montecarlo_analysis(panel, returns, base_window=63, use_parallel=None):
     """Generate null distribution via Monte Carlo simulation."""
-    
+
     print("\n" + "=" * 70)
     print("🎲 MONTE CARLO NULL DISTRIBUTION")
     print("=" * 70)
     print(f"   Simulations: {CONFIG['n_monte_carlo']}")
     print(f"   Block size: {CONFIG['mc_block_size']}")
-    
-    # We'll compute consensus for each synthetic history
-    null_consensus = []
-    start_time = time.time()
-    
+
+    if use_parallel is None:
+        use_parallel = CONFIG.get('use_parallel', True)
+
+    n_jobs = CONFIG['n_jobs']
+
+    # Prepare simulation args
+    sim_args = []
     for sim in range(CONFIG['n_monte_carlo']):
-        # Generate synthetic data
-        syn_returns = generate_synthetic_returns(
-            returns, len(returns), CONFIG['mc_block_size']
-        )
-        
-        # Create synthetic prices (cumulative returns)
-        syn_prices = (1 + syn_returns).cumprod() * 100
-        syn_prices.index = returns.index[:len(syn_prices)]
-        syn_returns.index = returns.index[:len(syn_returns)]
-        
-        # Run lenses on a sample of windows
-        sample_windows = np.random.choice(
-            range(base_window, len(syn_returns)), 
-            size=min(50, len(syn_returns) - base_window),
-            replace=False
-        )
-        
-        sim_scores = []
-        for idx in sample_windows:
-            ret_window = syn_returns.iloc[idx-base_window:idx]
-            price_window = syn_prices.iloc[idx-base_window:idx]
-            scores = compute_all_lenses(ret_window, price_window, CONFIG['n_regimes'])
-            sim_scores.append(scores)
-        
-        # Compute average consensus for this simulation
-        sim_df = pd.DataFrame(sim_scores)
-        
-        # Normalize
-        for col in sim_df.columns:
-            min_val, max_val = sim_df[col].min(), sim_df[col].max()
-            if max_val > min_val:
-                sim_df[col] = (sim_df[col] - min_val) / (max_val - min_val)
-        
-        # Consensus = fraction above 0.6
-        consensus = (sim_df > 0.5).sum(axis=1) / len(sim_df.columns)
-        null_consensus.extend(consensus.values)
-        
-        if (sim + 1) % 50 == 0:
-            elapsed = time.time() - start_time
-            rate = (sim + 1) / elapsed
-            remaining = (CONFIG['n_monte_carlo'] - sim - 1) / rate / 60
-            print(f"   Simulation {sim+1}/{CONFIG['n_monte_carlo']} "
-                  f"({100*(sim+1)/CONFIG['n_monte_carlo']:.1f}%) "
-                  f"- {remaining:.1f} min remaining")
-    
-    print(f"   ✅ Completed in {(time.time()-start_time)/60:.1f} min")
-    
+        sim_args.append((
+            returns.values,
+            returns.columns.tolist(),
+            returns.index.tolist(),
+            len(returns),
+            base_window,
+            CONFIG['mc_block_size'],
+            CONFIG['n_regimes'],
+            sim  # Use simulation number as seed for reproducibility
+        ))
+
+    start_time = time.time()
+
+    if use_parallel and CONFIG['n_monte_carlo'] > 20:
+        print(f"   Using {n_jobs} parallel workers...")
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            all_consensus = list(executor.map(_run_single_mc_simulation, sim_args, chunksize=10))
+    else:
+        # Sequential processing with progress
+        all_consensus = []
+        for sim, args in enumerate(sim_args):
+            result = _run_single_mc_simulation(args)
+            all_consensus.append(result)
+
+            if (sim + 1) % 50 == 0:
+                elapsed = time.time() - start_time
+                rate = (sim + 1) / elapsed
+                remaining = (CONFIG['n_monte_carlo'] - sim - 1) / rate / 60
+                print(f"   Simulation {sim+1}/{CONFIG['n_monte_carlo']} "
+                      f"({100*(sim+1)/CONFIG['n_monte_carlo']:.1f}%) "
+                      f"- {remaining:.1f} min remaining")
+
+    # Flatten all consensus values
+    null_consensus = []
+    for consensus_list in all_consensus:
+        null_consensus.extend(consensus_list)
+
+    elapsed = time.time() - start_time
+    print(f"   ✅ Completed in {elapsed/60:.1f} min")
+
     null_consensus = np.array(null_consensus)
-    
+
     # Compute percentiles for p-value calculation
     percentiles = {
         'p01': np.percentile(null_consensus, 99),
@@ -602,13 +713,13 @@ def run_montecarlo_analysis(panel, returns, base_window=63):
         'mean': null_consensus.mean(),
         'std': null_consensus.std(),
     }
-    
+
     print(f"\n   Null distribution statistics:")
     print(f"      Mean consensus: {percentiles['mean']:.3f}")
     print(f"      Std consensus: {percentiles['std']:.3f}")
     print(f"      95th percentile: {percentiles['p05']:.3f}")
     print(f"      99th percentile: {percentiles['p01']:.3f}")
-    
+
     return null_consensus, percentiles
 
 
@@ -894,73 +1005,126 @@ def create_comprehensive_visualizations(results, output_dir):
 # MAIN EXECUTION
 # ============================================================================
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='PRISM Engine: Ultimate Overnight Analysis',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--parallel', dest='parallel', action='store_true', default=True,
+        help='Enable parallel processing (default: enabled)'
+    )
+    parser.add_argument(
+        '--no-parallel', dest='parallel', action='store_false',
+        help='Disable parallel processing for debugging'
+    )
+    parser.add_argument(
+        '--jobs', '-j', type=int, default=None,
+        help=f'Number of parallel workers (default: {mp.cpu_count() - 1})'
+    )
+    parser.add_argument(
+        '--skip-multiresolution', action='store_true',
+        help='Skip multi-resolution analysis'
+    )
+    parser.add_argument(
+        '--skip-bootstrap', action='store_true',
+        help='Skip bootstrap analysis'
+    )
+    parser.add_argument(
+        '--skip-montecarlo', action='store_true',
+        help='Skip Monte Carlo analysis'
+    )
+    parser.add_argument(
+        '--skip-hmm', action='store_true',
+        help='Skip HMM regime analysis'
+    )
+    return parser.parse_args()
+
+
 def main():
     """Main execution function."""
-    
+    args = parse_args()
+
+    # Update config from CLI args
+    CONFIG['use_parallel'] = args.parallel
+    if args.jobs is not None:
+        CONFIG['n_jobs'] = args.jobs
+    if args.skip_multiresolution:
+        CONFIG['run_multiresolution'] = False
+    if args.skip_bootstrap:
+        CONFIG['run_bootstrap'] = False
+    if args.skip_montecarlo:
+        CONFIG['run_montecarlo'] = False
+    if args.skip_hmm:
+        CONFIG['run_hmm_analysis'] = False
+
     print("=" * 80)
     print("=" * 80)
     print("   PRISM ENGINE: ULTIMATE OVERNIGHT ANALYSIS")
     print("=" * 80)
     print("=" * 80)
-    
+
     start_time = time.time()
     print(f"\n🚀 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     print(f"\n📋 Configuration:")
     for key, value in CONFIG.items():
         print(f"   {key}: {value}")
-    
+
     # Load data
     panel, returns = load_data()
-    
+
     # Results container
     results = {}
-    
+
+    use_parallel = CONFIG['use_parallel']
+
     # =========================================================================
     # 1. MULTI-RESOLUTION ANALYSIS
     # =========================================================================
     if CONFIG['run_multiresolution']:
-        results['multiresolution'] = run_multiresolution_analysis(panel, returns)
-        
+        results['multiresolution'] = run_multiresolution_analysis(panel, returns, use_parallel=use_parallel)
+
         # Compute consensus for each window size
         consensus_by_window = {}
         for window_size in CONFIG['window_sizes']:
             df = results['multiresolution']
             df_window = df[df['window_size'] == window_size].copy()
             df_window = df_window.set_index('date')
-            
+
             lens_cols = [c for c in df_window.columns if c != 'window_size']
-            
+
             # Normalize
             for col in lens_cols:
                 min_val, max_val = df_window[col].min(), df_window[col].max()
                 if max_val > min_val:
                     df_window[col] = (df_window[col] - min_val) / (max_val - min_val)
-            
+
             # Consensus
             consensus = (df_window[lens_cols] > 0.5).sum(axis=1) / len(lens_cols)
             consensus_by_window[window_size] = consensus
-        
+
         results['consensus_by_window'] = consensus_by_window
-    
+
     # =========================================================================
     # 2. BOOTSTRAP ANALYSIS
     # =========================================================================
     if CONFIG['run_bootstrap']:
-        results['bootstrap'] = run_bootstrap_analysis(panel, returns, base_window=63)
-    
+        results['bootstrap'] = run_bootstrap_analysis(panel, returns, base_window=63, use_parallel=use_parallel)
+
     # =========================================================================
     # 3. MONTE CARLO ANALYSIS
     # =========================================================================
     if CONFIG['run_montecarlo']:
-        null_dist, percentiles = run_montecarlo_analysis(panel, returns, base_window=63)
+        null_dist, percentiles = run_montecarlo_analysis(panel, returns, base_window=63, use_parallel=use_parallel)
         results['montecarlo'] = (null_dist, percentiles)
-        
+
         # Compute p-values for real data
         if 63 in results.get('consensus_by_window', {}):
             real_consensus = results['consensus_by_window'][63].values
             results['p_values'] = compute_significance(real_consensus, null_dist)
-    
+
     # =========================================================================
     # 4. HMM REGIME ANALYSIS
     # =========================================================================
