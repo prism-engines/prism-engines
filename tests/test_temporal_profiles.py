@@ -242,10 +242,76 @@ class TestIntegrationWithRunner:
         assert "standard" in PERFORMANCE_PROFILES
         assert "powerful" in PERFORMANCE_PROFILES
 
-    def test_runner_cli_dry_run(self):
-        """Runner CLI should work in dry-run mode."""
+    def test_runner_cli_dry_run_legacy(self):
+        """Runner CLI should work in dry-run mode with legacy profile."""
+        from start.temporal_runner import main
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            # Dry run should return 0
+            result = main(["--profile", "chromebook", "--dry-run"])
+            assert result == 0
+
+    def test_runner_cli_dry_run_resolution(self):
+        """Runner CLI should work in dry-run mode with resolution."""
         from start.temporal_runner import main
 
         # Dry run should return 0
-        result = main(["--profile", "chromebook", "--dry-run"])
+        result = main(["--resolution", "monthly", "--dry-run"])
         assert result == 0
+
+    def test_runner_cli_list_resolutions(self):
+        """Runner CLI should list resolutions."""
+        from start.temporal_runner import main
+
+        # List resolutions should return 0
+        result = main(["--list-resolutions"])
+        assert result == 0
+
+    def test_runner_default_resolution(self):
+        """Runner CLI should default to monthly resolution."""
+        from start.temporal_runner import main
+
+        # Default (no args) should work and use monthly
+        result = main(["--dry-run"])
+        assert result == 0
+
+
+class TestResolutionPresets:
+    """Tests for resolution-based configuration."""
+
+    def test_resolution_presets_available(self):
+        """RESOLUTION_PRESETS should be available."""
+        from engine.orchestration.temporal_analysis import RESOLUTION_PRESETS
+
+        assert "weekly" in RESOLUTION_PRESETS
+        assert "monthly" in RESOLUTION_PRESETS
+        assert "quarterly" in RESOLUTION_PRESETS
+
+    def test_build_config_from_resolution(self):
+        """build_temporal_config should accept resolution parameter."""
+        from engine.orchestration.temporal_analysis import build_temporal_config
+
+        cfg = build_temporal_config(resolution="monthly")
+        assert cfg.resolution == "monthly"
+        assert cfg.frequency == "M"
+        assert cfg.window_periods == 60
+
+    def test_weekly_config(self):
+        """Weekly resolution should configure correctly."""
+        from engine.orchestration.temporal_analysis import build_temporal_config
+
+        cfg = build_temporal_config(resolution="weekly")
+        assert cfg.resolution == "weekly"
+        assert cfg.frequency == "W-FRI"
+        assert cfg.window_periods == 52
+
+    def test_quarterly_config(self):
+        """Quarterly resolution should configure correctly."""
+        from engine.orchestration.temporal_analysis import build_temporal_config
+
+        cfg = build_temporal_config(resolution="quarterly")
+        assert cfg.resolution == "quarterly"
+        assert cfg.frequency == "Q"
+        assert cfg.window_periods == 40

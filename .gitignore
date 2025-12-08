@@ -117,3 +117,5 @@ __pycache__/
 *.patch
 *_PATCHED.py
 claude_sandbox/phase8_12_extracted/
+claude_sandbox/*.md
+claude_sandbox/*.zip

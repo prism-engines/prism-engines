@@ -6,21 +6,32 @@ Command-line wrapper around the PRISM temporal engine.
 
 Examples:
 
-  # Basic run with standard profile (default dates)
-  python start/temporal_runner.py --profile standard
+  # NEW: Resolution-based analysis (RECOMMENDED)
+  python start/temporal_runner.py --resolution monthly
+  python start/temporal_runner.py --resolution weekly --lookback 2Y
+  python start/temporal_runner.py --resolution quarterly --lookback 30Y
 
-  # Chromebook-friendly run
+  # With custom window and stride
+  python start/temporal_runner.py --resolution monthly --window 60 --lookback 10Y
+
+  # DEPRECATED: Profile-based analysis (legacy)
+  python start/temporal_runner.py --profile standard
   python start/temporal_runner.py --profile chromebook
 
-  # Powerful run, finance-only, last 20 years
-  python start/temporal_runner.py --profile powerful \
+  # Domain filtering
+  python start/temporal_runner.py --resolution monthly \
       --systems finance \
       --start 2005-01-01
 
   # Multi-domain run with explicit indicators
-  python start/temporal_runner.py --profile standard \
+  python start/temporal_runner.py --resolution monthly \
       --systems finance climate \
       --indicators sp500 vix t10y2y
+
+Resolution Presets:
+  - weekly:    W-FRI frequency, 52-week window, 2Y lookback (tactical)
+  - monthly:   M frequency, 60-month window, 10Y lookback (DEFAULT)
+  - quarterly: Q frequency, 40-quarter window, 30Y lookback (structural)
 
 This script is SAFE to run multiple times - it only reads from the DB and
 writes outputs under prism_output/temporal/.
@@ -40,9 +51,12 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import warnings
+
 import pandas as pd
 
 from engine.orchestration.temporal_analysis import (
+    RESOLUTION_PRESETS,
     TEMPORAL_PROFILES,
     build_temporal_config,
     run_temporal_analysis_from_db,
@@ -67,21 +81,62 @@ def _get_output_dir() -> Path:
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run PRISM temporal (multi-resolution) analysis from the command line.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Run PRISM temporal analysis from the command line.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Resolution Presets:
+  weekly     W-FRI frequency, 52-week window, 2Y lookback (tactical monitoring)
+  monthly    M frequency, 60-month window, 10Y lookback (cycle positioning) [DEFAULT]
+  quarterly  Q frequency, 40-quarter window, 30Y lookback (structural analysis)
+
+Examples:
+  python start/temporal_runner.py --resolution monthly
+  python start/temporal_runner.py --resolution weekly --lookback 1Y
+  python start/temporal_runner.py --resolution quarterly --lookback 40Y
+  python start/temporal_runner.py --resolution monthly --window 24 --systems finance
+        """,
     )
 
+    # Resolution-based configuration (NEW - recommended)
+    parser.add_argument(
+        "--resolution", "-r",
+        choices=sorted(RESOLUTION_PRESETS.keys()),
+        default=None,
+        help="Analysis resolution: weekly, monthly, quarterly (default: monthly).",
+    )
+    parser.add_argument(
+        "--lookback", "-l",
+        type=str,
+        default=None,
+        help="Lookback period, e.g., '5Y', '10Y', '2Y' (default: auto based on resolution).",
+    )
+    parser.add_argument(
+        "--window", "-w",
+        type=int,
+        default=None,
+        help="Window size in periods (default: auto based on resolution).",
+    )
+    parser.add_argument(
+        "--stride",
+        type=int,
+        default=None,
+        help="Stride size in periods (default: window/4).",
+    )
+
+    # Legacy profile-based configuration (DEPRECATED)
     parser.add_argument(
         "--profile",
         choices=sorted(TEMPORAL_PROFILES.keys()),
-        default="standard",
-        help="Temporal profile to use (controls lenses and resolution).",
+        default=None,
+        help="DEPRECATED: Use --resolution instead. Legacy temporal profile.",
     )
+
+    # Date filters
     parser.add_argument(
         "--start",
         type=str,
         default=None,
-        help="Start date (YYYY-MM-DD). If omitted, use as much history as available.",
+        help="Start date (YYYY-MM-DD). Overrides --lookback if specified.",
     )
     parser.add_argument(
         "--end",
@@ -89,6 +144,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=None,
         help="End date (YYYY-MM-DD). If omitted, use latest available date.",
     )
+
+    # Lens selection
+    parser.add_argument(
+        "--lenses",
+        nargs="*",
+        default=None,
+        help="Specific lenses to run (default: all available).",
+    )
+
+    # Domain filters
     parser.add_argument(
         "--systems",
         nargs="*",
@@ -101,12 +166,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=None,
         help="Optional list of specific indicator IDs to include.",
     )
+
+    # Output options
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        default=None,
+        help="Output directory (default: prism_output/temporal/).",
+    )
     parser.add_argument(
         "--db-path",
         type=str,
         default=None,
         help="Override database path. If omitted, use default resolver.",
     )
+
+    # Execution options
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -117,6 +192,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "-v",
         action="store_true",
         help="Print verbose progress information.",
+    )
+
+    # List options
+    parser.add_argument(
+        "--list-resolutions",
+        action="store_true",
+        help="List available resolution presets and exit.",
     )
 
     return parser.parse_args(argv)
@@ -134,26 +216,69 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     args = parse_args(argv)
 
+    # Handle --list-resolutions
+    if args.list_resolutions:
+        print("Available resolution presets:")
+        print()
+        for name, preset in sorted(RESOLUTION_PRESETS.items()):
+            print(f"  {name}:")
+            print(f"    Frequency:   {preset['frequency']}")
+            print(f"    Window:      {preset['window_periods']} periods")
+            print(f"    Stride:      {preset['window_periods'] // preset['stride_divisor']} periods")
+            print(f"    Lookback:    {preset['lookback_default']}")
+            print(f"    Description: {preset['description']}")
+            print()
+        return 0
+
+    # Handle deprecation warning for --profile
+    if args.profile is not None and args.resolution is None:
+        warnings.warn(
+            f"--profile is deprecated. Use --resolution instead. "
+            f"Mapping '{args.profile}' to resolution.",
+            DeprecationWarning,
+        )
+
+    # Determine resolution or profile to use
+    resolution = args.resolution
+    profile = args.profile
+
+    # Default to monthly resolution if neither specified
+    if resolution is None and profile is None:
+        resolution = 'monthly'
+
     # Resolve DB path using the same logic as other scripts
     db_path = args.db_path or get_default_db_path()
 
     print("=" * 60)
     print("PRISM TEMPORAL ANALYSIS RUNNER")
     print("=" * 60)
-    print(f"Profile:       {args.profile}")
+    if resolution:
+        preset = RESOLUTION_PRESETS.get(resolution, {})
+        print(f"Resolution:    {resolution}")
+        print(f"Frequency:     {preset.get('frequency', 'M')}")
+        print(f"Window:        {args.window or preset.get('window_periods', 60)} periods")
+        print(f"Lookback:      {args.lookback or preset.get('lookback_default', '10Y')}")
+    else:
+        print(f"Profile:       {profile} (DEPRECATED)")
     print(f"DB path:       {db_path}")
     print(f"Systems:       {args.systems or '[ALL]'}")
     print(f"Indicators:    {args.indicators or '[ALL]'}")
-    print(f"Start date:    {args.start or '[auto]'}")
+    print(f"Lenses:        {args.lenses or '[ALL]'}")
+    print(f"Start date:    {args.start or '[auto from lookback]'}")
     print(f"End date:      {args.end or '[latest]'}")
     print("-" * 60)
 
     # Build configuration
     try:
         cfg = build_temporal_config(
-            profile=args.profile,
+            resolution=resolution,
+            profile=profile,
             start_date=args.start,
             end_date=args.end,
+            lookback=args.lookback,
+            window=args.window,
+            stride=args.stride,
+            lenses=args.lenses,
             systems=args.systems,
             indicators=args.indicators,
         )
@@ -163,12 +288,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.dry_run:
         print("Dry run only - no analysis executed.")
-        print("Resolved config:")
-        print(f"  step_months:   {cfg.step_months}")
-        print(f"  window_months: {list(cfg.window_months)}")
-        print(f"  lenses:        {list(cfg.lenses)}")
-        print(f"  frequency:     {cfg.frequency}")
-        print(f"  min_history:   {cfg.min_history_years} years")
+        print()
+        print("Resolved configuration:")
+        print(f"  resolution:      {cfg.resolution}")
+        print(f"  frequency:       {cfg.frequency}")
+        print(f"  window_periods:  {cfg.window_periods}")
+        print(f"  stride_periods:  {cfg.stride_periods}")
+        print(f"  lookback:        {cfg.lookback}")
+        print(f"  lenses:          {len(cfg.lenses)} ({', '.join(list(cfg.lenses)[:3])}...)")
+        print(f"  systems:         {cfg.systems or '[ALL]'}")
+        print(f"  indicators:      {cfg.indicators or '[ALL]'}")
         return 0
 
     # Run the temporal engine
@@ -193,14 +322,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     # Save outputs
-    out_dir = _get_output_dir()
+    out_dir = Path(args.output) if args.output else _get_output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-    scores_path = out_dir / f"temporal_scores_{cfg.profile_name}_{timestamp}.csv"
-    meta_path = out_dir / f"temporal_metadata_{cfg.profile_name}_{timestamp}.json"
+    scores_path = out_dir / f"temporal_scores_{cfg.resolution}_{timestamp}.csv"
+    meta_path = out_dir / f"temporal_metadata_{cfg.resolution}_{timestamp}.json"
 
     # Also save a "latest" version for easy access
-    scores_latest = out_dir / f"temporal_scores_{cfg.profile_name}.csv"
-    meta_latest = out_dir / f"temporal_metadata_{cfg.profile_name}.json"
+    scores_latest = out_dir / f"temporal_scores_{cfg.resolution}.csv"
+    meta_latest = out_dir / f"temporal_metadata_{cfg.resolution}.json"
 
     result.scores.to_csv(scores_path)
     result.scores.to_csv(scores_latest)
@@ -212,6 +343,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"  Dates:      {result.scores.index.min().date()} -> {result.scores.index.max().date()}")
     print(f"  Rows:       {result.scores.shape[0]}")
     print(f"  Columns:    {result.scores.shape[1]}")
+    print(f"  Resolution: {cfg.resolution}")
+    print(f"  Window:     {cfg.window_periods} periods")
+    print(f"  Stride:     {cfg.stride_periods} periods")
     print(f"  Lenses:     {len(cfg.lenses)}")
     print(f"  Output CSV: {scores_latest}")
     print(f"  Metadata:   {meta_latest}")
