@@ -55,9 +55,11 @@ def _create_benchmark_indicator(
     indicator_name: str,
     file_shortname: str,
     column_name: str
-) -> int:
+) -> str:
     """
     Create an indicator entry for a benchmark column.
+
+    Uses Schema v2 - indicator_values table.
 
     Args:
         conn: Database connection
@@ -66,55 +68,47 @@ def _create_benchmark_indicator(
         column_name: Column name from CSV (e.g., "A")
 
     Returns:
-        The indicator id from the database
+        The indicator name for indicator_values insertion
     """
-    fred_code = f"BENCH_{file_shortname}_{column_name}"
     description = f"Benchmark synthetic dataset - known structure ({file_shortname})"
+    metadata = f'{{"benchmark_group": "{file_shortname}", "column": "{column_name}"}}'
 
     conn.execute(
         """
-        INSERT INTO indicators (indicator_name, fred_code, system, category, description, frequency, source)
-        VALUES (?, ?, 'benchmark', ?, ?, 'daily', 'BENCHMARK')
-        ON CONFLICT(fred_code) DO UPDATE SET
+        INSERT INTO indicators (name, system, frequency, source, description, metadata)
+        VALUES (?, 'benchmark', 'daily', 'BENCHMARK', ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
             system = 'benchmark',
-            category = excluded.category,
-            description = excluded.description,
             frequency = 'daily',
-            source = 'BENCHMARK'
+            source = 'BENCHMARK',
+            description = excluded.description,
+            metadata = excluded.metadata,
+            updated_at = CURRENT_TIMESTAMP
         """,
-        (
-            indicator_name,
-            fred_code,
-            file_shortname,
-            description,
-        )
+        (indicator_name, description, metadata)
     )
 
-    # Get the indicator_id for timeseries insertion
-    row = conn.execute(
-        "SELECT id FROM indicators WHERE fred_code = ?",
-        (fred_code,)
-    ).fetchone()
-
-    return row[0]
+    return indicator_name
 
 
 # =============================================================================
-# TIMESERIES INSERTION
+# INDICATOR_VALUES INSERTION (Schema v2)
 # =============================================================================
 
-def _insert_benchmark_timeseries(
+def _insert_benchmark_values(
     conn: sqlite3.Connection,
-    indicator_id: int,
+    indicator_name: str,
     dates: List[str],
     values: List[float]
 ) -> int:
     """
-    Insert time series data for a benchmark indicator.
+    Insert time series data for a benchmark indicator into indicator_values.
+
+    Uses Schema v2 - indicator_values table.
 
     Args:
         conn: Database connection
-        indicator_id: Indicator ID from indicators table
+        indicator_name: Indicator name from indicators table
         dates: List of dates (YYYY-MM-DD format)
         values: List of values
 
@@ -127,10 +121,11 @@ def _insert_benchmark_timeseries(
         try:
             conn.execute(
                 """
-                INSERT INTO timeseries (indicator_id, date, value, value_2, adjusted_value)
-                VALUES (?, ?, ?, NULL, NULL)
+                INSERT OR REPLACE INTO indicator_values
+                    (indicator_name, date, value, provenance, quality_flag)
+                VALUES (?, ?, ?, 'BENCHMARK', 'synthetic')
                 """,
-                (indicator_id, date, value)
+                (indicator_name, date, value)
             )
             rows_inserted += 1
         except sqlite3.IntegrityError:
@@ -151,6 +146,8 @@ def load_benchmark_file(
 ) -> Tuple[int, int]:
     """
     Load a single benchmark CSV file into the database.
+
+    Uses Schema v2 - indicator_values table.
 
     Args:
         conn: Database connection
@@ -179,13 +176,13 @@ def load_benchmark_file(
         # Create indicator name: "{file_shortname}_{column}"
         indicator_name = f"{file_shortname}_{column}"
 
-        # Create indicator entry and get its ID
-        indicator_id = _create_benchmark_indicator(conn, indicator_name, file_shortname, column)
+        # Create indicator entry in indicators table
+        _create_benchmark_indicator(conn, indicator_name, file_shortname, column)
         indicators_created += 1
 
-        # Insert time series data
+        # Insert time series data into indicator_values
         values = df[column].tolist()
-        rows = _insert_benchmark_timeseries(conn, indicator_id, dates, values)
+        rows = _insert_benchmark_values(conn, indicator_name, dates, values)
         total_rows += rows
 
         if verbose:
@@ -226,9 +223,9 @@ def load_all_benchmarks(
         print(f"Source: {benchmark_path}")
         print()
 
-    # Ensure 'benchmark' system exists
+    # Ensure 'benchmark' system exists (Schema v2: systems.system is primary key)
     conn = get_connection()
-    conn.execute("INSERT OR IGNORE INTO systems(system_name) VALUES ('benchmark')")
+    conn.execute("INSERT OR IGNORE INTO systems(system) VALUES ('benchmark')")
 
     stats = {
         "files_loaded": 0,
@@ -288,6 +285,7 @@ def clear_benchmarks(verbose: bool = True) -> Dict[str, int]:
     Remove all benchmark indicators and their data from the database.
 
     This is useful for resetting benchmark data before re-loading.
+    Uses Schema v2 - indicator_values table.
 
     Args:
         verbose: Print progress messages
@@ -302,9 +300,9 @@ def clear_benchmarks(verbose: bool = True) -> Dict[str, int]:
         "rows_deleted": 0,
     }
 
-    # Get list of benchmark indicators
+    # Get list of benchmark indicators (Schema v2: 'name' column, not 'indicator_name')
     rows = conn.execute(
-        "SELECT id, indicator_name FROM indicators WHERE system = 'benchmark'"
+        "SELECT name FROM indicators WHERE system = 'benchmark'"
     ).fetchall()
 
     if not rows:
@@ -313,17 +311,16 @@ def clear_benchmarks(verbose: bool = True) -> Dict[str, int]:
         conn.close()
         return stats
 
-    indicator_ids = [r[0] for r in rows]
-    indicator_names = [r[1] for r in rows]
+    indicator_names = [r[0] for r in rows]
 
     if verbose:
         print(f"Deleting {len(indicator_names)} benchmark indicators...")
 
-    # Delete time series data first (FK constraint)
-    for ind_id in indicator_ids:
+    # Delete time series data first from indicator_values (Schema v2)
+    for name in indicator_names:
         result = conn.execute(
-            "DELETE FROM timeseries WHERE indicator_id = ?",
-            (ind_id,)
+            "DELETE FROM indicator_values WHERE indicator_name = ?",
+            (name,)
         )
         stats["rows_deleted"] += result.rowcount
 

@@ -8,6 +8,7 @@ Usage:
     python prism_run.py --web              # Web server mode
     python prism_run.py --panel market     # Direct mode
     python prism_run.py --html             # Legacy HTML runner
+    python prism_run.py --benchmarks       # Run benchmark test suite
     python prism_run.py --help             # Show help
 
 Web Server Options:
@@ -20,6 +21,10 @@ CLI Options:
     python prism_run.py --list-workflows   # List available workflows
     python prism_run.py --list-engines     # List available engines
     python prism_run.py --load-benchmarks  # Load benchmark datasets into DB
+
+Benchmark Suite:
+    python prism_run.py --benchmarks       # Run full benchmark test suite
+                                           # (3-minute hybrid analysis)
 
 Direct Mode:
     python prism_run.py --panel market --workflow regime_comparison
@@ -39,6 +44,24 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def main() -> int:
     """Main entry point with mode routing."""
+
+    # Check for --benchmarks flag (benchmark test suite)
+    if "--benchmarks" in sys.argv:
+        try:
+            from workflows.benchmark_suite import run_benchmark_suite
+            print("Starting PRISM Benchmark Suite...")
+            print()
+            results = run_benchmark_suite(verbose=True)
+            if results.datasets_analyzed == 0:
+                print("\nNo datasets analyzed. Load benchmarks first:")
+                print("  python prism_run.py --load-benchmarks")
+                return 1
+            return 0
+        except Exception as e:
+            print(f"Error running benchmark suite: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
 
     # Check for --load-benchmarks flag (benchmark loader)
     if "--load-benchmarks" in sys.argv:
