@@ -168,7 +168,7 @@ def load_benchmark_data(group_name: str) -> pd.DataFrame:
     query = """
         SELECT iv.indicator_name, iv.date, iv.value
         FROM indicator_values iv
-        JOIN indicators i ON iv.indicator_name = i.name
+        JOIN indicators i ON iv.indicator_name = i.indicator_name
         WHERE i.system = 'benchmark'
           AND iv.indicator_name LIKE ?
         ORDER BY iv.indicator_name, iv.date
@@ -202,10 +202,10 @@ def get_available_benchmark_groups() -> List[str]:
     # Get unique prefixes from benchmark indicator names
     # Names follow pattern: "{group_name}_{column}"
     query = """
-        SELECT DISTINCT name
+        SELECT DISTINCT indicator_name
         FROM indicators
         WHERE system = 'benchmark'
-        ORDER BY name
+        ORDER BY indicator_name
     """
 
     result = conn.execute(query).fetchall()
