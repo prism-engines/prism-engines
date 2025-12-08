@@ -119,3 +119,6 @@ __pycache__/
 claude_sandbox/phase8_12_extracted/
 claude_sandbox/*.md
 claude_sandbox/*.zip
+
+# Generated benchmark outputs
+runs/
