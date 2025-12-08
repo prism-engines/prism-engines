@@ -1,16 +1,16 @@
 # ==============================================================================
-# PRISM ENGINE - Complete Requirements
+# PRISM ENGINE - Complete Requirements (Unified 2025 Spec)
+# Last revised: December 2025
 # ==============================================================================
-# Last updated: December 2025
-#
-# Install with:
+
+# Install:
 #     pip install -r requirements.txt
 #
-# For fresh install:
+# Fresh install:
 #     python -m venv venv
 #     source venv/bin/activate  (Mac/Linux)
 #     venv\Scripts\activate     (Windows)
-#     pip install --upgrade pip
+#     pip install --upgrade pip setuptools wheel
 #     pip install -r requirements.txt
 # ==============================================================================
 
@@ -27,18 +27,12 @@ scipy>=1.10.0
 # MACHINE LEARNING & PATTERN DETECTION
 # ------------------------------------------------------------------------------
 scikit-learn>=1.3.0
-
-# Hidden Markov Models (Regime Switching Lens)
-hmmlearn>=0.3.0
-
-# UMAP for dimensionality reduction (Consensus & Clustering Lens)
-umap-learn>=0.5.0
-
-# TSFresh for automated feature extraction (Temporal Engine, Phase 8+)
-tsfresh>=0.20.0
-
-# numba for accelerating heavy numerical loops
-numba>=0.57.0
+hmmlearn>=0.3.0              # Regime Switching Lens
+umap-learn>=0.5.0            # Dimensionality reduction (Consensus Lens)
+tsfresh>=0.20.0              # Temporal feature extraction
+numba>=0.57.0                # Computational acceleration
+pykalman>=0.9.5              # Kalman filters (state smoothing)
+ruptures>=1.1.7              # Changepoint detection (Seismometer)
 
 
 # ------------------------------------------------------------------------------
@@ -49,58 +43,54 @@ seaborn>=0.12.0
 
 
 # ------------------------------------------------------------------------------
-# DATA FETCHING
+# DATA FETCHING & ASYNC PIPELINE
 # ------------------------------------------------------------------------------
-# FRED (Federal Reserve Economic Data)
 fredapi>=0.5.0
-
-# Market data (Yahoo + Stooq option)
 pandas-datareader>=0.10.0
 yfinance>=0.2.28
-
-# HTTP requests
 requests>=2.28.0
+httpx>=0.27.0                # Modern async HTTP client
+aiohttp>=3.9.0               # Concurrent asynchronous fetching
 
 
 # ------------------------------------------------------------------------------
-# DATABASE
+# DATABASE & ORM
 # ------------------------------------------------------------------------------
-# SQLite comes with Python, but SQLAlchemy is needed for cross-platform API
 sqlalchemy>=2.0.0
-
-# More reliable sqlite build for Mac/Linux (optional but recommended)
-pysqlite3-binary>=0.5.0
+pysqlite3-binary>=0.5.0      # More stable SQLite build for macOS/Linux
+alembic>=1.13.1              # Schema migrations (registry evolution)
 
 
 # ------------------------------------------------------------------------------
-# CONFIGURATION / IO UTILITIES
+# CONFIGURATION, STRUCTURED DATA, UTILITIES
 # ------------------------------------------------------------------------------
-pyyaml>=6.0           # For registry and universal config loader
-python-dotenv>=1.0.0  # For secret management (.env files)
+pyyaml>=6.0                  # Registry and YAML loaders
+python-dotenv>=1.0.0         # Secrets management
+pydantic>=2.5.3              # Typed config schemas
 
 
 # ------------------------------------------------------------------------------
 # STATISTICAL / ECONOMETRIC ANALYSIS
 # ------------------------------------------------------------------------------
-statsmodels>=0.14.0   # ADF, KPSS, PP tests, regression, etc.
-arch>=6.0.0           # GARCH, volatility modelling
+statsmodels>=0.14.0          # ADF, KPSS, PP tests, regression, etc.
+arch>=6.0.0                  # GARCH & volatility modelling
 
 
 # ------------------------------------------------------------------------------
-# SIGNAL PROCESSING & TRANSFORMS
+# SIGNAL PROCESSING & GEOMETRIC TRANSFORMS
 # ------------------------------------------------------------------------------
-PyWavelets>=1.4.1     # Wavelet transforms (Wavelet Lens)
-spectrum>=0.8.1       # Spectral density estimation
-ripser>=0.6.4         # Topological Data Analysis (TDA Lens)
-networkx>=3.1         # Influence networks (Network Lens)
+PyWavelets>=1.4.1            # Wavelet transforms (Wavelet Lens)
+spectrum>=0.8.1              # Spectral density estimation
+ripser>=0.6.4                # TDA Lens (topological signatures)
+networkx>=3.1                # Influence & network geometry lenses
 
 
 # ------------------------------------------------------------------------------
-# PARALLEL COMPUTATION / PERFORMANCE
+# PARALLEL COMPUTATION / HIGH PERFORMANCE
 # ------------------------------------------------------------------------------
-tqdm>=4.65.0          # Progress bars
-dask>=2024.1.0        # Parallel compute backend (future)
-joblib>=1.3.0         # Parallelization utilities
+tqdm>=4.65.0                 # Progress bars
+dask>=2024.1.0               # Parallel compute backend (future)
+joblib>=1.3.0                # Parallelization utilities
 
 
 # ------------------------------------------------------------------------------
@@ -116,4 +106,21 @@ jinja2>=3.1.0
 # ------------------------------------------------------------------------------
 pytest>=8.0.0
 pytest-mock>=3.12.0
+pytest-cov>=4.1.0
+
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+# If dependency conflicts occur:
+#     pip install --upgrade pip setuptools wheel
+#     pip install -r requirements.txt --no-cache-dir
+#
+# For Apple Silicon (M1/M2/M3):
+#     pip install numpy --no-binary :all:
+#     or use conda to accelerate builds.
+#
+# TDA Lens:
+#     ripser is lightweight; giotto-tda omitted for size but can be added.
+# ==============================================================================
 
