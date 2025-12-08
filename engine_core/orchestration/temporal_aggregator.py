@@ -6,6 +6,9 @@ Temporal Aggregator - Aggregate Granular Results
 Aggregates 1-year (or any increment) temporal results into meaningful
 regime periods or fixed time buckets for presentation and analysis.
 
+Also provides frequency aggregation utilities for converting data between
+different time resolutions (daily -> weekly -> monthly -> quarterly).
+
 Usage (command line):
     # After running 1-year analysis
     python temporal_aggregator.py --group regime
@@ -23,6 +26,10 @@ Usage (Python):
     regime_summary = agg.aggregate_by_regime()
     decade_avg = agg.aggregate_by_period(period=10)
 
+    # NEW: Frequency aggregation
+    from temporal_aggregator import aggregate_panel_to_frequency
+    monthly_panel = aggregate_panel_to_frequency(daily_panel, 'M')
+
 Output (in output/temporal/summary/):
     - regime_summary.csv     : Average ranks by regime period
     - decade_averages.csv    : Average ranks by decade
@@ -36,7 +43,7 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -46,6 +53,243 @@ import numpy as np
 # Ensure project root is in path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# =============================================================================
+# AGGREGATION RULES FOR FREQUENCY CONVERSION
+# =============================================================================
+
+AGGREGATION_RULES: Dict[str, str] = {
+    'price': 'last',
+    'yield': 'mean',
+    'rate': 'mean',
+    'ratio': 'last',
+    'volume': 'sum',
+    'flow': 'sum',
+    'volatility': 'mean',
+    'index': 'last',
+    'level': 'last',
+    'change': 'sum',
+    'default': 'last',
+}
+
+
+# =============================================================================
+# FREQUENCY AGGREGATION FUNCTIONS
+# =============================================================================
+
+def get_indicator_data_type(indicator_name: str, registry: Optional[Dict] = None) -> str:
+    """
+    Look up data type from registry, default to 'default' with heuristic fallbacks.
+
+    Args:
+        indicator_name: Name of the indicator
+        registry: Optional indicator registry with 'data_type' fields
+
+    Returns:
+        Data type string for aggregation lookup
+    """
+    registry = registry or {}
+
+    if indicator_name in registry:
+        return registry[indicator_name].get('data_type', 'default')
+
+    # Heuristic fallbacks based on indicator name patterns
+    name_lower = indicator_name.lower()
+
+    if any(x in name_lower for x in ['spy', 'qqq', 'etf', 'close', 'price', '_px', '_adj']):
+        return 'price'
+    if any(x in name_lower for x in ['dgs', 'yield', 'rate', 't10y', 't2y', 'tb3', 'fedfunds']):
+        return 'yield'
+    if any(x in name_lower for x in ['volume', 'vol_', '_vol', 'turnover']):
+        return 'volume'
+    if any(x in name_lower for x in ['vix', 'volatility', 'realized_vol', 'impl_vol']):
+        return 'volatility'
+    if any(x in name_lower for x in ['ratio', 'ma_', '_ratio', 'spread']):
+        return 'ratio'
+    if any(x in name_lower for x in ['cpi', 'ppi', 'pce', 'gdp', 'index']):
+        return 'index'
+    if any(x in name_lower for x in ['flow', 'netflow', 'inflow', 'outflow']):
+        return 'flow'
+
+    return 'default'
+
+
+def aggregate_panel_to_frequency(
+    panel: pd.DataFrame,
+    target_frequency: str,
+    registry: Optional[Dict] = None,
+) -> pd.DataFrame:
+    """
+    Aggregate panel to target frequency using appropriate methods per column.
+
+    This function applies the correct aggregation method based on data type:
+    - price/index/ratio/level: last (point-in-time snapshot)
+    - yield/rate/volatility: mean (average conditions)
+    - volume/flow/change: sum (total activity)
+
+    IMPORTANT: This only aggregates DOWN to slower frequencies.
+    Never interpolate UP to faster frequencies (e.g., monthly -> daily).
+
+    Args:
+        panel: DataFrame with DatetimeIndex
+        target_frequency: pandas frequency string ('W-FRI', 'M', 'Q')
+        registry: Optional indicator registry for data type lookup
+
+    Returns:
+        Aggregated DataFrame at target frequency
+    """
+    registry = registry or {}
+
+    if not isinstance(panel.index, pd.DatetimeIndex):
+        panel = panel.copy()
+        panel.index = pd.to_datetime(panel.index)
+
+    aggregated = {}
+    for col in panel.columns:
+        data_type = get_indicator_data_type(col, registry)
+        method = AGGREGATION_RULES.get(data_type, 'last')
+
+        try:
+            aggregated[col] = panel[col].resample(target_frequency).agg(method)
+        except Exception:
+            # Fallback to last if aggregation fails
+            aggregated[col] = panel[col].resample(target_frequency).last()
+
+    result = pd.DataFrame(aggregated)
+    result = result.dropna(how='all')  # Remove empty rows
+    return result
+
+
+def detect_native_frequency(series: pd.Series) -> str:
+    """
+    Detect the native frequency of a series.
+
+    Args:
+        series: Pandas Series with DatetimeIndex
+
+    Returns:
+        Frequency string: 'daily', 'weekly', 'monthly', 'quarterly', 'annual', or 'unknown'
+    """
+    if len(series) < 2:
+        return 'unknown'
+
+    # Calculate median gap between observations
+    gaps = series.dropna().index.to_series().diff().dropna()
+    if len(gaps) == 0:
+        return 'unknown'
+
+    median_gap = gaps.median()
+
+    if median_gap <= pd.Timedelta(days=1):
+        return 'daily'
+    elif median_gap <= pd.Timedelta(days=7):
+        return 'weekly'
+    elif median_gap <= pd.Timedelta(days=32):
+        return 'monthly'
+    elif median_gap <= pd.Timedelta(days=95):
+        return 'quarterly'
+    else:
+        return 'annual'
+
+
+def detect_panel_frequencies(panel: pd.DataFrame) -> Dict[str, str]:
+    """
+    Detect the native frequency of each column in a panel.
+
+    Args:
+        panel: DataFrame with DatetimeIndex
+
+    Returns:
+        Dict mapping column name to detected frequency
+    """
+    frequencies = {}
+    for col in panel.columns:
+        frequencies[col] = detect_native_frequency(panel[col])
+    return frequencies
+
+
+def get_slowest_frequency(frequencies: Dict[str, str]) -> str:
+    """
+    Get the slowest (lowest) frequency from a set of frequencies.
+
+    Args:
+        frequencies: Dict mapping indicator names to frequency strings
+
+    Returns:
+        The slowest frequency found
+    """
+    freq_order = ['annual', 'quarterly', 'monthly', 'weekly', 'daily', 'unknown']
+
+    slowest_idx = len(freq_order) - 1
+    for freq in frequencies.values():
+        if freq in freq_order:
+            idx = freq_order.index(freq)
+            if idx < slowest_idx:
+                slowest_idx = idx
+
+    return freq_order[slowest_idx]
+
+
+def determine_analysis_frequency(
+    panel: pd.DataFrame,
+    target_resolution: str = 'monthly',
+) -> str:
+    """
+    Determine the appropriate analysis frequency for a panel.
+
+    The analysis frequency should be the SLOWER of:
+    - The target resolution (weekly/monthly/quarterly)
+    - The slowest native frequency in the data
+
+    This ensures we never upsample data.
+
+    Args:
+        panel: DataFrame with DatetimeIndex
+        target_resolution: Desired resolution ('weekly', 'monthly', 'quarterly')
+
+    Returns:
+        pandas frequency string ('W-FRI', 'M', 'Q')
+    """
+    resolution_to_freq = {
+        'weekly': 'W-FRI',
+        'monthly': 'M',
+        'quarterly': 'Q',
+    }
+
+    resolution_to_native = {
+        'weekly': 'weekly',
+        'monthly': 'monthly',
+        'quarterly': 'quarterly',
+    }
+
+    # Detect panel frequencies
+    native_frequencies = detect_panel_frequencies(panel)
+    slowest_native = get_slowest_frequency(native_frequencies)
+
+    # Map to comparable strings
+    target_native = resolution_to_native.get(target_resolution, 'monthly')
+
+    # Frequency ordering (slower to faster)
+    freq_order = ['annual', 'quarterly', 'monthly', 'weekly', 'daily']
+
+    target_idx = freq_order.index(target_native) if target_native in freq_order else 2
+    slowest_idx = freq_order.index(slowest_native) if slowest_native in freq_order else 2
+
+    # Use the slower of the two
+    if slowest_idx < target_idx:
+        # Data is slower than target, use data's native frequency
+        native_to_pandas = {
+            'annual': 'A',
+            'quarterly': 'Q',
+            'monthly': 'M',
+            'weekly': 'W-FRI',
+            'daily': 'D',
+        }
+        return native_to_pandas.get(slowest_native, 'M')
+
+    # Target is slower or equal, use target frequency
+    return resolution_to_freq.get(target_resolution, 'M')
 
 
 # =============================================================================

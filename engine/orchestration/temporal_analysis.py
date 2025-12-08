@@ -4,8 +4,9 @@ engine/orchestration/temporal_analysis.py
 Unified temporal analysis orchestration for PRISM.
 
 This module:
-- Defines temporal "profiles" (chromebook / standard / powerful)
-- Encodes resolution (step size, window lengths) in a single config object
+- Defines resolution presets (weekly / monthly / quarterly)
+- Encodes resolution (frequency, window, stride) in a single config object
+- Provides aggregation rules for different data types
 - Provides a clean API for:
     * run_temporal_analysis_from_panel()
     * run_temporal_analysis_from_db()
@@ -15,12 +16,12 @@ Usage:
     from engine.orchestration.temporal_analysis import (
         build_temporal_config,
         run_temporal_analysis_from_db,
-        TEMPORAL_PROFILES,
+        RESOLUTION_PRESETS,
     )
 
-    # Build config from profile with optional overrides
+    # Build config from resolution with optional overrides
     cfg = build_temporal_config(
-        profile="standard",
+        resolution="monthly",
         start_date="2010-01-01",
         systems=["finance"],
     )
@@ -30,10 +31,21 @@ Usage:
 
     # Access scores
     print(result.scores.head())
+
+Resolution Presets:
+- weekly: W-FRI frequency, 52-week window, 2Y lookback (tactical monitoring)
+- monthly: M frequency, 60-month window, 10Y lookback (DEFAULT - cycle positioning)
+- quarterly: Q frequency, 40-quarter window, 30Y lookback (structural analysis)
+
+Aggregation Rules:
+- price/index/ratio/level: last (point-in-time)
+- yield/rate/volatility: mean (average conditions)
+- volume/flow/change: sum (total activity)
 """
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Literal, Tuple, Any
 from datetime import datetime
@@ -44,12 +56,66 @@ import pandas as pd
 from engine.utils.parallel import run_parallel, should_use_parallel, get_optimal_workers
 
 
-Frequency = Literal["D", "W", "M"]
+Frequency = Literal["D", "W", "W-FRI", "M", "Q"]
+Resolution = Literal["weekly", "monthly", "quarterly"]
+
+
+# =============================================================================
+# RESOLUTION PRESETS (replaces device profiles)
+# =============================================================================
+
+RESOLUTION_PRESETS: Dict[str, Dict[str, Any]] = {
+    'weekly': {
+        'frequency': 'W-FRI',
+        'window_periods': 52,       # 1 year of weeks
+        'stride_divisor': 4,        # 13-week stride (quarterly)
+        'lookback_default': '2Y',
+        'description': 'Tactical monitoring - recent regime shifts, short-term analysis',
+    },
+    'monthly': {
+        'frequency': 'M',
+        'window_periods': 60,       # 5 years of months
+        'stride_divisor': 4,        # 15-month stride
+        'lookback_default': '10Y',
+        'description': 'Strategic analysis - cycle positioning, portfolio tilting (DEFAULT)',
+    },
+    'quarterly': {
+        'frequency': 'Q',
+        'window_periods': 40,       # 10 years of quarters
+        'stride_divisor': 4,        # 10-quarter stride
+        'lookback_default': '30Y',
+        'description': 'Structural analysis - secular trends, long-term patterns',
+    },
+}
+
+
+# =============================================================================
+# AGGREGATION RULES
+# =============================================================================
+
+AGGREGATION_RULES: Dict[str, str] = {
+    'price': 'last',
+    'yield': 'mean',
+    'rate': 'mean',
+    'ratio': 'last',
+    'volume': 'sum',
+    'flow': 'sum',
+    'volatility': 'mean',
+    'index': 'last',
+    'level': 'last',
+    'change': 'sum',
+    'default': 'last',
+}
 
 
 @dataclass
 class TemporalProfile:
-    """Defines a named temporal profile for convenience presets."""
+    """
+    Defines a named temporal profile for convenience presets.
+
+    DEPRECATED: Use RESOLUTION_PRESETS instead. This class is kept for
+    backward compatibility with existing code using device profiles.
+    """
 
     name: str
     description: str
@@ -65,19 +131,33 @@ class TemporalConfig:
     """
     Full configuration for a temporal run.
 
-    This can be constructed either from a TemporalProfile + overrides,
-    or directly by callers.
+    This can be constructed either from:
+    - A resolution preset (weekly/monthly/quarterly) - PREFERRED
+    - A legacy TemporalProfile + overrides - DEPRECATED
+    - Direct construction by callers
+
+    The resolution-based approach determines temporal parameters based on
+    the analytical question, not hardware assumptions.
     """
 
     profile_name: str
     start_date: Optional[pd.Timestamp] = None
     end_date: Optional[pd.Timestamp] = None
 
+    # Resolution-based configuration (NEW)
+    resolution: Resolution = "monthly"
+    frequency: Frequency = "M"
+    window_periods: int = 60            # Number of periods in analysis window
+    stride_periods: int = 15            # Number of periods between windows
+    lookback: str = "10Y"               # Lookback period string
+
+    # Legacy configuration (DEPRECATED - kept for backward compatibility)
     step_months: float = 1.0
     window_months: Sequence[int] = field(default_factory=lambda: (3, 6, 12, 24))
-    lenses: Sequence[str] = field(default_factory=lambda: ("coherence", "pca", "volatility"))
+
+    # Lens configuration
+    lenses: Sequence[str] = field(default_factory=lambda: ("magnitude", "pca", "influence", "clustering"))
     min_history_years: int = 10
-    frequency: Frequency = "M"
 
     systems: Optional[Sequence[str]] = None     # e.g. ["finance"], ["climate"], ["finance", "climate"]
     indicators: Optional[Sequence[str]] = None  # specific indicator IDs (optional)
@@ -85,6 +165,76 @@ class TemporalConfig:
     # Parallelization settings
     use_parallel: bool = True                   # Enable parallel window processing
     max_workers: Optional[int] = None           # Max parallel workers (None = auto)
+
+    @classmethod
+    def from_resolution(
+        cls,
+        resolution: str = 'monthly',
+        lookback: Optional[str] = None,
+        window_periods: Optional[int] = None,
+        stride_periods: Optional[int] = None,
+        start_date: Optional[pd.Timestamp] = None,
+        end_date: Optional[pd.Timestamp] = None,
+        lenses: Optional[Sequence[str]] = None,
+        systems: Optional[Sequence[str]] = None,
+        indicators: Optional[Sequence[str]] = None,
+        use_parallel: bool = True,
+        max_workers: Optional[int] = None,
+    ) -> "TemporalConfig":
+        """
+        Create a TemporalConfig from a resolution preset.
+
+        This is the PREFERRED way to create configurations.
+
+        Args:
+            resolution: 'weekly', 'monthly', or 'quarterly'
+            lookback: Override lookback period (e.g., '5Y', '10Y')
+            window_periods: Override window size in periods
+            stride_periods: Override stride size in periods
+            start_date: Explicit start date (overrides lookback)
+            end_date: Explicit end date
+            lenses: Override lenses to use
+            systems: Filter by system IDs
+            indicators: Filter by specific indicator IDs
+            use_parallel: Enable parallel processing
+            max_workers: Max parallel workers
+
+        Returns:
+            TemporalConfig configured for the specified resolution
+        """
+        preset = RESOLUTION_PRESETS.get(resolution, RESOLUTION_PRESETS['monthly'])
+
+        # Calculate stride from window if not specified
+        final_window = window_periods or preset['window_periods']
+        final_stride = stride_periods or (final_window // preset['stride_divisor'])
+
+        # Default lenses - all available for analysis-driven approach
+        default_lenses = (
+            'magnitude', 'pca', 'influence', 'clustering',
+            'decomposition', 'granger', 'dmd', 'mutual_info',
+            'network', 'regime_switching', 'anomaly',
+            'transfer_entropy', 'tda', 'wavelet'
+        )
+
+        return cls(
+            profile_name=resolution,
+            resolution=resolution,
+            frequency=preset['frequency'],
+            window_periods=final_window,
+            stride_periods=final_stride,
+            lookback=lookback or preset['lookback_default'],
+            start_date=start_date,
+            end_date=end_date,
+            lenses=lenses or default_lenses,
+            systems=systems,
+            indicators=indicators,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+            # Legacy fields for backward compatibility
+            step_months=1.0,
+            window_months=(3, 6, 12, 24),
+            min_history_years=10,
+        )
 
 
 @dataclass
@@ -139,9 +289,13 @@ TEMPORAL_PROFILES: Dict[str, TemporalProfile] = {
 
 
 def build_temporal_config(
-    profile: str = "standard",
+    resolution: Optional[str] = None,
+    profile: Optional[str] = None,
     start_date: Optional[str | pd.Timestamp] = None,
     end_date: Optional[str | pd.Timestamp] = None,
+    lookback: Optional[str] = None,
+    window: Optional[int] = None,
+    stride: Optional[int] = None,
     step_months: Optional[float] = None,
     window_months: Optional[Sequence[int]] = None,
     lenses: Optional[Sequence[str]] = None,
@@ -152,16 +306,23 @@ def build_temporal_config(
     max_workers: Optional[int] = None,
 ) -> TemporalConfig:
     """
-    Construct a TemporalConfig from a profile and overrides.
+    Construct a TemporalConfig from a resolution preset or legacy profile.
 
     This is the main entry point for the CLI runner & dashboard.
 
+    PREFERRED: Use resolution parameter ('weekly', 'monthly', 'quarterly')
+    DEPRECATED: Use profile parameter ('chromebook', 'standard', 'powerful')
+
     Args:
-        profile: Profile name ('chromebook', 'standard', 'powerful')
+        resolution: Resolution preset ('weekly', 'monthly', 'quarterly')
+        profile: DEPRECATED - Legacy profile name ('chromebook', 'standard', 'powerful')
         start_date: Optional start date (YYYY-MM-DD or Timestamp)
         end_date: Optional end date (YYYY-MM-DD or Timestamp)
-        step_months: Override step size in months
-        window_months: Override window sizes
+        lookback: Lookback period (e.g., '5Y', '10Y') - used if start_date not set
+        window: Window size in periods (overrides preset)
+        stride: Stride size in periods (overrides preset)
+        step_months: DEPRECATED - Override step size in months
+        window_months: DEPRECATED - Override window sizes
         lenses: Override lenses to use
         systems: Filter by system IDs (e.g., ['finance', 'climate'])
         indicators: Filter by specific indicator IDs
@@ -173,12 +334,8 @@ def build_temporal_config(
         TemporalConfig ready for use with run_* functions
 
     Raises:
-        ValueError: If profile name is unknown
+        ValueError: If neither resolution nor profile is valid
     """
-    if profile not in TEMPORAL_PROFILES:
-        raise ValueError(f"Unknown temporal profile: {profile!r}")
-
-    base = TEMPORAL_PROFILES[profile]
 
     def _to_ts(val: Optional[str | pd.Timestamp]) -> Optional[pd.Timestamp]:
         if val is None:
@@ -187,21 +344,81 @@ def build_temporal_config(
             return val
         return pd.Timestamp(val)
 
-    cfg = TemporalConfig(
-        profile_name=base.name,
+    # NEW: Resolution-based configuration (preferred)
+    if resolution is not None:
+        if resolution not in RESOLUTION_PRESETS:
+            raise ValueError(
+                f"Unknown resolution: {resolution!r}. "
+                f"Valid options: {list(RESOLUTION_PRESETS.keys())}"
+            )
+
+        return TemporalConfig.from_resolution(
+            resolution=resolution,
+            lookback=lookback,
+            window_periods=window,
+            stride_periods=stride,
+            start_date=_to_ts(start_date),
+            end_date=_to_ts(end_date),
+            lenses=tuple(lenses) if lenses else None,
+            systems=tuple(systems) if systems else None,
+            indicators=tuple(indicators) if indicators else None,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+        )
+
+    # LEGACY: Profile-based configuration (deprecated)
+    if profile is not None:
+        # Map legacy device profiles to resolutions
+        PROFILE_TO_RESOLUTION = {
+            'chromebook': 'weekly',
+            'standard': 'monthly',
+            'powerful': 'monthly',
+        }
+
+        if profile in PROFILE_TO_RESOLUTION:
+            warnings.warn(
+                f"Device profile '{profile}' is deprecated. "
+                f"Use resolution='{PROFILE_TO_RESOLUTION[profile]}' instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+
+        if profile not in TEMPORAL_PROFILES:
+            raise ValueError(f"Unknown temporal profile: {profile!r}")
+
+        base = TEMPORAL_PROFILES[profile]
+
+        cfg = TemporalConfig(
+            profile_name=base.name,
+            resolution='monthly',  # Default for legacy
+            start_date=_to_ts(start_date),
+            end_date=_to_ts(end_date),
+            step_months=step_months if step_months is not None else base.step_months,
+            window_months=window_months if window_months is not None else tuple(base.window_months),
+            lenses=tuple(lenses) if lenses is not None else tuple(base.lenses),
+            min_history_years=base.min_history_years,
+            frequency=frequency if frequency is not None else base.frequency,
+            systems=tuple(systems) if systems is not None else None,
+            indicators=tuple(indicators) if indicators is not None else None,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+        )
+        return cfg
+
+    # Default: Use monthly resolution
+    return TemporalConfig.from_resolution(
+        resolution='monthly',
+        lookback=lookback,
+        window_periods=window,
+        stride_periods=stride,
         start_date=_to_ts(start_date),
         end_date=_to_ts(end_date),
-        step_months=step_months if step_months is not None else base.step_months,
-        window_months=window_months if window_months is not None else tuple(base.window_months),
-        lenses=lenses if lenses is not None else tuple(base.lenses),
-        min_history_years=base.min_history_years,
-        frequency=frequency if frequency is not None else base.frequency,
-        systems=tuple(systems) if systems is not None else None,
-        indicators=tuple(indicators) if indicators is not None else None,
+        lenses=tuple(lenses) if lenses else None,
+        systems=tuple(systems) if systems else None,
+        indicators=tuple(indicators) if indicators else None,
         use_parallel=use_parallel,
         max_workers=max_workers,
     )
-    return cfg
 
 
 # ---------------------------------------------------------------------
@@ -713,17 +930,178 @@ def quick_start_from_db(
 
 
 # ---------------------------------------------------------------------
+# Aggregation Functions
+# ---------------------------------------------------------------------
+
+def get_indicator_data_type(indicator_name: str, registry: Optional[Dict] = None) -> str:
+    """
+    Look up data type from registry, with heuristic fallback.
+
+    Args:
+        indicator_name: Name of the indicator
+        registry: Optional registry dict with 'data_type' fields
+
+    Returns:
+        Data type string (e.g., 'price', 'yield', 'volatility', 'default')
+    """
+    registry = registry or {}
+
+    if indicator_name in registry:
+        return registry[indicator_name].get('data_type', 'default')
+
+    # Heuristic fallbacks based on indicator name patterns
+    name_lower = indicator_name.lower()
+
+    if any(x in name_lower for x in ['spy', 'qqq', 'etf', 'close', 'price', '_px', '_adj']):
+        return 'price'
+    if any(x in name_lower for x in ['dgs', 'yield', 'rate', 't10y', 't2y', 'tb3', 'fedfunds']):
+        return 'yield'
+    if any(x in name_lower for x in ['volume', 'vol_', '_vol', 'turnover']):
+        return 'volume'
+    if any(x in name_lower for x in ['vix', 'volatility', 'realized_vol', 'impl_vol']):
+        return 'volatility'
+    if any(x in name_lower for x in ['ratio', 'ma_', '_ratio', 'spread']):
+        return 'ratio'
+    if any(x in name_lower for x in ['cpi', 'ppi', 'pce', 'gdp', 'index']):
+        return 'index'
+    if any(x in name_lower for x in ['flow', 'netflow', 'inflow', 'outflow']):
+        return 'flow'
+
+    return 'default'
+
+
+def aggregate_panel_to_frequency(
+    panel: pd.DataFrame,
+    target_frequency: str,
+    registry: Optional[Dict] = None,
+) -> pd.DataFrame:
+    """
+    Aggregate panel to target frequency using appropriate methods per column.
+
+    This function applies the correct aggregation method based on data type:
+    - price/index/ratio/level: last (point-in-time snapshot)
+    - yield/rate/volatility: mean (average conditions)
+    - volume/flow/change: sum (total activity)
+
+    Args:
+        panel: DataFrame with DatetimeIndex
+        target_frequency: pandas frequency string ('W-FRI', 'M', 'Q')
+        registry: Optional indicator registry for data type lookup
+
+    Returns:
+        Aggregated DataFrame at target frequency
+    """
+    registry = registry or {}
+
+    if not isinstance(panel.index, pd.DatetimeIndex):
+        panel = panel.copy()
+        panel.index = pd.to_datetime(panel.index)
+
+    aggregated = {}
+    for col in panel.columns:
+        data_type = get_indicator_data_type(col, registry)
+        method = AGGREGATION_RULES.get(data_type, 'last')
+
+        try:
+            aggregated[col] = panel[col].resample(target_frequency).agg(method)
+        except Exception:
+            # Fallback to last if aggregation fails
+            aggregated[col] = panel[col].resample(target_frequency).last()
+
+    result = pd.DataFrame(aggregated)
+    result = result.dropna(how='all')  # Remove empty rows
+    return result
+
+
+def detect_native_frequency(series: pd.Series) -> str:
+    """
+    Detect the native frequency of a series.
+
+    Args:
+        series: Pandas Series with DatetimeIndex
+
+    Returns:
+        Frequency string: 'daily', 'weekly', 'monthly', 'quarterly', 'annual', or 'unknown'
+    """
+    if len(series) < 2:
+        return 'unknown'
+
+    # Calculate median gap between observations
+    gaps = series.dropna().index.to_series().diff().dropna()
+    if len(gaps) == 0:
+        return 'unknown'
+
+    median_gap = gaps.median()
+
+    if median_gap <= pd.Timedelta(days=1):
+        return 'daily'
+    elif median_gap <= pd.Timedelta(days=7):
+        return 'weekly'
+    elif median_gap <= pd.Timedelta(days=32):
+        return 'monthly'
+    elif median_gap <= pd.Timedelta(days=95):
+        return 'quarterly'
+    else:
+        return 'annual'
+
+
+def parse_lookback(lookback: str, end_date: Optional[pd.Timestamp] = None) -> pd.Timestamp:
+    """
+    Parse a lookback string into a start timestamp.
+
+    Args:
+        lookback: Lookback string (e.g., '5Y', '10Y', '2Y', '6M')
+        end_date: End date to calculate from (default: now)
+
+    Returns:
+        Start timestamp
+    """
+    end_date = end_date or pd.Timestamp.now()
+
+    lookback = lookback.upper().strip()
+
+    if lookback.endswith('Y'):
+        years = int(lookback[:-1])
+        return end_date - pd.DateOffset(years=years)
+    elif lookback.endswith('M'):
+        months = int(lookback[:-1])
+        return end_date - pd.DateOffset(months=months)
+    elif lookback.endswith('W'):
+        weeks = int(lookback[:-1])
+        return end_date - pd.DateOffset(weeks=weeks)
+    elif lookback.endswith('D'):
+        days = int(lookback[:-1])
+        return end_date - pd.DateOffset(days=days)
+    else:
+        # Try to parse as a date string
+        return pd.Timestamp(lookback)
+
+
+# ---------------------------------------------------------------------
 # Module exports
 # ---------------------------------------------------------------------
 
 __all__ = [
+    # Resolution presets (NEW - preferred)
+    "RESOLUTION_PRESETS",
+    "AGGREGATION_RULES",
+    "Resolution",
+    # Configuration classes
     "TemporalProfile",
     "TemporalConfig",
     "TemporalResult",
+    # Legacy profiles (DEPRECATED)
     "TEMPORAL_PROFILES",
+    # Builder function
     "build_temporal_config",
+    # Analysis functions
     "run_temporal_analysis_from_panel",
     "run_temporal_analysis_from_db",
     "load_temporal_panel",
     "quick_start_from_db",
+    # Aggregation functions (NEW)
+    "get_indicator_data_type",
+    "aggregate_panel_to_frequency",
+    "detect_native_frequency",
+    "parse_lookback",
 ]
