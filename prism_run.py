@@ -19,6 +19,7 @@ CLI Options:
     python prism_run.py --list-panels      # List available panels
     python prism_run.py --list-workflows   # List available workflows
     python prism_run.py --list-engines     # List available engines
+    python prism_run.py --load-benchmarks  # Load benchmark datasets into DB
 
 Direct Mode:
     python prism_run.py --panel market --workflow regime_comparison
@@ -38,6 +39,16 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def main() -> int:
     """Main entry point with mode routing."""
+
+    # Check for --load-benchmarks flag (benchmark loader)
+    if "--load-benchmarks" in sys.argv:
+        try:
+            from data.sql.load_benchmarks import load_all_benchmarks
+            load_all_benchmarks()
+            return 0
+        except Exception as e:
+            print(f"Error loading benchmarks: {e}")
+            return 1
 
     # Check for --web flag (web server mode)
     if "--web" in sys.argv:
