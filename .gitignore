@@ -116,3 +116,4 @@ __pycache__/
 *.diff
 *.patch
 *_PATCHED.py
+claude_sandbox/phase8_12_extracted/

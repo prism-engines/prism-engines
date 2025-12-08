@@ -1,0 +1,165 @@
+# Historical Events Registry
+# ==========================
+# Crisis events for stress testing the PRISM framework.
+# Each event includes dates, type, severity, and market impact.
+
+events:
+  - id: crash_1987
+    name: "Black Monday"
+    event_date: "1987-10-19"
+    event_type: market_crash
+    severity: extreme
+    drawdown_pct: 22.6
+    recovery_days: 451
+    notes: "Single-day crash, largest in history"
+
+  - id: savings_loan_1990
+    name: "S&L Crisis Peak"
+    event_date: "1990-07-01"
+    event_type: banking_crisis
+    severity: moderate
+    drawdown_pct: 19.9
+    notes: "Banking crisis culmination"
+
+  - id: ltcm_1998
+    name: "LTCM Crisis"
+    event_date: "1998-08-17"
+    event_type: liquidity_crisis
+    severity: severe
+    drawdown_pct: 19.3
+    recovery_days: 58
+    notes: "Long-Term Capital Management collapse"
+
+  - id: dotcom_2000
+    name: "Dot-com Bubble"
+    date_start: "2000-03-10"
+    date_end: "2002-10-09"
+    event_type: bubble_burst
+    severity: severe
+    drawdown_pct: 49.1
+    notes: "Tech bubble burst, prolonged bear market"
+
+  - id: sept_11_2001
+    name: "September 11 Attacks"
+    event_date: "2001-09-11"
+    event_type: exogenous_shock
+    severity: severe
+    drawdown_pct: 11.6
+    recovery_days: 47
+    notes: "Terrorist attack, markets closed 4 days"
+
+  - id: gfc_2008
+    name: "Global Financial Crisis"
+    date_start: "2007-10-09"
+    date_end: "2009-03-09"
+    event_type: systemic_crisis
+    severity: extreme
+    drawdown_pct: 56.8
+    notes: "Lehman collapse, housing crisis, global contagion"
+
+  - id: flash_crash_2010
+    name: "Flash Crash"
+    event_date: "2010-05-06"
+    event_type: market_crash
+    severity: moderate
+    drawdown_pct: 9.2
+    recovery_days: 1
+    notes: "Algorithmic trading anomaly, quick recovery"
+
+  - id: euro_crisis_2011
+    name: "European Debt Crisis"
+    date_start: "2011-07-22"
+    date_end: "2011-10-03"
+    event_type: sovereign_crisis
+    severity: moderate
+    drawdown_pct: 19.4
+    notes: "Greek debt crisis contagion"
+
+  - id: china_deval_2015
+    name: "China Devaluation"
+    event_date: "2015-08-11"
+    event_type: currency_crisis
+    severity: moderate
+    drawdown_pct: 12.4
+    recovery_days: 190
+    notes: "Yuan devaluation sparked global selloff"
+
+  - id: covid_2020
+    name: "COVID Crash"
+    event_date: "2020-02-19"
+    date_end: "2020-03-23"
+    event_type: exogenous_shock
+    severity: severe
+    drawdown_pct: 33.9
+    recovery_days: 148
+    notes: "Pandemic lockdowns, fastest 30% drop in history"
+
+  - id: rate_shock_2022
+    name: "Rate Shock"
+    date_start: "2022-01-03"
+    date_end: "2022-10-12"
+    event_type: monetary_tightening
+    severity: moderate
+    drawdown_pct: 25.4
+    notes: "Fed rate hikes, inflation response"
+
+  - id: svb_2023
+    name: "SVB Bank Failure"
+    event_date: "2023-03-10"
+    event_type: banking_crisis
+    severity: moderate
+    drawdown_pct: 7.8
+    recovery_days: 30
+    notes: "Regional bank crisis, contagion fears"
+
+# Event type classifications
+event_types:
+  market_crash:
+    description: "Rapid market decline"
+    typical_duration: "days to weeks"
+
+  systemic_crisis:
+    description: "Financial system-wide stress"
+    typical_duration: "months to years"
+
+  liquidity_crisis:
+    description: "Market liquidity evaporation"
+    typical_duration: "weeks to months"
+
+  banking_crisis:
+    description: "Bank failures or stress"
+    typical_duration: "months"
+
+  sovereign_crisis:
+    description: "Government debt concerns"
+    typical_duration: "months"
+
+  exogenous_shock:
+    description: "External event impact"
+    typical_duration: "variable"
+
+  bubble_burst:
+    description: "Asset bubble deflation"
+    typical_duration: "years"
+
+  monetary_tightening:
+    description: "Central bank policy adjustment"
+    typical_duration: "months"
+
+  currency_crisis:
+    description: "Currency instability"
+    typical_duration: "weeks to months"
+
+# Severity definitions
+severity_levels:
+  moderate:
+    drawdown_range: "10-20%"
+    market_description: "Significant correction"
+
+  severe:
+    drawdown_range: "20-40%"
+    market_description: "Major bear market"
+
+  extreme:
+    drawdown_range: ">40%"
+    market_description: "Historic crash"
