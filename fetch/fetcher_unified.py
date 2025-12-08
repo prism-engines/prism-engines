@@ -616,9 +616,10 @@ Panels:
 
     parser.add_argument(
         '--fetch', '-f',
-        nargs='+',
+        nargs='*',
+        default=['all'],
         metavar='PANEL',
-        help='Panels to fetch: economy, global, credit, market, or all'
+        help='Panels to fetch: economy, global, credit, market, or all (default: all)'
     )
     parser.add_argument(
         '--start-date', '-s',
@@ -694,8 +695,8 @@ Panels:
         sys.exit(0)
 
     # Fetch mode
-    if args.fetch:
-        panels_to_fetch = args.fetch
+    if args.fetch or args.fetch == []:
+        panels_to_fetch = args.fetch if args.fetch else ['all']
 
         # Expand 'all'
         if 'all' in panels_to_fetch:
