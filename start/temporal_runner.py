@@ -1,60 +1,236 @@
+#!/usr/bin/env python3
 """
 Temporal Analysis Runner
-==============================
 
-Easy-to-use script for running temporal (rolling window) analysis
-and generating visualizations of how indicator rankings change over time.
+Command-line wrapper around the PRISM temporal engine.
 
-Usage:
-    # Import and run
-    from start.temporal_runner import run_temporal_analysis, generate_all_plots
+Examples:
 
-    results = run_temporal_analysis(panel_clean)
-    generate_all_plots(results)
+  # Basic run with standard profile (default dates)
+  python start/temporal_runner.py --profile standard
 
-    # Or use quick_start for everything at once
-    from start.temporal_runner import quick_start
-    results, summary = quick_start(panel_clean)
+  # Chromebook-friendly run
+  python start/temporal_runner.py --profile chromebook
 
-CLI Usage:
-    python start/temporal_runner.py
+  # Powerful run, finance-only, last 20 years
+  python start/temporal_runner.py --profile powerful \
+      --systems finance \
+      --start 2005-01-01
 
-Performance Notes for 50-60+ Indicators:
-----------------------------------------
-- Default uses fast lenses (magnitude, pca, influence, clustering)
-- For Chromebook: use StreamingTemporalEngine for memory efficiency
-- For Mac Mini: can use all lenses and finer step sizes
-- Consider step_months=0.5 for higher resolution on powerful machines
+  # Multi-domain run with explicit indicators
+  python start/temporal_runner.py --profile standard \
+      --systems finance climate \
+      --indicators sp500 vix t10y2y
+
+This script is SAFE to run multiple times - it only reads from the DB and
+writes outputs under prism_output/temporal/.
 """
 
+from __future__ import annotations
+
+import argparse
 import sys
 from pathlib import Path
+from typing import Optional, Sequence
 
 # Setup paths
 SCRIPT_DIR = Path(__file__).parent if '__file__' in dir() else Path('.')
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-# Add to Python path
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / 'engine_core' / 'orchestration'))
-sys.path.insert(0, str(PROJECT_ROOT / 'visualization' / 'plotters'))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd
-import numpy as np
-from datetime import datetime
+
+from engine.orchestration.temporal_analysis import (
+    TEMPORAL_PROFILES,
+    build_temporal_config,
+    run_temporal_analysis_from_db,
+    run_temporal_analysis_from_panel,
+    load_temporal_panel,
+)
+from data.sql.db_path import get_db_path
+
+
+def get_default_db_path() -> str:
+    """Get the default database path using the unified resolver."""
+    return get_db_path()
+
+
+def _get_output_dir() -> Path:
+    """Get the output directory for temporal analysis results."""
+    out_dir = PROJECT_ROOT / "prism_output" / "temporal"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Run PRISM temporal (multi-resolution) analysis from the command line.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--profile",
+        choices=sorted(TEMPORAL_PROFILES.keys()),
+        default="standard",
+        help="Temporal profile to use (controls lenses and resolution).",
+    )
+    parser.add_argument(
+        "--start",
+        type=str,
+        default=None,
+        help="Start date (YYYY-MM-DD). If omitted, use as much history as available.",
+    )
+    parser.add_argument(
+        "--end",
+        type=str,
+        default=None,
+        help="End date (YYYY-MM-DD). If omitted, use latest available date.",
+    )
+    parser.add_argument(
+        "--systems",
+        nargs="*",
+        default=None,
+        help="Optional list of system IDs (e.g. finance, climate, biology).",
+    )
+    parser.add_argument(
+        "--indicators",
+        nargs="*",
+        default=None,
+        help="Optional list of specific indicator IDs to include.",
+    )
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        default=None,
+        help="Override database path. If omitted, use default resolver.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Only print the planned configuration; do not run the engine.",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print verbose progress information.",
+    )
+
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """
+    Main entry point for temporal analysis runner.
+
+    Args:
+        argv: Command-line arguments (uses sys.argv if None)
+
+    Returns:
+        Exit code (0 for success, non-zero for error)
+    """
+    args = parse_args(argv)
+
+    # Resolve DB path using the same logic as other scripts
+    db_path = args.db_path or get_default_db_path()
+
+    print("=" * 60)
+    print("PRISM TEMPORAL ANALYSIS RUNNER")
+    print("=" * 60)
+    print(f"Profile:       {args.profile}")
+    print(f"DB path:       {db_path}")
+    print(f"Systems:       {args.systems or '[ALL]'}")
+    print(f"Indicators:    {args.indicators or '[ALL]'}")
+    print(f"Start date:    {args.start or '[auto]'}")
+    print(f"End date:      {args.end or '[latest]'}")
+    print("-" * 60)
+
+    # Build configuration
+    try:
+        cfg = build_temporal_config(
+            profile=args.profile,
+            start_date=args.start,
+            end_date=args.end,
+            systems=args.systems,
+            indicators=args.indicators,
+        )
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
+    if args.dry_run:
+        print("Dry run only - no analysis executed.")
+        print("Resolved config:")
+        print(f"  step_months:   {cfg.step_months}")
+        print(f"  window_months: {list(cfg.window_months)}")
+        print(f"  lenses:        {list(cfg.lenses)}")
+        print(f"  frequency:     {cfg.frequency}")
+        print(f"  min_history:   {cfg.min_history_years} years")
+        return 0
+
+    # Run the temporal engine
+    try:
+        if args.verbose:
+            print("\nLoading panel data...")
+
+        result = run_temporal_analysis_from_db(db_path=db_path, config=cfg)
+
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+    except ImportError as e:
+        print(f"Import error: {e}")
+        print("Please ensure all dependencies are installed.")
+        return 1
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        return 1
+
+    # Save outputs
+    out_dir = _get_output_dir()
+    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+    scores_path = out_dir / f"temporal_scores_{cfg.profile_name}_{timestamp}.csv"
+    meta_path = out_dir / f"temporal_metadata_{cfg.profile_name}_{timestamp}.json"
+
+    # Also save a "latest" version for easy access
+    scores_latest = out_dir / f"temporal_scores_{cfg.profile_name}.csv"
+    meta_latest = out_dir / f"temporal_metadata_{cfg.profile_name}.json"
+
+    result.scores.to_csv(scores_path)
+    result.scores.to_csv(scores_latest)
+    pd.Series(result.metadata).to_json(meta_path, indent=2)
+    pd.Series(result.metadata).to_json(meta_latest, indent=2)
+
+    print("\nAnalysis complete.")
+    if not result.scores.empty:
+        print(f"  Dates:      {result.scores.index.min().date()} -> {result.scores.index.max().date()}")
+    print(f"  Rows:       {result.scores.shape[0]}")
+    print(f"  Columns:    {result.scores.shape[1]}")
+    print(f"  Lenses:     {len(cfg.lenses)}")
+    print(f"  Output CSV: {scores_latest}")
+    print(f"  Metadata:   {meta_latest}")
+    print("=" * 60)
+
+    return 0
 
 
 # =============================================================================
-# CONFIGURATION
+# Legacy API (for backward compatibility with existing imports)
 # =============================================================================
 
-# Performance profiles
+# Performance profiles (legacy format)
 PERFORMANCE_PROFILES = {
     'chromebook': {
-        'lenses': ['magnitude', 'pca', 'influence'],  # Fast lenses only
-        'step_months': 2.0,  # Larger steps = faster
+        'lenses': ['magnitude', 'pca', 'influence'],
+        'step_months': 2.0,
         'window_years': 1.0,
-        'streaming': True,  # Use streaming for memory
+        'streaming': True,
     },
     'standard': {
         'lenses': ['magnitude', 'pca', 'influence', 'clustering'],
@@ -64,16 +240,12 @@ PERFORMANCE_PROFILES = {
     },
     'powerful': {
         'lenses': ['magnitude', 'pca', 'influence', 'clustering', 'decomposition'],
-        'step_months': 0.5,  # Higher resolution
+        'step_months': 0.5,
         'window_years': 1.0,
         'streaming': False,
     },
 }
 
-
-# =============================================================================
-# MAIN FUNCTIONS
-# =============================================================================
 
 def run_temporal_analysis(
     panel: pd.DataFrame,
@@ -86,6 +258,9 @@ def run_temporal_analysis(
     """
     Run temporal analysis on your data.
 
+    This is the legacy API for backward compatibility.
+    New code should use run_temporal_analysis_from_panel().
+
     Args:
         panel: Your cleaned data panel (datetime index, indicator columns)
         profile: Performance profile ('chromebook', 'standard', 'powerful')
@@ -96,135 +271,44 @@ def run_temporal_analysis(
 
     Returns:
         Dictionary with temporal analysis results
-
-    Example:
-        results = run_temporal_analysis(panel_clean, profile='chromebook')
     """
-    from temporal_analysis import TemporalEngine, StreamingTemporalEngine
-
     # Get profile settings
-    config = PERFORMANCE_PROFILES.get(profile, PERFORMANCE_PROFILES['standard'])
+    profile_config = PERFORMANCE_PROFILES.get(profile, PERFORMANCE_PROFILES['standard'])
 
     # Apply overrides
-    window_years = window_years or config['window_years']
-    step_months = step_months or config['step_months']
-    lenses = lenses or config['lenses']
-
-    window_days = int(window_years * 252)
-    step_days = int(step_months * 21)
+    window_years = window_years or profile_config['window_years']
+    step_months = step_months or profile_config['step_months']
+    lenses = lenses or profile_config['lenses']
 
     if verbose:
         print("=" * 60)
         print("TEMPORAL ANALYSIS")
         print("=" * 60)
         print(f"Profile:     {profile}")
-        print(f"Window:      {window_years} year(s) ({window_days} days)")
-        print(f"Step:        {step_months} month(s) ({step_days} days)")
+        print(f"Window:      {window_years} year(s)")
+        print(f"Step:        {step_months} month(s)")
         print(f"Lenses:      {lenses}")
         print(f"Indicators:  {len(panel.columns)}")
-        print(f"Date range:  {panel.index[0]} to {panel.index[-1]}")
+        if len(panel) > 0:
+            print(f"Date range:  {panel.index[0]} to {panel.index[-1]}")
         print()
 
-    # Create analyzer
-    temporal = TemporalEngine(panel, lenses=lenses)
-
-    # Progress callback
-    def progress(current, total):
-        if verbose and current % 5 == 0:
-            pct = current / total * 100
-            print(f"  Progress: {current}/{total} windows ({pct:.0f}%)")
-
-    # Run analysis
-    start_time = datetime.now()
-
-    results = temporal.run_rolling_analysis(
-        window_days=window_days,
-        step_days=step_days,
-        progress_callback=progress if verbose else None
+    # Build config and run
+    cfg = build_temporal_config(
+        profile=profile,
+        step_months=step_months,
+        lenses=lenses,
     )
 
-    elapsed = (datetime.now() - start_time).total_seconds()
+    result = run_temporal_analysis_from_panel(panel, cfg)
 
-    if verbose:
-        print()
-        print(f"Completed in {elapsed:.1f} seconds")
-        print(f"Analyzed {results['metadata']['n_windows']} time periods")
-
-    return results
-
-
-def generate_all_plots(
-    results: dict,
-    output_dir: str = None,
-    show_plots: bool = True
-) -> dict:
-    """
-    Generate all temporal visualizations.
-
-    Args:
-        results: Output from run_temporal_analysis()
-        output_dir: Directory to save plots (if None, just displays)
-        show_plots: Whether to display plots interactively
-
-    Returns:
-        Dictionary mapping plot type -> file path (if saved)
-    """
-    from temporal_plots import (
-        plot_ranking_evolution,
-        plot_bump_chart,
-        plot_rank_heatmap,
-        plot_rank_changes,
-        plot_stability_analysis,
-    )
-
-    print("\nGenerating visualizations...")
-
-    saved_files = {}
-
-    if output_dir:
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-    # 1. Ranking evolution line chart
-    print("  1. Ranking evolution...")
-    save_path = str(Path(output_dir) / 'ranking_evolution.png') if output_dir else None
-    plot_ranking_evolution(results, save_path=save_path, top_n=10)
-    if save_path:
-        saved_files['ranking_evolution'] = save_path
-
-    # 2. Bump chart
-    print("  2. Bump chart...")
-    save_path = str(Path(output_dir) / 'bump_chart.png') if output_dir else None
-    plot_bump_chart(results, save_path=save_path, top_n=12)
-    if save_path:
-        saved_files['bump_chart'] = save_path
-
-    # 3. Rank heatmap
-    print("  3. Rank heatmap...")
-    save_path = str(Path(output_dir) / 'rank_heatmap.png') if output_dir else None
-    plot_rank_heatmap(results, save_path=save_path, top_n=20)
-    if save_path:
-        saved_files['rank_heatmap'] = save_path
-
-    # 4. Recent rank changes
-    print("  4. Rank changes...")
-    save_path = str(Path(output_dir) / 'rank_changes.png') if output_dir else None
-    plot_rank_changes(results, save_path=save_path)
-    if save_path:
-        saved_files['rank_changes'] = save_path
-
-    # 5. Stability analysis
-    print("  5. Stability analysis...")
-    save_path = str(Path(output_dir) / 'stability.png') if output_dir else None
-    plot_stability_analysis(results, save_path=save_path)
-    if save_path:
-        saved_files['stability'] = save_path
-
-    print("\nDone!")
-    if output_dir:
-        print(f"Saved to: {output_dir}")
-
-    return saved_files
+    # Convert to legacy format
+    return {
+        'timestamps': list(result.scores.index),
+        'rankings': {col: list(result.scores[col]) for col in result.scores.columns if '_rank' in col},
+        'importance': {col: list(result.scores[col]) for col in result.scores.columns if '_score' in col},
+        'metadata': result.metadata,
+    }
 
 
 def get_summary(results: dict) -> pd.DataFrame:
@@ -240,12 +324,14 @@ def get_summary(results: dict) -> pd.DataFrame:
     - rank_change: Recent change (positive = improving)
     - stability: Consistency score
     """
-    from temporal_analysis import TemporalEngine
+    rankings = results.get('rankings', {})
+    if not rankings:
+        return pd.DataFrame()
 
-    rank_df = pd.DataFrame(results['rankings'], index=results['timestamps'])
+    rank_df = pd.DataFrame(rankings, index=results.get('timestamps', []))
 
     summary = pd.DataFrame({
-        'current_rank': rank_df.iloc[-1],
+        'current_rank': rank_df.iloc[-1] if len(rank_df) > 0 else pd.Series(),
         'avg_rank': rank_df.mean(),
         'best_rank': rank_df.min(),
         'worst_rank': rank_df.max(),
@@ -253,9 +339,12 @@ def get_summary(results: dict) -> pd.DataFrame:
     })
 
     # Recent change (last 6 periods)
-    lookback = min(6, len(rank_df))
-    recent = rank_df.iloc[-lookback:]
-    summary['rank_change'] = recent.iloc[0] - recent.iloc[-1]
+    if len(rank_df) > 0:
+        lookback = min(6, len(rank_df))
+        recent = rank_df.iloc[-lookback:]
+        summary['rank_change'] = recent.iloc[0] - recent.iloc[-1]
+    else:
+        summary['rank_change'] = 0
 
     # Stability
     summary['stability'] = 1 / (1 + summary['rank_std'])
@@ -277,7 +366,14 @@ def find_trending(results: dict, lookback: int = 6) -> dict:
     Returns:
         Dictionary with 'rising' and 'falling' indicators
     """
-    rank_df = pd.DataFrame(results['rankings'], index=results['timestamps'])
+    rankings = results.get('rankings', {})
+    if not rankings:
+        return {'rising': {}, 'falling': {}, 'period': 'N/A'}
+
+    rank_df = pd.DataFrame(rankings, index=results.get('timestamps', []))
+
+    if len(rank_df) < 2:
+        return {'rising': {}, 'falling': {}, 'period': 'N/A'}
 
     lookback = min(lookback, len(rank_df))
     recent = rank_df.iloc[-lookback:]
@@ -287,16 +383,14 @@ def find_trending(results: dict, lookback: int = 6) -> dict:
     rising = change[change > 2].sort_values(ascending=False)
     falling = change[change < -2].sort_values()
 
+    period = f"{recent.index[0].strftime('%Y-%m')} to {recent.index[-1].strftime('%Y-%m')}"
+
     return {
         'rising': rising.to_dict(),
         'falling': falling.to_dict(),
-        'period': f"{recent.index[0].strftime('%Y-%m')} to {recent.index[-1].strftime('%Y-%m')}"
+        'period': period,
     }
 
-
-# =============================================================================
-# COLAB-FRIENDLY QUICK START
-# =============================================================================
 
 def quick_start(panel: pd.DataFrame) -> tuple:
     """
@@ -317,38 +411,24 @@ def quick_start(panel: pd.DataFrame) -> tuple:
     print("\n" + "=" * 60)
     print("TOP 10 CURRENT RANKINGS")
     print("=" * 60)
-    print(summary.head(10).to_string())
+    if not summary.empty:
+        print(summary.head(10).to_string())
+    else:
+        print("No rankings available")
 
     trending = find_trending(results)
-    if trending['rising']:
-        print("\n📈 RISING:")
+    if trending.get('rising'):
+        print("\nRISING:")
         for ind, change in list(trending['rising'].items())[:5]:
             print(f"   {ind}: +{change:.1f} ranks")
 
-    if trending['falling']:
-        print("\n📉 FALLING:")
+    if trending.get('falling'):
+        print("\nFALLING:")
         for ind, change in list(trending['falling'].items())[:5]:
             print(f"   {ind}: {change:.1f} ranks")
 
     return results, summary
 
 
-# =============================================================================
-# MAIN
-# =============================================================================
-
 if __name__ == "__main__":
-    print("Temporal Analysis Runner")
-    print("=" * 40)
-    print()
-    print("Usage in Colab/Python:")
-    print("  1. Load your data into 'panel_clean'")
-    print("  2. results = run_temporal_analysis(panel_clean)")
-    print("  3. generate_all_plots(results)")
-    print()
-    print("Or use quick_start:")
-    print("  results, summary = quick_start(panel_clean)")
-    print()
-    print("Available profiles:")
-    for name, config in PERFORMANCE_PROFILES.items():
-        print(f"  - {name}: {len(config['lenses'])} lenses, {config['step_months']}mo steps")
+    raise SystemExit(main())
