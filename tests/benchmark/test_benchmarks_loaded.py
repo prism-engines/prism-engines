@@ -8,7 +8,7 @@ Required validations:
   - Indicators created for all columns
   - Timeseries row counts match CSV row counts
   - system == "benchmark"
-  - fred_code starts with "BENCH_" (in metadata)
+  - fred_code starts with "BENCH_"
   - No NULL indicator_name
 
 Run these tests after loading benchmarks:
@@ -17,7 +17,6 @@ Run these tests after loading benchmarks:
 """
 
 import pytest
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -87,7 +86,7 @@ class TestIndicatorsCreated:
             for col in columns:
                 indicator_name = f"{shortname}_{col}"
                 row = db_connection.execute(
-                    "SELECT name FROM indicators WHERE name = ?",
+                    "SELECT indicator_name FROM indicators WHERE indicator_name = ?",
                     (indicator_name,)
                 ).fetchone()
 
@@ -135,9 +134,21 @@ class TestTimeseriesRowCounts:
             # Check each column's row count
             for col in df.columns:
                 indicator_name = f"{shortname}_{col}"
-                row = db_connection.execute(
-                    "SELECT COUNT(*) FROM indicator_values WHERE indicator_name = ?",
+
+                # Get indicator_id first
+                ind_row = db_connection.execute(
+                    "SELECT id FROM indicators WHERE indicator_name = ?",
                     (indicator_name,)
+                ).fetchone()
+
+                if ind_row is None:
+                    pytest.fail(f"Indicator not found: {indicator_name}")
+
+                indicator_id = ind_row[0]
+
+                row = db_connection.execute(
+                    "SELECT COUNT(*) FROM timeseries WHERE indicator_id = ?",
+                    (indicator_id,)
                 ).fetchone()
                 actual_rows = row[0]
 
@@ -149,9 +160,9 @@ class TestTimeseriesRowCounts:
         """Verify total benchmark rows is reasonable."""
         row = db_connection.execute(
             """
-            SELECT COUNT(*) FROM indicator_values
-            WHERE indicator_name IN (
-                SELECT name FROM indicators WHERE system = 'benchmark'
+            SELECT COUNT(*) FROM timeseries
+            WHERE indicator_id IN (
+                SELECT id FROM indicators WHERE system = 'benchmark'
             )
             """
         ).fetchone()
@@ -180,7 +191,7 @@ class TestBenchmarkSystem:
             for col in df.columns:
                 indicator_name = f"{shortname}_{col}"
                 row = db_connection.execute(
-                    "SELECT system FROM indicators WHERE name = ?",
+                    "SELECT system FROM indicators WHERE indicator_name = ?",
                     (indicator_name,)
                 ).fetchone()
 
@@ -194,13 +205,13 @@ class TestBenchmarkSystem:
         # Check for indicators with BENCH_ pattern in wrong system
         rows = db_connection.execute(
             """
-            SELECT name, system FROM indicators
-            WHERE (name LIKE '%clear_leader%'
-                   OR name LIKE '%two_regimes%'
-                   OR name LIKE '%clusters%'
-                   OR name LIKE '%periodic%'
-                   OR name LIKE '%anomalies%'
-                   OR name LIKE '%pure_noise%')
+            SELECT indicator_name, system FROM indicators
+            WHERE (indicator_name LIKE '%clear_leader%'
+                   OR indicator_name LIKE '%two_regimes%'
+                   OR indicator_name LIKE '%clusters%'
+                   OR indicator_name LIKE '%periodic%'
+                   OR indicator_name LIKE '%anomalies%'
+                   OR indicator_name LIKE '%pure_noise%')
             AND system != 'benchmark'
             """
         ).fetchall()
@@ -215,10 +226,10 @@ class TestBenchmarkSystem:
 # =============================================================================
 
 class TestFredCodePrefix:
-    """Test that benchmark indicators have BENCH_ prefix in metadata."""
+    """Test that benchmark indicators have BENCH_ prefix in fred_code."""
 
     def test_fred_code_has_bench_prefix(self, loaded_benchmarks, benchmark_dir, db_connection):
-        """Verify fred_code in metadata starts with BENCH_."""
+        """Verify fred_code starts with BENCH_."""
         for filename, shortname in BENCHMARK_FILES.items():
             filepath = benchmark_dir / filename
             if not filepath.exists():
@@ -229,39 +240,31 @@ class TestFredCodePrefix:
             for col in df.columns:
                 indicator_name = f"{shortname}_{col}"
                 row = db_connection.execute(
-                    "SELECT metadata FROM indicators WHERE name = ?",
+                    "SELECT fred_code FROM indicators WHERE indicator_name = ?",
                     (indicator_name,)
                 ).fetchone()
 
                 assert row is not None, f"Indicator not found: {indicator_name}"
-
-                if row[0]:
-                    metadata = json.loads(row[0])
-                    fred_code = metadata.get("fred_code", "")
-                    assert fred_code.startswith("BENCH_"), (
-                        f"Indicator {indicator_name}: fred_code should start with 'BENCH_', got '{fred_code}'"
-                    )
+                fred_code = row[0]
+                assert fred_code.startswith("BENCH_"), (
+                    f"Indicator {indicator_name}: fred_code should start with 'BENCH_', got '{fred_code}'"
+                )
 
     def test_fred_code_format(self, loaded_benchmarks, db_connection):
         """Verify fred_code follows expected format: BENCH_{shortname}_{column}."""
         rows = db_connection.execute(
-            "SELECT name, metadata FROM indicators WHERE system = 'benchmark'"
+            "SELECT indicator_name, fred_code FROM indicators WHERE system = 'benchmark'"
         ).fetchall()
 
         for row in rows:
-            name = row[0]
-            metadata_str = row[1]
+            indicator_name = row[0]
+            fred_code = row[1]
 
-            if metadata_str:
-                metadata = json.loads(metadata_str)
-                fred_code = metadata.get("fred_code", "")
-
-                # fred_code should be BENCH_{indicator_name without underscores adjusted}
-                expected_prefix = f"BENCH_{name}"
-                # The fred_code is BENCH_{shortname}_{column}, which equals BENCH_{name}
-                assert fred_code == expected_prefix or fred_code.startswith("BENCH_"), (
-                    f"Indicator {name}: unexpected fred_code format '{fred_code}'"
-                )
+            # fred_code should be BENCH_{indicator_name}
+            expected_fred_code = f"BENCH_{indicator_name}"
+            assert fred_code == expected_fred_code, (
+                f"Indicator {indicator_name}: expected fred_code '{expected_fred_code}', got '{fred_code}'"
+            )
 
 
 # =============================================================================
@@ -274,50 +277,33 @@ class TestNoNullIndicatorName:
     def test_no_null_indicator_names_in_indicators(self, loaded_benchmarks, db_connection):
         """Verify no NULL names in indicators table."""
         row = db_connection.execute(
-            "SELECT COUNT(*) FROM indicators WHERE name IS NULL AND system = 'benchmark'"
+            "SELECT COUNT(*) FROM indicators WHERE indicator_name IS NULL AND system = 'benchmark'"
         ).fetchone()
 
-        assert row[0] == 0, "Found benchmark indicators with NULL name"
+        assert row[0] == 0, "Found benchmark indicators with NULL indicator_name"
 
-    def test_no_null_indicator_names_in_values(self, loaded_benchmarks, db_connection):
-        """Verify no NULL indicator_name in indicator_values for benchmarks."""
+    def test_no_null_indicator_ids_in_timeseries(self, loaded_benchmarks, db_connection):
+        """Verify no NULL indicator_id in timeseries for benchmarks."""
         row = db_connection.execute(
-            """
-            SELECT COUNT(*) FROM indicator_values
-            WHERE indicator_name IS NULL
-            AND indicator_name IN (
-                SELECT name FROM indicators WHERE system = 'benchmark'
-            )
-            """
+            "SELECT COUNT(*) FROM timeseries WHERE indicator_id IS NULL"
         ).fetchone()
 
-        # This query will always return 0 due to the NULL check, but let's verify
-        # no orphaned NULL values exist
-        row2 = db_connection.execute(
-            "SELECT COUNT(*) FROM indicator_values WHERE indicator_name IS NULL"
-        ).fetchone()
+        assert row[0] == 0, "Found timeseries rows with NULL indicator_id"
 
-        assert row2[0] == 0, "Found indicator_values rows with NULL indicator_name"
-
-    def test_all_benchmark_values_have_valid_indicator(self, loaded_benchmarks, db_connection):
-        """Verify all benchmark indicator_values reference valid indicators."""
+    def test_all_benchmark_timeseries_have_valid_indicator(self, loaded_benchmarks, db_connection):
+        """Verify all benchmark timeseries reference valid indicators."""
         rows = db_connection.execute(
             """
-            SELECT DISTINCT iv.indicator_name
-            FROM indicator_values iv
-            LEFT JOIN indicators i ON iv.indicator_name = i.name
-            WHERE (iv.indicator_name LIKE '%clear_leader%'
-               OR iv.indicator_name LIKE '%two_regimes%'
-               OR iv.indicator_name LIKE '%clusters%'
-               OR iv.indicator_name LIKE '%periodic%'
-               OR iv.indicator_name LIKE '%anomalies%'
-               OR iv.indicator_name LIKE '%pure_noise%')
-            AND i.name IS NULL
+            SELECT DISTINCT t.indicator_id
+            FROM timeseries t
+            LEFT JOIN indicators i ON t.indicator_id = i.id
+            WHERE i.system = 'benchmark'
+            AND i.id IS NULL
             """
         ).fetchall()
 
         orphaned = [r[0] for r in rows if r[0]]
-        assert len(orphaned) == 0, f"Found orphaned benchmark values: {orphaned}"
+        assert len(orphaned) == 0, f"Found orphaned benchmark timeseries: {orphaned}"
 
 
 # =============================================================================
@@ -331,9 +317,9 @@ class TestDataQuality:
         """Verify all dates are in YYYY-MM-DD format."""
         rows = db_connection.execute(
             """
-            SELECT DISTINCT date FROM indicator_values
-            WHERE indicator_name IN (
-                SELECT name FROM indicators WHERE system = 'benchmark'
+            SELECT DISTINCT date FROM timeseries
+            WHERE indicator_id IN (
+                SELECT id FROM indicators WHERE system = 'benchmark'
             )
             AND date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
             """
@@ -346,9 +332,9 @@ class TestDataQuality:
         """Verify all values are numeric (not NULL for benchmarks)."""
         row = db_connection.execute(
             """
-            SELECT COUNT(*) FROM indicator_values
-            WHERE indicator_name IN (
-                SELECT name FROM indicators WHERE system = 'benchmark'
+            SELECT COUNT(*) FROM timeseries
+            WHERE indicator_id IN (
+                SELECT id FROM indicators WHERE system = 'benchmark'
             )
             AND value IS NULL
             """
@@ -356,22 +342,19 @@ class TestDataQuality:
 
         assert row[0] == 0, f"Found {row[0]} NULL values in benchmark data"
 
-    def test_provenance_is_benchmark(self, loaded_benchmarks, db_connection):
-        """Verify benchmark data has provenance='benchmark'."""
+    def test_value_2_and_adjusted_are_null(self, loaded_benchmarks, db_connection):
+        """Verify value_2 and adjusted_value are NULL for benchmarks."""
         row = db_connection.execute(
             """
-            SELECT COUNT(*) FROM indicator_values
-            WHERE indicator_name IN (
-                SELECT name FROM indicators WHERE system = 'benchmark'
+            SELECT COUNT(*) FROM timeseries
+            WHERE indicator_id IN (
+                SELECT id FROM indicators WHERE system = 'benchmark'
             )
-            AND (provenance IS NULL OR provenance != 'benchmark')
+            AND (value_2 IS NOT NULL OR adjusted_value IS NOT NULL)
             """
         ).fetchone()
 
-        # Allow some flexibility - not all rows need provenance
-        # This is more of an informational check
-        if row[0] > 0:
-            pytest.skip(f"Found {row[0]} benchmark rows without provenance='benchmark'")
+        assert row[0] == 0, f"Found {row[0]} rows with non-NULL value_2 or adjusted_value"
 
 
 # =============================================================================
@@ -424,11 +407,11 @@ class TestBenchmarkIntegration:
         # Simple query to fetch some benchmark data
         rows = db_connection.execute(
             """
-            SELECT i.name, i.system, COUNT(iv.date) as row_count
+            SELECT i.indicator_name, i.system, COUNT(t.date) as row_count
             FROM indicators i
-            LEFT JOIN indicator_values iv ON i.name = iv.indicator_name
+            LEFT JOIN timeseries t ON i.id = t.indicator_id
             WHERE i.system = 'benchmark'
-            GROUP BY i.name
+            GROUP BY i.indicator_name
             LIMIT 5
             """
         ).fetchall()
@@ -436,7 +419,7 @@ class TestBenchmarkIntegration:
         assert len(rows) > 0, "No benchmark data found in query"
 
         for row in rows:
-            assert row[0] is not None, "NULL indicator name in query results"
+            assert row[0] is not None, "NULL indicator_name in query results"
             assert row[1] == "benchmark", f"Wrong system: {row[1]}"
             assert row[2] > 0, f"No data for indicator: {row[0]}"
 
