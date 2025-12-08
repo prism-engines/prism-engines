@@ -37,12 +37,15 @@ from datetime import datetime
 import pandas as pd
 
 from output_config import OUTPUT_DIR, DATA_DIR
-from data.sql.db_path import get_db_path
-
-DB_PATH = get_db_path()
+from data.sql.db_path import get_db_path, get_db_info
 
 # Track if schema has been ensured this session
 _schema_ensured = False
+
+
+def _get_db_path():
+    """Get DB path dynamically (supports --db override)."""
+    return get_db_path()
 
 
 # =============================================================================
@@ -137,14 +140,15 @@ CREATE INDEX IF NOT EXISTS idx_consensus_date ON consensus_history(date);
 
 def extend_schema():
     """Add new tables to existing database."""
-    
+
     print("=" * 60)
     print("🔧 PRISM SQL SCHEMA EXTENSION")
     print("=" * 60)
-    
-    print(f"\n📁 Database: {DB_PATH}")
-    
-    conn = sqlite3.connect(DB_PATH)
+
+    db_path = _get_db_path()
+    print(f"\n📁 Database: {db_path}")
+
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     # Execute schema extension
@@ -186,7 +190,7 @@ def ensure_schema(verbose: bool = False):
     if _schema_ensured:
         return
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_get_db_path())
     cursor = conn.cursor()
 
     for statement in SCHEMA_EXTENSION.split(';'):
@@ -208,7 +212,7 @@ def ensure_schema(verbose: bool = False):
 
 def table_exists(table_name: str) -> bool:
     """Check if a table exists in the database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_get_db_path())
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -226,7 +230,7 @@ def get_table_row_count(table_name: str) -> int:
     if not table_exists(table_name):
         return 0
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_get_db_path())
     cursor = conn.cursor()
 
     try:
@@ -264,7 +268,7 @@ class PrismDB:
     """
     
     def __init__(self, db_path: Path = None, auto_migrate: bool = True):
-        self.db_path = db_path or DB_PATH
+        self.db_path = db_path or _get_db_path()
         if auto_migrate:
             ensure_schema()
 

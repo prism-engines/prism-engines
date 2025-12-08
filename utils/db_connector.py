@@ -51,8 +51,7 @@ import pandas as pd
 
 _logger = logging.getLogger(__name__)
 
-# Default paths
-_default_db_path = Path(__file__).parent.parent / "data" / "sql" / "prism.db"
+# Migrations directory
 _migrations_dir = Path(__file__).parent.parent / "data" / "sql" / "migrations"
 
 # ISO date format regex
@@ -65,15 +64,14 @@ _ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 def get_db_path() -> Path:
     """
-    Get the database path from environment variable or use default.
+    Get the database path using centralized resolver.
 
     Returns:
         Path to the SQLite database file
     """
-    env_path = os.environ.get("PRISM_DB")
-    if env_path:
-        return Path(env_path)
-    return _default_db_path
+    # Use centralized DB path resolution
+    from data.sql.db_path import get_db_path as _get_db_path
+    return Path(_get_db_path())
 
 
 @contextmanager
