@@ -41,6 +41,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
+from engine.utils.parallel import run_parallel, should_use_parallel, get_optimal_workers
+
 
 Frequency = Literal["D", "W", "M"]
 
@@ -79,6 +81,10 @@ class TemporalConfig:
 
     systems: Optional[Sequence[str]] = None     # e.g. ["finance"], ["climate"], ["finance", "climate"]
     indicators: Optional[Sequence[str]] = None  # specific indicator IDs (optional)
+
+    # Parallelization settings
+    use_parallel: bool = True                   # Enable parallel window processing
+    max_workers: Optional[int] = None           # Max parallel workers (None = auto)
 
 
 @dataclass
@@ -142,6 +148,8 @@ def build_temporal_config(
     systems: Optional[Sequence[str]] = None,
     indicators: Optional[Sequence[str]] = None,
     frequency: Optional[Frequency] = None,
+    use_parallel: bool = True,
+    max_workers: Optional[int] = None,
 ) -> TemporalConfig:
     """
     Construct a TemporalConfig from a profile and overrides.
@@ -158,6 +166,8 @@ def build_temporal_config(
         systems: Filter by system IDs (e.g., ['finance', 'climate'])
         indicators: Filter by specific indicator IDs
         frequency: Override output frequency
+        use_parallel: Enable parallel window processing (default: True)
+        max_workers: Maximum parallel workers (None = auto-detect)
 
     Returns:
         TemporalConfig ready for use with run_* functions
@@ -188,6 +198,8 @@ def build_temporal_config(
         frequency=frequency if frequency is not None else base.frequency,
         systems=tuple(systems) if systems is not None else None,
         indicators=tuple(indicators) if indicators is not None else None,
+        use_parallel=use_parallel,
+        max_workers=max_workers,
     )
     return cfg
 
@@ -197,29 +209,57 @@ def build_temporal_config(
 # ---------------------------------------------------------------------
 
 
-def _get_temporal_engine(panel: pd.DataFrame, lenses: Sequence[str]):
+def _get_temporal_engine(
+    panel: pd.DataFrame,
+    lenses: Sequence[str],
+    use_parallel: bool = True,
+    max_workers: Optional[int] = None,
+):
     """
     Get the existing TemporalEngine from engine_core.orchestration.
 
     Falls back to a minimal implementation if the import fails.
+
+    Args:
+        panel: Data panel for analysis.
+        lenses: List of lens IDs to use.
+        use_parallel: Enable parallel window processing.
+        max_workers: Maximum parallel workers (None = auto).
+
+    Returns:
+        TemporalEngine instance.
     """
     try:
         from engine_core.orchestration.temporal_analysis import TemporalEngine
         return TemporalEngine(panel, lenses=list(lenses))
     except ImportError:
-        # Minimal fallback implementation
-        return _MinimalTemporalEngine(panel, lenses=list(lenses))
+        # Minimal fallback implementation with parallel support
+        return _MinimalTemporalEngine(
+            panel,
+            lenses=list(lenses),
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+        )
 
 
 class _MinimalTemporalEngine:
     """
     Minimal temporal engine for when engine_core is not available.
     Uses basic rolling window analysis without lens dependencies.
+    Supports parallel processing for improved performance.
     """
 
-    def __init__(self, panel: pd.DataFrame, lenses: List[str] = None):
+    def __init__(
+        self,
+        panel: pd.DataFrame,
+        lenses: List[str] = None,
+        use_parallel: bool = True,
+        max_workers: Optional[int] = None,
+    ):
         self.panel = panel.copy()
         self.lenses = lenses or ['magnitude', 'pca', 'influence']
+        self.use_parallel = use_parallel
+        self.max_workers = max_workers
 
     def run_rolling_analysis(
         self,
@@ -228,7 +268,23 @@ class _MinimalTemporalEngine:
         min_window_pct: float = 0.8,
         progress_callback=None
     ) -> Dict[str, Any]:
-        """Run basic rolling analysis."""
+        """
+        Run basic rolling analysis.
+
+        Uses parallel processing when:
+        - use_parallel is True
+        - System has sufficient resources
+        - Number of windows exceeds threshold
+
+        Args:
+            window_days: Size of rolling window in days.
+            step_days: Step size between windows in days.
+            min_window_pct: Minimum fraction of window that must have data.
+            progress_callback: Optional callback(completed, total) for progress.
+
+        Returns:
+            Dict with timestamps, rankings, importance, and metadata.
+        """
         panel = self.panel.copy()
 
         if not isinstance(panel.index, pd.DatetimeIndex):
@@ -246,31 +302,117 @@ class _MinimalTemporalEngine:
         if window_ends and window_ends[-1] != total_rows - 1:
             window_ends.append(total_rows - 1)
 
+        # Decide whether to use parallel execution
+        n_windows = len(window_ends)
+        use_parallel_exec = (
+            self.use_parallel
+            and should_use_parallel(n_windows, self.max_workers)
+        )
+
+        if use_parallel_exec:
+            return self._run_parallel_windows(
+                panel, window_ends, window_days, min_window_size, progress_callback
+            )
+        else:
+            return self._run_serial_windows(
+                panel, window_ends, window_days, min_window_size, progress_callback
+            )
+
+    def _run_serial_windows(
+        self,
+        panel: pd.DataFrame,
+        window_ends: List[int],
+        window_days: int,
+        min_window_size: int,
+        progress_callback=None
+    ) -> Dict[str, Any]:
+        """Run window analysis serially."""
         timestamps = []
         all_rankings = {col: [] for col in panel.columns}
         all_importance = {col: [] for col in panel.columns}
 
         for i, end_idx in enumerate(window_ends):
-            start_idx = max(0, end_idx - window_days)
-            window_data = panel.iloc[start_idx:end_idx].dropna()
+            result = _process_single_window(
+                panel, end_idx, window_days, min_window_size
+            )
 
-            if len(window_data) < min_window_size:
-                continue
-
-            timestamps.append(panel.index[end_idx])
-
-            # Basic importance: variance-based ranking
-            variance = window_data.var()
-            normalized = (variance - variance.min()) / (variance.max() - variance.min() + 1e-10)
-            ranks = normalized.rank(ascending=False)
-
-            for col in panel.columns:
-                all_rankings[col].append(ranks.get(col, np.nan))
-                all_importance[col].append(normalized.get(col, np.nan))
+            if result is not None:
+                timestamps.append(result['timestamp'])
+                for col in panel.columns:
+                    all_rankings[col].append(result['ranks'].get(col, np.nan))
+                    all_importance[col].append(result['importance'].get(col, np.nan))
 
             if progress_callback:
                 progress_callback(i + 1, len(window_ends))
 
+        return self._build_result(
+            timestamps, all_rankings, all_importance, panel,
+            window_days, len(window_ends) // max(1, len(timestamps) or 1) * len(timestamps)
+        )
+
+    def _run_parallel_windows(
+        self,
+        panel: pd.DataFrame,
+        window_ends: List[int],
+        window_days: int,
+        min_window_size: int,
+        progress_callback=None
+    ) -> Dict[str, Any]:
+        """
+        Run window analysis in parallel.
+
+        Note: Progress callback is not called during parallel execution
+        to avoid multiprocessing complications.
+        """
+        # Prepare window specs for parallel processing
+        window_specs = [
+            (end_idx, window_days, min_window_size)
+            for end_idx in window_ends
+        ]
+
+        # Create a picklable processor function using panel data
+        # We need to use a module-level function for multiprocessing
+        processor = _WindowProcessor(panel)
+
+        # Run in parallel
+        results = run_parallel(
+            processor,
+            window_specs,
+            max_workers=self.max_workers,
+            force_serial=False
+        )
+
+        # Aggregate results (maintaining order)
+        timestamps = []
+        all_rankings = {col: [] for col in panel.columns}
+        all_importance = {col: [] for col in panel.columns}
+
+        for result in results:
+            if result is not None:
+                timestamps.append(result['timestamp'])
+                for col in panel.columns:
+                    all_rankings[col].append(result['ranks'].get(col, np.nan))
+                    all_importance[col].append(result['importance'].get(col, np.nan))
+
+        # Call progress callback with final count
+        if progress_callback:
+            progress_callback(len(window_ends), len(window_ends))
+
+        return self._build_result(
+            timestamps, all_rankings, all_importance, panel,
+            window_days, len(window_ends)
+        )
+
+    def _build_result(
+        self,
+        timestamps: List,
+        all_rankings: Dict,
+        all_importance: Dict,
+        panel: pd.DataFrame,
+        window_days: int,
+        step_days: int,
+    ) -> Dict[str, Any]:
+        """Build the result dictionary."""
         return {
             'timestamps': timestamps,
             'rankings': all_rankings,
@@ -282,8 +424,68 @@ class _MinimalTemporalEngine:
                 'date_range': (timestamps[0], timestamps[-1]) if timestamps else None,
                 'indicators': list(panel.columns),
                 'lenses_used': self.lenses,
+                'parallel_enabled': self.use_parallel,
+                'workers': get_optimal_workers(self.max_workers) if self.use_parallel else 1,
             }
         }
+
+
+class _WindowProcessor:
+    """
+    Callable class for processing windows in parallel.
+
+    This is a class instead of a function to allow pickling
+    with the panel data.
+    """
+
+    def __init__(self, panel: pd.DataFrame):
+        self.panel = panel
+
+    def __call__(self, window_spec: Tuple[int, int, int]) -> Optional[Dict[str, Any]]:
+        end_idx, window_days, min_window_size = window_spec
+        return _process_single_window(
+            self.panel, end_idx, window_days, min_window_size
+        )
+
+
+def _process_single_window(
+    panel: pd.DataFrame,
+    end_idx: int,
+    window_days: int,
+    min_window_size: int,
+) -> Optional[Dict[str, Any]]:
+    """
+    Process a single rolling window.
+
+    This is a module-level function to support multiprocessing.
+
+    Args:
+        panel: The data panel.
+        end_idx: End index of the window.
+        window_days: Window size in days.
+        min_window_size: Minimum required data points.
+
+    Returns:
+        Dict with timestamp, ranks, and importance, or None if insufficient data.
+    """
+    start_idx = max(0, end_idx - window_days)
+    window_data = panel.iloc[start_idx:end_idx].dropna()
+
+    if len(window_data) < min_window_size:
+        return None
+
+    timestamp = panel.index[end_idx]
+
+    # Basic importance: variance-based ranking
+    variance = window_data.var()
+    normalized = (variance - variance.min()) / (variance.max() - variance.min() + 1e-10)
+    ranks = normalized.rank(ascending=False)
+
+    return {
+        'timestamp': timestamp,
+        'ranks': ranks.to_dict(),
+        'importance': normalized.to_dict(),
+    }
 
 
 def run_temporal_analysis_from_panel(
@@ -330,8 +532,13 @@ def run_temporal_analysis_from_panel(
     primary_window_months = config.window_months[0] if config.window_months else 12
     window_days = int(primary_window_months * 21)
 
-    # Get temporal engine
-    temporal = _get_temporal_engine(filtered_panel, config.lenses)
+    # Get temporal engine with parallel configuration
+    temporal = _get_temporal_engine(
+        filtered_panel,
+        config.lenses,
+        use_parallel=config.use_parallel,
+        max_workers=config.max_workers,
+    )
 
     # Run rolling analysis
     results = temporal.run_rolling_analysis(
@@ -368,15 +575,20 @@ def run_temporal_analysis_from_panel(
 
     scores = pd.DataFrame(score_data, index=pd.DatetimeIndex(timestamps))
 
+    # Extract parallel metadata from results
+    result_metadata = results.get('metadata', {})
+
     metadata: Dict[str, object] = {
         "n_dates": len(timestamps),
         "n_indicators": filtered_panel.shape[1],
-        "n_windows": results.get('metadata', {}).get('n_windows', len(timestamps)),
+        "n_windows": result_metadata.get('n_windows', len(timestamps)),
         "profile": config.profile_name,
         "lenses_used": list(config.lenses),
         "step_months": config.step_months,
         "window_months": list(config.window_months),
         "elapsed_seconds": elapsed,
+        "parallel_enabled": result_metadata.get('parallel_enabled', config.use_parallel),
+        "workers": result_metadata.get('workers', 1),
     }
 
     if timestamps:
