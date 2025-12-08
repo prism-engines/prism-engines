@@ -43,12 +43,12 @@ def load_system_registry() -> dict:
         FileNotFoundError: If system_registry.json does not exist
         json.JSONDecodeError: If registry is invalid JSON
     """
-    registry_path = _get_project_root() / "data_fetch" / "system_registry.json"
+    registry_path = _get_project_root() / "data" / "registry" / "system_registry.json"
 
     if not registry_path.exists():
         raise FileNotFoundError(
             f"System registry not found at {registry_path}. "
-            "Please ensure data_fetch/system_registry.json exists."
+            "Please ensure data/registry/system_registry.json exists."
         )
 
     with open(registry_path, "r") as f:

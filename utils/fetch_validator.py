@@ -673,7 +673,7 @@ def validate_system_registry(registry_path: Optional[Path] = None) -> List[str]:
     errors = []
 
     if registry_path is None:
-        registry_path = _get_project_root() / "data_fetch" / "system_registry.json"
+        registry_path = _get_project_root() / "data" / "registry" / "system_registry.json"
 
     data, error = _load_json(registry_path)
     if error:
@@ -790,7 +790,7 @@ def validate_market_registry(registry_path: Optional[Path] = None) -> List[str]:
     errors = []
 
     if registry_path is None:
-        registry_path = _get_project_root() / "data_fetch" / "market_registry.json"
+        registry_path = _get_project_root() / "data" / "registry" / "market_registry.json"
 
     data, error = _load_json(registry_path)
     if error:
@@ -898,7 +898,7 @@ def validate_economic_registry(registry_path: Optional[Path] = None) -> List[str
     errors = []
 
     if registry_path is None:
-        registry_path = _get_project_root() / "data_fetch" / "economic_registry.json"
+        registry_path = _get_project_root() / "data" / "registry" / "economic_registry.json"
 
     data, error = _load_json(registry_path)
     if error:
@@ -964,9 +964,9 @@ def load_validated_registry(registry_type: str) -> dict:
         FileNotFoundError: If registry file doesn't exist
     """
     registry_paths = {
-        "system": _get_project_root() / "data_fetch" / "system_registry.json",
-        "market": _get_project_root() / "data_fetch" / "market_registry.json",
-        "economic": _get_project_root() / "data_fetch" / "economic_registry.json"
+        "system": _get_project_root() / "data" / "registry" / "system_registry.json",
+        "market": _get_project_root() / "data" / "registry" / "market_registry.json",
+        "economic": _get_project_root() / "data" / "registry" / "economic_registry.json"
     }
 
     if registry_type not in registry_paths:
