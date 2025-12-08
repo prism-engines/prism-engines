@@ -584,21 +584,218 @@ def fetch_prism_data(
 
 
 if __name__ == '__main__':
-    print("""
-    PRISM UNIFIED FETCHER - Fixed Version
-    =====================================
+    import argparse
+    import sys
 
-    Uses the RIGHT source for each data type:
-    - FRED: Economic data (GDP, employment, inflation, rates)
-    - Tiingo: Market data (ETFs, sectors, crypto)
+    # Add project root to path
+    PROJECT_ROOT = Path(__file__).parent.parent
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
 
-    Usage:
-        fetcher = PRISMFetcher()
-        economy_df = fetcher.fetch_panel('economy')  # FRED
-        market_df = fetcher.fetch_panel('market')    # Tiingo
-    """)
+    parser = argparse.ArgumentParser(
+        description='PRISM Unified Fetcher - Fetch economic (FRED) and market (Tiingo) data',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python fetcher_unified.py --fetch all
+    python fetcher_unified.py --fetch economy
+    python fetcher_unified.py --fetch market
+    python fetcher_unified.py --fetch economy market
+    python fetcher_unified.py --fetch all --start-date 2010-01-01
+    python fetcher_unified.py --list
+    python fetcher_unified.py --list --panel economy
 
-    # Show indicator inventory
-    df = PRISMFetcher.list_indicators()
-    print("\nIndicator inventory:")
-    print(df.groupby(['panel', 'source']).size())
+Panels:
+    economy  - FRED macroeconomic data (GDP, employment, inflation)
+    global   - FRED global data (commodities, currencies, trade)
+    credit   - FRED credit/financial stress (spreads, VIX, debt)
+    market   - Tiingo market data (ETFs, sectors, bonds, crypto)
+    all      - All panels
+        """
+    )
+
+    parser.add_argument(
+        '--fetch', '-f',
+        nargs='+',
+        metavar='PANEL',
+        help='Panels to fetch: economy, global, credit, market, or all'
+    )
+    parser.add_argument(
+        '--start-date', '-s',
+        type=str,
+        default='2000-01-01',
+        help='Start date (YYYY-MM-DD, default: 2000-01-01)'
+    )
+    parser.add_argument(
+        '--end-date', '-e',
+        type=str,
+        default=None,
+        help='End date (YYYY-MM-DD, default: today)'
+    )
+    parser.add_argument(
+        '--list', '-l',
+        action='store_true',
+        help='List available indicators'
+    )
+    parser.add_argument(
+        '--panel', '-p',
+        type=str,
+        help='Filter --list to specific panel'
+    )
+    parser.add_argument(
+        '--dry-run', '-n',
+        action='store_true',
+        help='Show what would be fetched without actually fetching'
+    )
+    parser.add_argument(
+        '--no-save',
+        action='store_true',
+        help='Fetch data but do not save to database'
+    )
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Verbose output'
+    )
+
+    args = parser.parse_args()
+
+    # Configure logging
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%H:%M:%S'
+    )
+
+    # List mode
+    if args.list:
+        df = PRISMFetcher.list_indicators(panel=args.panel)
+        print("\n" + "="*70)
+        print("PRISM INDICATOR INVENTORY")
+        print("="*70)
+
+        if args.panel:
+            print(f"\nPanel: {args.panel}")
+        else:
+            print("\nAll panels:")
+
+        # Summary by panel
+        print("\nBy Panel:")
+        for (panel, source), group in df.groupby(['panel', 'source']):
+            print(f"  {panel:12s} ({source:6s}): {len(group):3d} indicators")
+
+        print("\nIndicators:")
+        print("-"*70)
+        for _, row in df.iterrows():
+            print(f"  {row['key']:20s} {row['symbol']:12s} {row['description'][:35]}")
+
+        print(f"\nTotal: {len(df)} indicators")
+        sys.exit(0)
+
+    # Fetch mode
+    if args.fetch:
+        panels_to_fetch = args.fetch
+
+        # Expand 'all'
+        if 'all' in panels_to_fetch:
+            panels_to_fetch = list(FRED_INDICATORS.keys()) + list(MARKET_INDICATORS.keys())
+
+        # Validate panels
+        valid_panels = set(FRED_INDICATORS.keys()) | set(MARKET_INDICATORS.keys())
+        for p in panels_to_fetch:
+            if p not in valid_panels and p != 'all':
+                print(f"ERROR: Unknown panel '{p}'")
+                print(f"Valid panels: {', '.join(valid_panels)}")
+                sys.exit(1)
+
+        # Dry run
+        if args.dry_run:
+            print("\n" + "="*60)
+            print("DRY RUN - Would fetch:")
+            print("="*60)
+            for panel in panels_to_fetch:
+                if panel in FRED_INDICATORS:
+                    config = FRED_INDICATORS[panel]
+                    source = 'FRED'
+                else:
+                    config = MARKET_INDICATORS[panel]
+                    source = 'Tiingo'
+
+                print(f"\n{config['icon']} {panel.upper()} ({source}):")
+                for key, (symbol, desc, cat, freq) in config['indicators'].items():
+                    print(f"    {key:20s} -> {symbol}")
+
+            print(f"\nDate range: {args.start_date} to {args.end_date or 'today'}")
+            print("\nRun without --dry-run to actually fetch.")
+            sys.exit(0)
+
+        # Actually fetch
+        print("\n" + "="*60)
+        print("PRISM UNIFIED FETCHER")
+        print("="*60)
+        print(f"Date range: {args.start_date} to {args.end_date or 'today'}")
+        print(f"Panels: {', '.join(panels_to_fetch)}")
+        print(f"Save to DB: {not args.no_save}")
+        print("="*60)
+
+        fetcher = PRISMFetcher(
+            start_date=args.start_date,
+            end_date=args.end_date
+        )
+
+        # Fetch each panel
+        for panel in panels_to_fetch:
+            try:
+                fetcher.fetch_panel(panel, verbose=True)
+            except Exception as e:
+                logger.error(f"Failed to fetch {panel}: {e}")
+
+        # Save to database
+        if not args.no_save and fetcher.data:
+            print("\n" + "="*60)
+            print("SAVING TO DATABASE")
+            print("="*60)
+
+            from data.sql.db_path import get_db_path
+            from data.sql.db_connector import init_database
+
+            db_path = get_db_path()
+            print(f"Database: {db_path}")
+
+            # Ensure DB is initialized
+            init_database()
+
+            # Save data
+            save_results = fetcher.save_to_db(verbose=args.verbose)
+
+            total_rows = sum(save_results.values())
+            print(f"\nTotal: {len(save_results)} indicators, {total_rows:,} rows saved")
+
+            # Log to fetch_log
+            try:
+                from data.sql.db_connector import log_fetch
+                for indicator_name, rows in save_results.items():
+                    meta = fetcher.metadata.get(indicator_name, {})
+                    log_fetch(
+                        indicator_name=indicator_name,
+                        source=meta.get('source', 'unknown'),
+                        rows_fetched=rows,
+                        status='success'
+                    )
+            except Exception as e:
+                logger.warning(f"Could not log fetch: {e}")
+
+        # Print summary
+        fetcher._print_summary()
+
+        print("\n✅ Fetch complete!")
+        sys.exit(0)
+
+    # No action specified
+    parser.print_help()
+    print("\n" + "="*60)
+    print("Quick Start:")
+    print("  python fetcher_unified.py --fetch all")
+    print("  python fetcher_unified.py --list")
+    print("="*60)
