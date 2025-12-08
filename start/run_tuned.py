@@ -178,9 +178,19 @@ LENS_FUNCTIONS = {
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    """Load panel using unified indicator_values table."""
-    from data.sql.db_connector import load_all_indicators_wide
+    """Load panel using central runtime loader."""
+    from panel.runtime_loader import load_calibrated_panel
 
+    try:
+        panel = load_calibrated_panel()
+        if not panel.empty:
+            return panel
+    except Exception as e:
+        import warnings
+        warnings.warn(f"Central loader failed: {e}", RuntimeWarning)
+
+    # Fallback to direct db_connector call
+    from data.sql.db_connector import load_all_indicators_wide
     panel = load_all_indicators_wide()
 
     if panel.empty:
@@ -189,10 +199,6 @@ def load_panel() -> pd.DataFrame:
             "indicator_values table is empty. Data may need migration.",
             DeprecationWarning
         )
-        return pd.DataFrame()
-
-    panel.index = pd.to_datetime(panel.index)
-    panel = panel.sort_index()
 
     return panel
 

@@ -55,23 +55,26 @@ CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
 # =============================================================================
 
 def load_panel() -> pd.DataFrame:
-    """Load the master panel from unified indicator_values table."""
-    from data.sql.db_connector import load_all_indicators_wide
+    """Load the master panel using central runtime loader."""
+    from panel.runtime_loader import load_calibrated_panel
+    from datetime import datetime, timedelta
 
-    # Use unified loader (falls back to legacy tables if needed)
-    panel = load_all_indicators_wide()
+    try:
+        # Load last 15 years
+        end_date = datetime.today().strftime('%Y-%m-%d')
+        start_date = (datetime.today() - timedelta(days=15*365)).strftime('%Y-%m-%d')
 
-    if panel.empty:
-        print("⚠️ No data found in database")
-        return pd.DataFrame()
+        panel = load_calibrated_panel(start_date=start_date, end_date=end_date)
 
-    # Last 15 years
-    cutoff = panel.index.max() - pd.Timedelta(days=15*365)
-    panel = panel.loc[cutoff:]
+        if not panel.empty:
+            print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
+            return panel
 
-    print(f"📥 Loaded panel: {panel.shape[0]} days × {panel.shape[1]} indicators")
+    except Exception as e:
+        print(f"⚠️ Central loader failed: {e}")
 
-    return panel
+    print("⚠️ No data found in database")
+    return pd.DataFrame()
 
 
 def load_consensus_events() -> pd.DataFrame:

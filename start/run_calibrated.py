@@ -249,84 +249,36 @@ LENS_FUNCTIONS = {
 
 def load_panel() -> pd.DataFrame:
     """
-    Load panel data from database with multiple fallback strategies.
+    Load panel data using central runtime loader with fallback.
 
-    Fallback order:
-    1. Try indicator_values table (Schema v2)
-    2. Try market_prices + econ_values tables (legacy schema)
-    3. Generate synthetic fallback data with warning
+    Uses panel.runtime_loader.load_calibrated_panel() as primary source,
+    with synthetic fallback if data is unavailable.
 
     Returns:
         DataFrame with date index and indicator columns
     """
-    from data.sql.db_path import get_db_path, get_db_info
+    from datetime import timedelta
 
-    db_path = get_db_path()
-    db_info = get_db_info()
-
-    if not db_info['is_valid']:
-        logger.warning("⚠️  Database not found or empty, using synthetic fallback data")
-        return _generate_synthetic_panel()
-
-    conn = sqlite3.connect(db_path)
-
-    # Try Schema v2 first (indicator_values)
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='indicator_values'")
-        if cursor.fetchone():
-            df = pd.read_sql("""
-                SELECT date, indicator_name, value
-                FROM indicator_values
-                WHERE value IS NOT NULL
-            """, conn)
-            if not df.empty:
-                panel = df.pivot(index='date', columns='indicator_name', values='value')
-                panel.index = pd.to_datetime(panel.index)
-                panel = panel.sort_index()
-                if len(panel) > 0 and len(panel.columns) >= MIN_CALIBRATION_INDICATORS:
-                    cutoff = panel.index.max() - pd.Timedelta(days=5*365)
-                    conn.close()
-                    return panel.loc[cutoff:]
+        from panel.runtime_loader import load_calibrated_panel
+
+        # Get last 5 years of data
+        end_date = datetime.today().strftime('%Y-%m-%d')
+        start_date = (datetime.today() - timedelta(days=5*365)).strftime('%Y-%m-%d')
+
+        panel = load_calibrated_panel(start_date=start_date, end_date=end_date)
+
+        if not panel.empty and len(panel.columns) >= MIN_CALIBRATION_INDICATORS:
+            logger.info(f"Loaded {len(panel.columns)} indicators from database")
+            return panel
+
+        logger.warning(f"Panel has {len(panel.columns)} indicators, need {MIN_CALIBRATION_INDICATORS}")
+
     except Exception as e:
-        logger.debug(f"indicator_values query failed: {e}")
+        logger.debug(f"Central loader failed: {e}")
 
-    # Fallback to legacy tables
-    try:
-        market = pd.read_sql("""
-            SELECT date, ticker, value
-            FROM market_prices
-            WHERE value IS NOT NULL
-        """, conn)
-
-        econ = pd.read_sql("""
-            SELECT date, series_id, value
-            FROM econ_values
-            WHERE value IS NOT NULL
-        """, conn)
-
-        conn.close()
-
-        market_wide = market.pivot(index='date', columns='ticker', values='value') if not market.empty else pd.DataFrame()
-        econ_wide = econ.pivot(index='date', columns='series_id', values='value') if not econ.empty else pd.DataFrame()
-
-        if not market_wide.empty or not econ_wide.empty:
-            panel = pd.concat([market_wide, econ_wide], axis=1)
-            panel.index = pd.to_datetime(panel.index)
-            panel = panel.sort_index()
-
-            if len(panel) > 0 and len(panel.columns) >= MIN_CALIBRATION_INDICATORS:
-                cutoff = panel.index.max() - pd.Timedelta(days=5*365)
-                return panel.loc[cutoff:]
-    except Exception as e:
-        logger.debug(f"Legacy table query failed: {e}")
-        try:
-            conn.close()
-        except:
-            pass
-
-    # Final fallback: synthetic data
-    logger.warning("⚠️  Insufficient data in database, using synthetic fallback")
+    # Fallback to synthetic data
+    logger.warning("⚠️  Using synthetic fallback data")
     return _generate_synthetic_panel()
 
 
