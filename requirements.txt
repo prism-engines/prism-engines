@@ -3,15 +3,17 @@
 # ==============================================================================
 # Last updated: December 2025
 #
-# Install with: pip install -r requirements.txt
+# Install with:
+#     pip install -r requirements.txt
 #
 # For fresh install:
-#   python -m venv venv
-#   source venv/bin/activate  (Linux/Mac)
-#   venv\Scripts\activate     (Windows)
-#   pip install --upgrade pip
-#   pip install -r requirements.txt
+#     python -m venv venv
+#     source venv/bin/activate  (Mac/Linux)
+#     venv\Scripts\activate     (Windows)
+#     pip install --upgrade pip
+#     pip install -r requirements.txt
 # ==============================================================================
+
 
 # ------------------------------------------------------------------------------
 # CORE DATA SCIENCE
@@ -20,13 +22,24 @@ numpy>=1.24.0
 pandas>=2.0.0
 scipy>=1.10.0
 
+
 # ------------------------------------------------------------------------------
-# MACHINE LEARNING
+# MACHINE LEARNING & PATTERN DETECTION
 # ------------------------------------------------------------------------------
 scikit-learn>=1.3.0
 
-# Hidden Markov Models for regime detection
+# Hidden Markov Models (Regime Switching Lens)
 hmmlearn>=0.3.0
+
+# UMAP for dimensionality reduction (Consensus & Clustering Lens)
+umap-learn>=0.5.0
+
+# TSFresh for automated feature extraction (Temporal Engine, Phase 8+)
+tsfresh>=0.20.0
+
+# numba for accelerating heavy numerical loops
+numba>=0.57.0
+
 
 # ------------------------------------------------------------------------------
 # VISUALIZATION
@@ -34,93 +47,73 @@ hmmlearn>=0.3.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
+
 # ------------------------------------------------------------------------------
 # DATA FETCHING
 # ------------------------------------------------------------------------------
 # FRED (Federal Reserve Economic Data)
 fredapi>=0.5.0
 
-# Stock data (Stooq, Yahoo backup)
+# Market data (Yahoo + Stooq option)
 pandas-datareader>=0.10.0
 yfinance>=0.2.28
 
 # HTTP requests
 requests>=2.28.0
 
+
 # ------------------------------------------------------------------------------
 # DATABASE
 # ------------------------------------------------------------------------------
-# SQLite is built into Python, but we need SQLAlchemy for advanced features
+# SQLite comes with Python, but SQLAlchemy is needed for cross-platform API
 sqlalchemy>=2.0.0
 
-# ------------------------------------------------------------------------------
-# CONFIGURATION & UTILITIES
-# ------------------------------------------------------------------------------
-pyyaml>=6.0
-python-dotenv>=1.0.0
+# More reliable sqlite build for Mac/Linux (optional but recommended)
+pysqlite3-binary>=0.5.0
+
 
 # ------------------------------------------------------------------------------
-# STATISTICAL & FINANCIAL ANALYSIS
+# CONFIGURATION / IO UTILITIES
 # ------------------------------------------------------------------------------
-statsmodels>=0.14.0
+pyyaml>=6.0           # For registry and universal config loader
+python-dotenv>=1.0.0  # For secret management (.env files)
 
-# Arch models (GARCH, volatility modeling)
-arch>=6.0.0
-
-# ------------------------------------------------------------------------------
-# NETWORK ANALYSIS (for Network Lens)
-# ------------------------------------------------------------------------------
-networkx>=3.0
 
 # ------------------------------------------------------------------------------
-# TOPOLOGICAL DATA ANALYSIS (optional, for TDA Lens)
+# STATISTICAL / ECONOMETRIC ANALYSIS
 # ------------------------------------------------------------------------------
-# giotto-tda>=0.6.0  # Uncomment if you want full TDA support (large install)
+statsmodels>=0.14.0   # ADF, KPSS, PP tests, regression, etc.
+arch>=6.0.0           # GARCH, volatility modelling
+
 
 # ------------------------------------------------------------------------------
-# TIME SERIES (optional advanced)
+# SIGNAL PROCESSING & TRANSFORMS
 # ------------------------------------------------------------------------------
-# Prophet for forecasting (optional - large install)
-# prophet>=1.1.0
+PyWavelets>=1.4.1     # Wavelet transforms (Wavelet Lens)
+spectrum>=0.8.1       # Spectral density estimation
+ripser>=0.6.4         # Topological Data Analysis (TDA Lens)
+networkx>=3.1         # Influence networks (Network Lens)
+
 
 # ------------------------------------------------------------------------------
-# PROGRESS BARS (optional but nice)
+# PARALLEL COMPUTATION / PERFORMANCE
 # ------------------------------------------------------------------------------
-tqdm>=4.65.0
+tqdm>=4.65.0          # Progress bars
+dask>=2024.1.0        # Parallel compute backend (future)
+joblib>=1.3.0         # Parallelization utilities
+
 
 # ------------------------------------------------------------------------------
-# JUPYTER SUPPORT (optional for notebooks)
+# WEB / DASHBOARD (Phase 10+)
 # ------------------------------------------------------------------------------
-# jupyter>=1.0.0
-# jupyterlab>=4.0.0
-# ipywidgets>=8.0.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+jinja2>=3.1.0
+
 
 # ------------------------------------------------------------------------------
-# TESTING (optional for development)
+# TESTING / DEVELOPMENT
 # ------------------------------------------------------------------------------
-# pytest>=7.0.0
-# pytest-cov>=4.0.0
+pytest>=8.0.0
+pytest-mock>=3.12.0
 
-# ------------------------------------------------------------------------------
-# CODE QUALITY (optional for development)
-# ------------------------------------------------------------------------------
-# black>=23.0.0
-# flake8>=6.0.0
-# isort>=5.12.0
-
-# ==============================================================================
-# VERSION NOTES
-# ==============================================================================
-# 
-# scipy: Version 1.12+ removed cwt from scipy.signal - we don't use it
-# hmmlearn: Requires numpy<2.0 on some systems - if issues, pin numpy<2.0
-# giotto-tda: Large dependency, only needed for topological data analysis
-#
-# If you get conflicts, try:
-#   pip install --upgrade pip setuptools wheel
-#   pip install -r requirements.txt --no-cache-dir
-#
-# For Apple Silicon (M1/M2/M3) issues:
-#   pip install numpy --no-binary :all:
-#   or use conda instead of pip
-# ==============================================================================
