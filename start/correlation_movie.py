@@ -37,30 +37,19 @@ DB_PATH = DATA_DIR / "prism.db"
 
 
 def load_from_database():
-    """Load all data from database and merge into a single panel."""
-    conn = sqlite3.connect(DB_PATH)
-    
-    market_df = pd.read_sql("SELECT date, ticker, value FROM market_prices ORDER BY date", conn)
-    if not market_df.empty:
-        market_wide = market_df.pivot(index='date', columns='ticker', values='value')
-    else:
-        market_wide = pd.DataFrame()
-    
-    econ_df = pd.read_sql("SELECT date, series_id, value FROM econ_values ORDER BY date", conn)
-    if not econ_df.empty:
-        econ_wide = econ_df.pivot(index='date', columns='series_id', values='value')
-    else:
-        econ_wide = pd.DataFrame()
-    
-    conn.close()
-    
-    if not market_wide.empty and not econ_wide.empty:
-        panel = market_wide.join(econ_wide, how='outer')
-    elif not market_wide.empty:
-        panel = market_wide
-    else:
-        panel = econ_wide
-    
+    """Load all data from database using unified indicator_values table."""
+    from data.sql.db_connector import load_all_indicators_wide
+
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        import warnings
+        warnings.warn(
+            "indicator_values table is empty. Data may need migration.",
+            DeprecationWarning
+        )
+        return pd.DataFrame()
+
     panel.index = pd.to_datetime(panel.index)
     return panel.sort_index()
 

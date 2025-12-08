@@ -143,4 +143,17 @@ __all__ = [
     'validate_no_duplicate_dates',
     'remove_duplicate_dates',
     'validate_date_sequence',
-    'sort_by
+    'sort_by_date',
+    'validate_frequency',
+    'validate_numeric_columns',
+    'validate_no_future_dates',
+    'comprehensive_validate',
+    # Registry validation
+    'validate_all_registries',
+    'validate_system_registry',
+    'validate_market_registry',
+    'validate_economic_registry',
+    'load_validated_registry',
+    'get_enabled_tickers',
+    'registries_are_valid',
+]

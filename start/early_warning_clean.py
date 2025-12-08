@@ -47,17 +47,28 @@ def load_multiresolution():
 
 
 def load_spy_prices():
-    """Load SP500 prices from database."""
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("""
-        SELECT date, value 
-        FROM econ_values 
-        WHERE series_id = 'SP500'
-        ORDER BY date
-    """, conn)
-    conn.close()
+    """Load SP500 prices from database using unified indicator_values table."""
+    from data.sql.db_connector import load_indicator
+
+    df = load_indicator('SP500')
+
+    if df.empty:
+        # Try alternate names
+        for alt_name in ['sp500', 'sp500_d', 'SPY', 'spy']:
+            df = load_indicator(alt_name)
+            if not df.empty:
+                break
+
+    if df.empty:
+        import warnings
+        warnings.warn(
+            "SP500 indicator not found in indicator_values table.",
+            DeprecationWarning
+        )
+        return pd.DataFrame(columns=['date', 'value'])
+
     df['date'] = pd.to_datetime(df['date'])
-    return df
+    return df[['date', 'value']]
 
 
 def create_multi_panel_chart():

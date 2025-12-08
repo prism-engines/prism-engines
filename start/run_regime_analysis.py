@@ -33,48 +33,22 @@ sys.path.insert(0, str(PROJECT_ROOT))
 DB_PATH = get_db_path()
 
 def load_from_database():
-    """Load all data from database and merge into a single panel."""
-    conn = sqlite3.connect(DB_PATH)
-    
-    # Load market data (wide format: pivot ticker to columns)
-    market_df = pd.read_sql("""
-        SELECT date, ticker, value 
-        FROM market_prices 
-        ORDER BY date
-    """, conn)
-    
-    if not market_df.empty:
-        market_wide = market_df.pivot(index='date', columns='ticker', values='value')
-        market_wide.columns = [f"market_{c}" for c in market_wide.columns]
-    else:
-        market_wide = pd.DataFrame()
-    
-    # Load economic data (wide format: pivot series_id to columns)
-    econ_df = pd.read_sql("""
-        SELECT date, series_id, value 
-        FROM econ_values 
-        ORDER BY date
-    """, conn)
-    
-    if not econ_df.empty:
-        econ_wide = econ_df.pivot(index='date', columns='series_id', values='value')
-        econ_wide.columns = [f"econ_{c}" for c in econ_wide.columns]
-    else:
-        econ_wide = pd.DataFrame()
-    
-    conn.close()
-    
-    # Merge on date
-    if not market_wide.empty and not econ_wide.empty:
-        panel = market_wide.join(econ_wide, how='outer')
-    elif not market_wide.empty:
-        panel = market_wide
-    else:
-        panel = econ_wide
-    
+    """Load all data from database using unified indicator_values table."""
+    from data.sql.db_connector import load_all_indicators_wide
+
+    panel = load_all_indicators_wide()
+
+    if panel.empty:
+        import warnings
+        warnings.warn(
+            "indicator_values table is empty. Data may need migration.",
+            DeprecationWarning
+        )
+        return pd.DataFrame()
+
     panel.index = pd.to_datetime(panel.index)
     panel = panel.sort_index()
-    
+
     return panel
 
 
