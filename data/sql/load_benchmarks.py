@@ -75,9 +75,9 @@ def _create_benchmark_indicator(
 
     conn.execute(
         """
-        INSERT INTO indicators (name, system, frequency, source, description, metadata)
+        INSERT INTO indicators (indicator_name, system, frequency, source, description, metadata)
         VALUES (?, 'benchmark', 'daily', 'BENCHMARK', ?, ?)
-        ON CONFLICT(name) DO UPDATE SET
+        ON CONFLICT(indicator_name) DO UPDATE SET
             system = 'benchmark',
             frequency = 'daily',
             source = 'BENCHMARK',
@@ -300,9 +300,9 @@ def clear_benchmarks(verbose: bool = True) -> Dict[str, int]:
         "rows_deleted": 0,
     }
 
-    # Get list of benchmark indicators (Schema v2: 'name' column, not 'indicator_name')
+    # Get list of benchmark indicators
     rows = conn.execute(
-        "SELECT name FROM indicators WHERE system = 'benchmark'"
+        "SELECT indicator_name FROM indicators WHERE system = 'benchmark'"
     ).fetchall()
 
     if not rows:
