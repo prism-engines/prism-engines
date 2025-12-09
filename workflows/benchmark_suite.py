@@ -240,26 +240,35 @@ def run_lenses_on_data(df: pd.DataFrame, lenses: List[str], verbose: bool = Fals
     Returns:
         Dictionary with lens results and rankings
     """
-    from engine_core import get_lens
+    from engine_core.lenses import get_lens
 
     results = {}
 
     for lens_name in lenses:
         try:
+            # get_lens() returns an instantiated lens from auto-discovery registry
             lens = get_lens(lens_name)
+
+            # Run analysis
             analysis = lens.analyze(df)
             ranking = lens.rank_indicators(df)
 
             results[lens_name] = {
                 "analysis": analysis,
-                "ranking": ranking.to_dict("records") if isinstance(ranking, pd.DataFrame) else ranking,
+                "ranking": (
+                    ranking.to_dict("records")
+                    if hasattr(ranking, "to_dict")
+                    else ranking
+                ),
                 "success": True,
             }
+
         except Exception as e:
             if verbose:
                 import traceback
                 print(f"    [ERROR] Lens '{lens_name}' failed: {e}")
                 traceback.print_exc()
+
             results[lens_name] = {
                 "analysis": {},
                 "ranking": [],
