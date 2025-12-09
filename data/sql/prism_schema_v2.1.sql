@@ -1,139 +1,130 @@
--- ============================================================================
--- PRISM Database Schema v2.1 (Canonical)
--- ============================================================================
+-- =============================================================================
+-- PRISM Database Schema v2.1 (Consolidated Canonical)
+-- =============================================================================
 --
--- This is the official, consolidated schema for PRISM Engine.
+-- Changes from v2.0:
+--   - Added: fred_code, category columns to indicators
+--   - Added: system_name to systems table
+--   - Merged: calibration_* and analysis_* tables (formerly in sql_schema_extension.py)
+--   - Retained: timeseries as VIEW (not table) for backward compatibility
 --
--- Key design decisions:
---   - `indicators.name` is the human-readable identifier (NOT indicator_name)
---   - `indicator_values.indicator_name` references `indicators.name`
---   - `timeseries` remains a VIEW for backward compatibility
---   - Calibration and analysis tables merged into main schema
---   - `fred_code` and `category` added to indicators
---   - `system_name` added to systems
+-- Architecture:
+--   `indicator_values` is the single source of truth for all time series data.
+--   All domains (market, economic, climate, etc.) use the same tables.
+--   Legacy tables (market_prices, econ_values) retained for migration only.
 --
--- Usage:
---   For new databases: sqlite3 prism.db < prism_schema_v2.1.sql
---   For existing databases: Use 003_v2.1_migration.sql
---
--- ============================================================================
+-- =============================================================================
 
 PRAGMA foreign_keys = ON;
 
--- ============================================================================
--- SYSTEMS TABLE
--- ============================================================================
+
+-- =============================================================================
+-- 1. SYSTEMS
+-- =============================================================================
 -- Registry of valid system/domain classifications.
 
 CREATE TABLE IF NOT EXISTS systems (
     system      TEXT PRIMARY KEY,
-    system_name TEXT DEFAULT ''           -- Human-readable name
+    system_name TEXT DEFAULT ''
 );
 
 -- Preload default systems
-INSERT OR IGNORE INTO systems(system, system_name) VALUES
-    ('finance', 'Financial Markets'),
-    ('market', 'Market Data'),
-    ('economic', 'Economic Indicators'),
-    ('climate', 'Climate Data'),
-    ('biology', 'Biological Systems'),
-    ('chemistry', 'Chemical Data'),
-    ('anthropology', 'Anthropological Data'),
-    ('physics', 'Physics Data'),
-    ('benchmark', 'Benchmark Datasets');
+INSERT OR IGNORE INTO systems (system, system_name) VALUES
+    ('finance',     'Financial Markets'),
+    ('market',      'Market Data'),
+    ('economic',    'Economic Indicators'),
+    ('climate',     'Climate/Weather'),
+    ('biology',     'Biological Systems'),
+    ('chemistry',   'Chemical Systems'),
+    ('anthropology','Social/Demographic'),
+    ('physics',     'Physical Systems'),
+    ('benchmark',   'Benchmark Datasets');
 
 
--- ============================================================================
--- INDICATORS TABLE
--- ============================================================================
+-- =============================================================================
+-- 2. INDICATORS
+-- =============================================================================
 -- Master registry of all indicators across all systems.
+-- `name` is the universal key used throughout PRISM.
 
 CREATE TABLE IF NOT EXISTS indicators (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT NOT NULL UNIQUE,         -- Human-readable ID (e.g., 'SPY', 'M2SL')
-    fred_code   TEXT UNIQUE,                  -- FRED API series ID (e.g., 'FEDFUNDS')
-    system      TEXT NOT NULL DEFAULT 'market',
-    category    TEXT,                         -- Grouping: Growth, Liquidity, Sentiment, etc.
-    frequency   TEXT NOT NULL DEFAULT 'daily',
-    source      TEXT,                         -- e.g., 'yahoo', 'fred', 'tiingo'
-    units       TEXT,
-    description TEXT,
-    metadata    TEXT,                         -- JSON blob for extensibility
-    created_at  TEXT DEFAULT (datetime('now')),
-    updated_at  TEXT DEFAULT (datetime('now')),
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL UNIQUE,           -- Human-readable ID: 'SPY', 'DXY', 'M2SL'
+    fred_code       TEXT,                           -- Optional: FRED API series ID
+    system          TEXT NOT NULL DEFAULT 'market', -- Domain: 'market', 'economic', 'climate'
+    category        TEXT,                           -- Grouping: 'Growth', 'Liquidity', 'Sentiment'
+    frequency       TEXT NOT NULL DEFAULT 'daily',  -- 'daily', 'weekly', 'monthly'
+    source          TEXT,                           -- 'yahoo', 'fred', 'stooq', 'tiingo'
+    units           TEXT,
+    description     TEXT,
+    metadata        TEXT,                           -- JSON blob for extensibility
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now')),
+
     FOREIGN KEY (system) REFERENCES systems(system)
 );
 
-CREATE INDEX IF NOT EXISTS idx_indicators_system ON indicators(system);
-CREATE INDEX IF NOT EXISTS idx_indicators_name ON indicators(name);
-CREATE INDEX IF NOT EXISTS idx_indicators_category ON indicators(category);
-CREATE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code);
+CREATE INDEX IF NOT EXISTS idx_indicators_system    ON indicators(system);
+CREATE INDEX IF NOT EXISTS idx_indicators_name      ON indicators(name);
+CREATE INDEX IF NOT EXISTS idx_indicators_category  ON indicators(category);
+CREATE INDEX IF NOT EXISTS idx_indicators_source    ON indicators(source);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code);
 
 
--- ============================================================================
--- INDICATOR VALUES TABLE (Universal Time Series)
--- ============================================================================
--- Single source of truth for ALL time series data.
+-- =============================================================================
+-- 3. INDICATOR_VALUES (THE UNIVERSAL DATA TABLE)
+-- =============================================================================
+-- Single source of truth for ALL time series across ALL domains.
+--
+-- Schema notes:
+--   - quality_flag: 'verified', 'estimated', 'interpolated', 'missing'
+--   - provenance: origin of data point ('fred', 'yahoo', 'calculated', 'migration')
+--   - extra: JSON blob for ML outputs, plugin metadata
 
 CREATE TABLE IF NOT EXISTS indicator_values (
-    indicator_name TEXT NOT NULL,             -- References indicators.name
-    date           TEXT NOT NULL,             -- ISO format: YYYY-MM-DD
-    value          REAL NOT NULL,
+    indicator_name  TEXT NOT NULL,              -- FK to indicators.name
+    date            TEXT NOT NULL,              -- ISO format: YYYY-MM-DD
+    value           REAL NOT NULL,
 
-    quality_flag   TEXT DEFAULT NULL,         -- verified/estimated/interpolated/missing
-    provenance     TEXT DEFAULT NULL,         -- fred/yahoo/migration/calculated/benchmark
-    extra          TEXT DEFAULT NULL,         -- JSON blob for ML outputs, plugin data
+    quality_flag    TEXT DEFAULT NULL,
+    provenance      TEXT DEFAULT NULL,
+    extra           TEXT DEFAULT NULL,          -- JSON blob
 
-    created_at     TEXT DEFAULT (datetime('now')),
+    created_at      TEXT DEFAULT (datetime('now')),
 
     PRIMARY KEY (indicator_name, date),
     FOREIGN KEY (indicator_name) REFERENCES indicators(name)
 );
 
-CREATE INDEX IF NOT EXISTS idx_indicator_values_name ON indicator_values(indicator_name);
-CREATE INDEX IF NOT EXISTS idx_indicator_values_date ON indicator_values(date);
-CREATE INDEX IF NOT EXISTS idx_indicator_values_name_date ON indicator_values(indicator_name, date);
+CREATE INDEX IF NOT EXISTS idx_indicator_values_name       ON indicator_values(indicator_name);
+CREATE INDEX IF NOT EXISTS idx_indicator_values_date       ON indicator_values(date);
+CREATE INDEX IF NOT EXISTS idx_indicator_values_name_date  ON indicator_values(indicator_name, date);
 CREATE INDEX IF NOT EXISTS idx_indicator_values_provenance ON indicator_values(provenance);
 
 
--- ============================================================================
--- TIMESERIES VIEW (Backward Compatibility)
--- ============================================================================
--- Maps old code paths to indicator_values. NOT a table.
-
-CREATE VIEW IF NOT EXISTS timeseries AS
-SELECT
-    indicator_name AS indicator,
-    'market' AS system,
-    date,
-    value,
-    created_at
-FROM indicator_values;
-
-
--- ============================================================================
--- FETCH LOG TABLE
--- ============================================================================
--- Tracks fetch operations for debugging and auditing.
+-- =============================================================================
+-- 4. FETCH_LOG
+-- =============================================================================
+-- Unified logging for all fetch operations.
 
 CREATE TABLE IF NOT EXISTS fetch_log (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    indicator_name TEXT NOT NULL,
-    source         TEXT NOT NULL,
-    fetch_date     TEXT NOT NULL,
-    rows_fetched   INTEGER,
-    status         TEXT NOT NULL,             -- success/error/partial
-    error_message  TEXT,
-    created_at     TEXT DEFAULT (datetime('now'))
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    indicator_name  TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    fetch_date      TEXT NOT NULL,              -- When fetch occurred (ISO datetime)
+    rows_fetched    INTEGER,
+    status          TEXT NOT NULL,              -- 'success', 'error', 'partial'
+    error_message   TEXT,
+    created_at      TEXT DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_fetch_log_indicator ON fetch_log(indicator_name);
-CREATE INDEX IF NOT EXISTS idx_fetch_log_date ON fetch_log(fetch_date);
+CREATE INDEX IF NOT EXISTS idx_fetch_log_date      ON fetch_log(fetch_date);
 
 
--- ============================================================================
--- METADATA TABLE
--- ============================================================================
+-- =============================================================================
+-- 5. METADATA
+-- =============================================================================
 -- Key-value store for system-wide settings and state.
 
 CREATE TABLE IF NOT EXISTS metadata (
@@ -141,14 +132,109 @@ CREATE TABLE IF NOT EXISTS metadata (
     value TEXT
 );
 
--- Set schema version
-INSERT OR REPLACE INTO metadata(key, value) VALUES ('schema_version', '2.1');
+
+-- =============================================================================
+-- 6. CALIBRATION TABLES
+-- =============================================================================
+-- Lens tuning, indicator curation, and configuration storage.
+
+-- Calibration: Lens Weights & Performance
+CREATE TABLE IF NOT EXISTS calibration_lenses (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    lens_name     TEXT UNIQUE,
+    weight        REAL,
+    hit_rate      REAL,
+    avg_lead_time REAL,
+    tier          INTEGER,
+    use_lens      INTEGER DEFAULT 1,          -- 1 = active, 0 = inactive
+    updated_at    TEXT
+);
+
+-- Calibration: Indicator Configuration
+CREATE TABLE IF NOT EXISTS calibration_indicators (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    indicator       TEXT UNIQUE,
+    tier            INTEGER,
+    score           REAL,
+    optimal_window  INTEGER,
+    indicator_type  TEXT,                     -- 'fast', 'medium', 'slow'
+    use_indicator   INTEGER DEFAULT 1,        -- 1 = active, 0 = inactive
+    redundant_to    TEXT,                     -- NULL or name of better indicator
+    updated_at      TEXT
+);
+
+-- Calibration: Thresholds and Global Config
+CREATE TABLE IF NOT EXISTS calibration_config (
+    key        TEXT PRIMARY KEY,
+    value      TEXT,                          -- JSON or scalar
+    updated_at TEXT
+);
 
 
--- ============================================================================
--- LEGACY TABLES (Backward Compatibility)
--- ============================================================================
--- DEPRECATED: Use indicator_values instead. Kept for migration purposes.
+-- =============================================================================
+-- 7. ANALYSIS TABLES
+-- =============================================================================
+-- Results storage: rankings, signals, consensus events.
+
+-- Analysis: Daily Rankings
+CREATE TABLE IF NOT EXISTS analysis_rankings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_date        TEXT,
+    analysis_type   TEXT,                     -- 'tuned', 'overnight', 'calibrated'
+    indicator       TEXT,
+    consensus_rank  REAL,
+    tier            INTEGER,
+    window_used     INTEGER,
+    created_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rankings_date      ON analysis_rankings(run_date);
+CREATE INDEX IF NOT EXISTS idx_rankings_indicator ON analysis_rankings(indicator);
+
+-- Analysis: Daily Signals
+CREATE TABLE IF NOT EXISTS analysis_signals (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_date       TEXT,
+    indicator      TEXT,
+    signal_name    TEXT,
+    signal_meaning TEXT,
+    rank           REAL,
+    status         TEXT,                      -- 'DANGER', 'WARNING', 'NORMAL'
+    created_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_signals_date   ON analysis_signals(run_date);
+CREATE INDEX IF NOT EXISTS idx_signals_status ON analysis_signals(status);
+
+-- Analysis: Detected Consensus Events (Regime Breaks)
+CREATE TABLE IF NOT EXISTS consensus_events (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_date     TEXT,
+    peak_consensus REAL,
+    duration_days  INTEGER,
+    detected_at    TEXT,
+    notes          TEXT
+);
+
+-- Analysis: Historical Consensus Timeseries
+CREATE TABLE IF NOT EXISTS consensus_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    date            TEXT,
+    consensus_value REAL,
+    window_size     INTEGER,
+    created_at      TEXT,
+
+    UNIQUE(date, window_size)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consensus_date ON consensus_history(date);
+
+
+-- =============================================================================
+-- 8. DEPRECATED TABLES (Backward Compatibility Only)
+-- =============================================================================
+-- These tables are DEPRECATED. All new code must use indicator_values.
+-- Retained temporarily for migration support.
 
 CREATE TABLE IF NOT EXISTS market_prices (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -167,93 +253,29 @@ CREATE TABLE IF NOT EXISTS econ_values (
 );
 
 
--- ============================================================================
--- CALIBRATION TABLES (Lens Tuning System)
--- ============================================================================
+-- =============================================================================
+-- 9. BACKWARD COMPATIBILITY VIEWS
+-- =============================================================================
+-- Views for code expecting old table structures.
+-- timeseries is a VIEW, not a table - single source of truth is indicator_values.
 
-CREATE TABLE IF NOT EXISTS calibration_lenses (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    lens_name     TEXT UNIQUE,
-    weight        REAL,
-    hit_rate      REAL,
-    avg_lead_time REAL,
-    tier          INTEGER,
-    use_lens      INTEGER,
-    updated_at    TEXT
-);
-
-CREATE TABLE IF NOT EXISTS calibration_indicators (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    indicator      TEXT UNIQUE,
-    tier           INTEGER,
-    score          REAL,
-    optimal_window INTEGER,
-    indicator_type TEXT,
-    use_indicator  INTEGER,
-    redundant_to   TEXT,
-    updated_at     TEXT
-);
-
-CREATE TABLE IF NOT EXISTS calibration_config (
-    key        TEXT PRIMARY KEY,
-    value      TEXT,
-    updated_at TEXT
-);
+CREATE VIEW IF NOT EXISTS timeseries AS
+SELECT
+    indicator_name AS indicator,
+    'market' AS system,
+    date,
+    value,
+    created_at
+FROM indicator_values;
 
 
--- ============================================================================
--- ANALYSIS TABLES (MRF, Rankings, Signals)
--- ============================================================================
+-- =============================================================================
+-- 10. SCHEMA VERSION
+-- =============================================================================
 
-CREATE TABLE IF NOT EXISTS analysis_rankings (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_date       TEXT,
-    analysis_type  TEXT,
-    indicator      TEXT,
-    consensus_rank REAL,
-    tier           INTEGER,
-    window_used    INTEGER,
-    created_at     TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_rankings_date ON analysis_rankings(run_date);
-CREATE INDEX IF NOT EXISTS idx_rankings_indicator ON analysis_rankings(indicator);
-
-CREATE TABLE IF NOT EXISTS analysis_signals (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_date       TEXT,
-    indicator      TEXT,
-    signal_name    TEXT,
-    signal_meaning TEXT,
-    rank           REAL,
-    status         TEXT,
-    created_at     TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_signals_date ON analysis_signals(run_date);
-CREATE INDEX IF NOT EXISTS idx_signals_status ON analysis_signals(status);
-
-CREATE TABLE IF NOT EXISTS consensus_events (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_date     TEXT,
-    peak_consensus REAL,
-    duration_days  INTEGER,
-    detected_at    TEXT,
-    notes          TEXT
-);
-
-CREATE TABLE IF NOT EXISTS consensus_history (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    date            TEXT,
-    consensus_value REAL,
-    window_size     INTEGER,
-    created_at      TEXT,
-    UNIQUE(date, window_size)
-);
-
-CREATE INDEX IF NOT EXISTS idx_consensus_date ON consensus_history(date);
+INSERT OR REPLACE INTO metadata (key, value) VALUES ('schema_version', '2.1');
 
 
--- ============================================================================
+-- =============================================================================
 -- END OF SCHEMA v2.1
--- ============================================================================
+-- =============================================================================
