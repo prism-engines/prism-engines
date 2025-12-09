@@ -5,8 +5,13 @@ PRISM Schema Migration to v2.1
 
 Safe Python migration runner with validation.
 
+IMPORTANT: SQLite ALTER TABLE limitations
+  - Cannot add UNIQUE constraint directly via ALTER TABLE
+  - Must use separate CREATE UNIQUE INDEX statement
+  - Cannot add NOT NULL without DEFAULT
+
 Changes applied:
-  1. Add fred_code, category columns to indicators
+  1. Add fred_code, category columns to indicators (UNIQUE via index)
   2. Add system_name column to systems
   3. Create calibration tables if missing
   4. Create analysis tables if missing
@@ -41,19 +46,20 @@ except ImportError:
 # ============================================================================
 
 MIGRATION_STEPS = [
-    # Step 1: Add fred_code to indicators
+    # Step 1: Add fred_code to indicators (no UNIQUE in ALTER - SQLite limitation)
+    # Uniqueness enforced via CREATE UNIQUE INDEX
     {
         "name": "Add indicators.fred_code",
         "check": "SELECT 1 FROM pragma_table_info('indicators') WHERE name='fred_code'",
         "apply": "ALTER TABLE indicators ADD COLUMN fred_code TEXT",
-        "post": "CREATE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code)",
+        "post": "CREATE UNIQUE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code)",
     },
     # Step 2: Add category to indicators
     {
         "name": "Add indicators.category",
         "check": "SELECT 1 FROM pragma_table_info('indicators') WHERE name='category'",
         "apply": "ALTER TABLE indicators ADD COLUMN category TEXT",
-        "post": "CREATE INDEX IF NOT EXISTS idx_indicators_category ON indicators(category)",
+        "post": "CREATE INDEX IF NOT EXISTS idx_indicators_category ON indicators(category); CREATE INDEX IF NOT EXISTS idx_indicators_source ON indicators(source)",
     },
     # Step 3: Add system_name to systems
     {
@@ -61,11 +67,14 @@ MIGRATION_STEPS = [
         "check": "SELECT 1 FROM pragma_table_info('systems') WHERE name='system_name'",
         "apply": "ALTER TABLE systems ADD COLUMN system_name TEXT DEFAULT ''",
         "post": """
-            UPDATE systems SET system_name = 'Financial Markets' WHERE system = 'finance';
-            UPDATE systems SET system_name = 'Market Data' WHERE system = 'market';
-            UPDATE systems SET system_name = 'Economic Indicators' WHERE system = 'economic';
-            UPDATE systems SET system_name = 'Climate Data' WHERE system = 'climate';
-            UPDATE systems SET system_name = 'Benchmark Datasets' WHERE system = 'benchmark';
+            UPDATE systems SET system_name = 'Financial Markets' WHERE system = 'finance' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Market Data' WHERE system = 'market' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Economic Indicators' WHERE system = 'economic' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Climate/Weather' WHERE system = 'climate' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Biological Systems' WHERE system = 'biology' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Chemical Systems' WHERE system = 'chemistry' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Social/Demographic' WHERE system = 'anthropology' AND (system_name IS NULL OR system_name = '');
+            UPDATE systems SET system_name = 'Physical Systems' WHERE system = 'physics' AND (system_name IS NULL OR system_name = '');
         """,
     },
     # Step 4: Create calibration_lenses
@@ -80,7 +89,7 @@ MIGRATION_STEPS = [
                 hit_rate REAL,
                 avg_lead_time REAL,
                 tier INTEGER,
-                use_lens INTEGER,
+                use_lens INTEGER DEFAULT 1,
                 updated_at TEXT
             )
         """,
@@ -97,7 +106,7 @@ MIGRATION_STEPS = [
                 score REAL,
                 optimal_window INTEGER,
                 indicator_type TEXT,
-                use_indicator INTEGER,
+                use_indicator INTEGER DEFAULT 1,
                 redundant_to TEXT,
                 updated_at TEXT
             )
@@ -251,8 +260,7 @@ def update_schema_version(conn: sqlite3.Connection, dry_run: bool = False):
         )
     """)
     conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES ('schema_version', '2.1')")
-    conn.execute(f"INSERT OR REPLACE INTO metadata(key, value) VALUES ('last_migration', '003_v2.1_migration.sql')")
-    conn.execute(f"INSERT OR REPLACE INTO metadata(key, value) VALUES ('migration_date', '{datetime.now().isoformat()}')")
+    conn.execute(f"INSERT OR REPLACE INTO metadata(key, value) VALUES ('last_migration', '{datetime.now().isoformat()}')")
     print("  [OK] Updated schema_version to 2.1")
 
 

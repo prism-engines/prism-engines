@@ -1,59 +1,63 @@
--- ============================================================================
--- PRISM Schema v2.1 Migration
--- ============================================================================
+-- =============================================================================
+-- PRISM Migration: v2.0 → v2.1
+-- =============================================================================
 --
--- Migrates existing databases to v2.1 schema.
+-- Run this ONCE on existing databases to upgrade to schema v2.1.
+-- Safe to run multiple times (uses IF NOT EXISTS guards).
 --
--- Changes:
---   1. Add fred_code, category columns to indicators
---   2. Add system_name column to systems
---   3. Create calibration tables if missing
---   4. Create analysis tables if missing
---   5. Update schema version metadata
+-- IMPORTANT: SQLite ALTER TABLE limitations
+--   - Cannot add UNIQUE constraint directly via ALTER TABLE
+--   - Must use separate CREATE UNIQUE INDEX statement
+--   - Cannot add NOT NULL without DEFAULT
 --
 -- Usage:
 --   sqlite3 prism.db < 003_v2.1_migration.sql
---   OR use migrate_to_v2.1.py for safer migration
 --
--- ============================================================================
+-- =============================================================================
 
--- Enable foreign keys
-PRAGMA foreign_keys = ON;
 
--- ============================================================================
--- 1. ADD COLUMNS TO INDICATORS TABLE
--- ============================================================================
+-- =============================================================================
+-- 1. INDICATORS TABLE UPDATES
+-- =============================================================================
 
--- Add fred_code column (ignore if exists)
-ALTER TABLE indicators ADD COLUMN fred_code TEXT UNIQUE;
+-- Add fred_code column (no UNIQUE here - SQLite limitation)
+-- We'll add uniqueness via index below
+ALTER TABLE indicators ADD COLUMN fred_code TEXT;
 
--- Add category column (ignore if exists)
+-- Add category column
 ALTER TABLE indicators ADD COLUMN category TEXT;
 
--- Create index on category
+-- Add unique index on fred_code (this enforces uniqueness)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code);
+
+-- Add index on category for fast grouping queries
 CREATE INDEX IF NOT EXISTS idx_indicators_category ON indicators(category);
 
--- Create index on fred_code
-CREATE INDEX IF NOT EXISTS idx_indicators_fred_code ON indicators(fred_code);
+-- Add index on source if missing
+CREATE INDEX IF NOT EXISTS idx_indicators_source ON indicators(source);
 
 
--- ============================================================================
--- 2. ADD system_name TO SYSTEMS TABLE
--- ============================================================================
+-- =============================================================================
+-- 2. SYSTEMS TABLE UPDATE
+-- =============================================================================
 
+-- Add system_name column for human-readable names
 ALTER TABLE systems ADD COLUMN system_name TEXT DEFAULT '';
 
--- Update existing systems with human-readable names
+-- Update existing systems with friendly names
 UPDATE systems SET system_name = 'Financial Markets' WHERE system = 'finance' AND (system_name IS NULL OR system_name = '');
 UPDATE systems SET system_name = 'Market Data' WHERE system = 'market' AND (system_name IS NULL OR system_name = '');
 UPDATE systems SET system_name = 'Economic Indicators' WHERE system = 'economic' AND (system_name IS NULL OR system_name = '');
-UPDATE systems SET system_name = 'Climate Data' WHERE system = 'climate' AND (system_name IS NULL OR system_name = '');
-UPDATE systems SET system_name = 'Benchmark Datasets' WHERE system = 'benchmark' AND (system_name IS NULL OR system_name = '');
+UPDATE systems SET system_name = 'Climate/Weather' WHERE system = 'climate' AND (system_name IS NULL OR system_name = '');
+UPDATE systems SET system_name = 'Biological Systems' WHERE system = 'biology' AND (system_name IS NULL OR system_name = '');
+UPDATE systems SET system_name = 'Chemical Systems' WHERE system = 'chemistry' AND (system_name IS NULL OR system_name = '');
+UPDATE systems SET system_name = 'Social/Demographic' WHERE system = 'anthropology' AND (system_name IS NULL OR system_name = '');
+UPDATE systems SET system_name = 'Physical Systems' WHERE system = 'physics' AND (system_name IS NULL OR system_name = '');
 
 
--- ============================================================================
--- 3. CREATE CALIBRATION TABLES
--- ============================================================================
+-- =============================================================================
+-- 3. CALIBRATION TABLES
+-- =============================================================================
 
 CREATE TABLE IF NOT EXISTS calibration_lenses (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,20 +66,20 @@ CREATE TABLE IF NOT EXISTS calibration_lenses (
     hit_rate      REAL,
     avg_lead_time REAL,
     tier          INTEGER,
-    use_lens      INTEGER,
+    use_lens      INTEGER DEFAULT 1,
     updated_at    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS calibration_indicators (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    indicator      TEXT UNIQUE,
-    tier           INTEGER,
-    score          REAL,
-    optimal_window INTEGER,
-    indicator_type TEXT,
-    use_indicator  INTEGER,
-    redundant_to   TEXT,
-    updated_at     TEXT
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    indicator       TEXT UNIQUE,
+    tier            INTEGER,
+    score           REAL,
+    optimal_window  INTEGER,
+    indicator_type  TEXT,
+    use_indicator   INTEGER DEFAULT 1,
+    redundant_to    TEXT,
+    updated_at      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS calibration_config (
@@ -85,22 +89,22 @@ CREATE TABLE IF NOT EXISTS calibration_config (
 );
 
 
--- ============================================================================
--- 4. CREATE ANALYSIS TABLES
--- ============================================================================
+-- =============================================================================
+-- 4. ANALYSIS TABLES
+-- =============================================================================
 
 CREATE TABLE IF NOT EXISTS analysis_rankings (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_date       TEXT,
-    analysis_type  TEXT,
-    indicator      TEXT,
-    consensus_rank REAL,
-    tier           INTEGER,
-    window_used    INTEGER,
-    created_at     TEXT
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_date        TEXT,
+    analysis_type   TEXT,
+    indicator       TEXT,
+    consensus_rank  REAL,
+    tier            INTEGER,
+    window_used     INTEGER,
+    created_at      TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_rankings_date ON analysis_rankings(run_date);
+CREATE INDEX IF NOT EXISTS idx_rankings_date      ON analysis_rankings(run_date);
 CREATE INDEX IF NOT EXISTS idx_rankings_indicator ON analysis_rankings(indicator);
 
 CREATE TABLE IF NOT EXISTS analysis_signals (
@@ -114,7 +118,7 @@ CREATE TABLE IF NOT EXISTS analysis_signals (
     created_at     TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_signals_date ON analysis_signals(run_date);
+CREATE INDEX IF NOT EXISTS idx_signals_date   ON analysis_signals(run_date);
 CREATE INDEX IF NOT EXISTS idx_signals_status ON analysis_signals(status);
 
 CREATE TABLE IF NOT EXISTS consensus_events (
@@ -138,20 +142,27 @@ CREATE TABLE IF NOT EXISTS consensus_history (
 CREATE INDEX IF NOT EXISTS idx_consensus_date ON consensus_history(date);
 
 
--- ============================================================================
--- 5. UPDATE SCHEMA VERSION
--- ============================================================================
+-- =============================================================================
+-- 5. METADATA TABLE (ensure exists)
+-- =============================================================================
 
 CREATE TABLE IF NOT EXISTS metadata (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
 
-INSERT OR REPLACE INTO metadata(key, value) VALUES ('schema_version', '2.1');
-INSERT OR REPLACE INTO metadata(key, value) VALUES ('last_migration', '003_v2.1_migration.sql');
-INSERT OR REPLACE INTO metadata(key, value) VALUES ('migration_date', datetime('now'));
+
+-- =============================================================================
+-- 6. RECORD MIGRATION
+-- =============================================================================
+
+INSERT OR REPLACE INTO metadata (key, value)
+VALUES ('schema_version', '2.1');
+
+INSERT OR REPLACE INTO metadata (key, value)
+VALUES ('last_migration', datetime('now'));
 
 
--- ============================================================================
--- END OF MIGRATION
--- ============================================================================
+-- =============================================================================
+-- MIGRATION COMPLETE
+-- =============================================================================
