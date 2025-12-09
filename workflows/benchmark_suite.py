@@ -163,15 +163,15 @@ def load_benchmark_data(group_name: str) -> pd.DataFrame:
     """
     conn = get_connection()
 
-    # Query benchmark indicators for this group from timeseries
-    # Indicator names follow pattern: "{group_name}_{column}"
+    # Query benchmark indicators for this group from indicator_values
+    # Schema v2.1: indicators.name, indicator_values.indicator_name
     query = """
-        SELECT i.indicator_name, t.date, t.value
-        FROM timeseries t
-        JOIN indicators i ON t.indicator_id = i.id
+        SELECT iv.indicator_name, iv.date, iv.value
+        FROM indicator_values iv
+        JOIN indicators i ON iv.indicator_name = i.name
         WHERE i.system = 'benchmark'
-          AND i.indicator_name LIKE ?
-        ORDER BY i.indicator_name, t.date
+          AND i.name LIKE ?
+        ORDER BY iv.indicator_name, iv.date
     """
 
     df = pd.read_sql(query, conn, params=(f"{group_name}_%",))
@@ -200,12 +200,12 @@ def get_available_benchmark_groups() -> List[str]:
     conn = get_connection()
 
     # Get unique prefixes from benchmark indicator names
-    # Names follow pattern: "{group_name}_{column}"
+    # Schema v2.1: column is 'name', pattern: "{group_name}_{column}"
     query = """
-        SELECT DISTINCT indicator_name
+        SELECT DISTINCT name
         FROM indicators
         WHERE system = 'benchmark'
-        ORDER BY indicator_name
+        ORDER BY name
     """
 
     result = conn.execute(query).fetchall()
