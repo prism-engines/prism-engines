@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-PRISM Schema Validator - LANGUARD v2
+PRISM Schema Validator - Schema v2.1
 ====================================
 
-Validates the actual database schema against LANGUARD v2 specification.
+Validates the actual database schema against PRISM Schema v2.1 specification.
 Detects mismatches between:
-  - Proposed schema (LANGUARD v2)
+  - Schema v2.1 specification (canonical)
   - Actual database tables/columns
-  - Repo schema.sql
   - Code references in Python files
+
+Schema v2.1 Key Requirements:
+  - indicators table uses 'name' column (not indicator_name)
+  - timeseries is a VIEW (maps to indicator_values)
+  - indicators has fred_code, category columns
+  - systems has system_name column
 
 Usage:
     python scripts/validate_schema.py
@@ -32,16 +37,16 @@ except ImportError:
 
 
 # =============================================================================
-# LANGUARD v2 CANONICAL SCHEMA (from GPT recommendation)
+# PRISM SCHEMA v2.1 CANONICAL (Claude AI approved)
 # =============================================================================
 
-LANGUARD_V2_SCHEMA = {
+SCHEMA_V21 = {
     "indicators": {
-        "columns": ["id", "indicator_name", "fred_code", "system", "category",
-                    "description", "frequency", "source", "units", "metadata",
+        "columns": ["id", "name", "fred_code", "system", "category",
+                    "frequency", "source", "units", "description", "metadata",
                     "created_at", "updated_at"],
-        "key_column": "indicator_name",  # LANGUARD uses indicator_name
-        "required": ["id", "indicator_name", "system"],
+        "key_column": "name",  # v2.1 uses 'name', NOT 'indicator_name'
+        "required": ["id", "name", "system"],
     },
     "indicator_values": {
         "columns": ["indicator_name", "date", "value", "quality_flag",
@@ -49,36 +54,33 @@ LANGUARD_V2_SCHEMA = {
         "required": ["indicator_name", "date", "value"],
     },
     "timeseries": {
-        "type": "TABLE",  # LANGUARD says timeseries should be a TABLE
-        "columns": ["id", "indicator_id", "date", "value", "value_2",
-                    "adjusted_value", "created_at", "updated_at"],
-        "required": ["indicator_id", "date"],
-        "note": "Legacy compatibility layer",
+        "type": "VIEW",  # v2.1: timeseries is a VIEW, not a table
+        "note": "VIEW mapping to indicator_values for backward compat",
     },
     "systems": {
         "columns": ["system", "system_name"],
         "required": ["system"],
     },
-}
-
-# =============================================================================
-# REPO SCHEMA.SQL (what's in data/sql/schema.sql)
-# =============================================================================
-
-REPO_SCHEMA = {
-    "indicators": {
-        "columns": ["id", "name", "system", "frequency", "source", "units",
-                    "description", "metadata", "created_at", "updated_at"],
-        "key_column": "name",  # REPO uses 'name', not 'indicator_name'
-        "note": "MISSING: fred_code, category. USES 'name' not 'indicator_name'",
+    "calibration_lenses": {
+        "required": ["lens_name"],
     },
-    "timeseries": {
-        "type": "VIEW",  # In repo schema.sql, timeseries is a VIEW
-        "note": "VIEW mapping to indicator_values, not a table",
+    "calibration_indicators": {
+        "required": ["indicator"],
     },
-    "systems": {
-        "columns": ["system"],  # No system_name
-        "note": "MISSING: system_name column",
+    "calibration_config": {
+        "required": ["key"],
+    },
+    "analysis_rankings": {
+        "required": ["run_date", "indicator"],
+    },
+    "analysis_signals": {
+        "required": ["run_date", "indicator"],
+    },
+    "consensus_events": {
+        "required": ["event_date"],
+    },
+    "consensus_history": {
+        "required": ["date"],
     },
 }
 
@@ -132,8 +134,7 @@ def print_section(title: str):
 
 def validate_indicator_column(actual: Dict) -> Tuple[str, List[str]]:
     """
-    CRITICAL: Check if indicators table uses 'name' or 'indicator_name'.
-    This is the root cause of most schema drift issues.
+    CRITICAL: Check if indicators table uses 'name' (v2.1 canonical).
     """
     findings = []
     column_used = "unknown"
@@ -146,13 +147,13 @@ def validate_indicator_column(actual: Dict) -> Tuple[str, List[str]]:
     has_name = "name" in cols
     has_indicator_name = "indicator_name" in cols
 
-    if has_indicator_name and not has_name:
-        column_used = "indicator_name"
-        findings.append("✅ Uses 'indicator_name' (LANGUARD v2 compliant)")
-    elif has_name and not has_indicator_name:
+    if has_name and not has_indicator_name:
         column_used = "name"
-        findings.append("⚠️  Uses 'name' (repo schema.sql style)")
-        findings.append("   LANGUARD v2 expects 'indicator_name'")
+        findings.append("✅ Uses 'name' (Schema v2.1 compliant)")
+    elif has_indicator_name and not has_name:
+        column_used = "indicator_name"
+        findings.append("⚠️  Uses 'indicator_name' (not v2.1 compliant)")
+        findings.append("   Schema v2.1 expects 'name'")
     elif has_name and has_indicator_name:
         column_used = "both"
         findings.append("⚠️  Has BOTH 'name' AND 'indicator_name'")
@@ -164,24 +165,22 @@ def validate_indicator_column(actual: Dict) -> Tuple[str, List[str]]:
 
 
 def validate_timeseries_type(actual: Dict) -> List[str]:
-    """Check if timeseries is a table or view."""
+    """Check if timeseries is a view (v2.1 canonical)."""
     findings = []
 
     is_table = "timeseries" in actual["tables"]
     is_view = "timeseries" in actual["views"]
 
-    if is_table:
-        findings.append("📋 'timeseries' is a TABLE")
+    if is_view:
+        findings.append("✅ 'timeseries' is a VIEW (Schema v2.1 compliant)")
+        findings.append("   Maps to indicator_values")
+    elif is_table:
+        findings.append("⚠️  'timeseries' is a TABLE (not v2.1 compliant)")
         cols = actual["tables"]["timeseries"]["columns"]
         count = actual["tables"]["timeseries"]["row_count"]
         findings.append(f"   Columns: {', '.join(cols)}")
         findings.append(f"   Row count: {count:,}")
-        if "indicator_id" in cols:
-            findings.append("   ✅ Uses indicator_id FK (LANGUARD v2 style)")
-    elif is_view:
-        findings.append("📋 'timeseries' is a VIEW (repo schema.sql style)")
-        findings.append("   Maps to indicator_values")
-        findings.append("   ⚠️  LANGUARD v2 expects a TABLE, not VIEW")
+        findings.append("   Schema v2.1 expects a VIEW, not TABLE")
     else:
         findings.append("❌ 'timeseries' NOT FOUND (neither table nor view)")
 
@@ -214,25 +213,25 @@ def validate_data_location(actual: Dict) -> List[str]:
 
 
 def validate_missing_columns(actual: Dict) -> List[str]:
-    """Check for missing LANGUARD v2 columns."""
+    """Check for missing Schema v2.1 columns."""
     findings = []
 
     if "indicators" in actual["tables"]:
         actual_cols = set(actual["tables"]["indicators"]["columns"])
-        languard_cols = set(LANGUARD_V2_SCHEMA["indicators"]["columns"])
+        v21_cols = set(SCHEMA_V21["indicators"]["columns"])
 
-        missing = languard_cols - actual_cols
-        extra = actual_cols - languard_cols
+        missing = v21_cols - actual_cols
+        extra = actual_cols - v21_cols
 
         if missing:
-            findings.append(f"⚠️  indicators missing LANGUARD columns: {missing}")
+            findings.append(f"⚠️  indicators missing v2.1 columns: {missing}")
         if extra:
             findings.append(f"   indicators has extra columns: {extra}")
 
     if "systems" in actual["tables"]:
         actual_cols = set(actual["tables"]["systems"]["columns"])
         if "system_name" not in actual_cols:
-            findings.append("⚠️  systems missing 'system_name' column (LANGUARD v2)")
+            findings.append("⚠️  systems missing 'system_name' column (v2.1)")
 
     return findings
 
@@ -294,32 +293,52 @@ def generate_alignment_report(col_used: str, actual: Dict, refs: Dict) -> List[s
     iv_count = actual["tables"].get("indicator_values", {}).get("row_count", 0)
     ts_count = actual["tables"].get("timeseries", {}).get("row_count", 0)
 
-    recommendations.append("ALIGNMENT OPTIONS:")
+    recommendations.append("SCHEMA v2.1 ALIGNMENT:")
     recommendations.append("")
 
     if col_used == "name":
-        recommendations.append("Option A: Align to REPO schema.sql (simpler)")
-        recommendations.append("  - indicators uses 'name' column ✓")
-        recommendations.append("  - Update load_benchmarks.py: indicator_name → name")
-        recommendations.append("  - Update benchmark_suite.py: i.indicator_name → i.name")
+        recommendations.append("✅ Indicator column is v2.1 compliant ('name')")
         recommendations.append("")
-        recommendations.append("Option B: Align to LANGUARD v2 (more work)")
-        recommendations.append("  - Run migration to rename 'name' → 'indicator_name'")
-        recommendations.append("  - Update schema.sql")
-        recommendations.append("  - Update db_connector.py")
-
     elif col_used == "indicator_name":
-        recommendations.append("Your DB follows LANGUARD v2 (indicator_name)")
-        recommendations.append("  - Update schema.sql to match")
-        recommendations.append("  - Ensure all code uses 'indicator_name'")
+        recommendations.append("⚠️  Your DB uses 'indicator_name' instead of 'name'")
+        recommendations.append("  - Run: python scripts/migrate_to_v2.1.py")
+        recommendations.append("  - Or rename column: indicator_name → name")
+        recommendations.append("")
+    else:
+        recommendations.append(f"❌ Indicator column issue: {col_used}")
+        recommendations.append("")
 
+    if ts_is_view:
+        recommendations.append("✅ timeseries is a VIEW (v2.1 compliant)")
+    elif ts_is_table:
+        recommendations.append("⚠️  timeseries is a TABLE (v2.1 expects VIEW)")
+        recommendations.append("  - Create VIEW to map timeseries → indicator_values")
+        recommendations.append("  - Or migrate data to indicator_values table")
     recommendations.append("")
 
     if ts_count > 0 and iv_count == 0:
-        recommendations.append("DATA TABLE FIX:")
-        recommendations.append("  - Benchmark data is in 'timeseries' table")
-        recommendations.append("  - benchmark_suite.py should read from 'timeseries'")
-        recommendations.append("  - OR: Migrate data to 'indicator_values'")
+        recommendations.append("DATA LOCATION:")
+        recommendations.append("  - Data is in 'timeseries' table")
+        recommendations.append("  - But 'indicator_values' is empty")
+        recommendations.append("  - Migrate data or update queries to use timeseries")
+        recommendations.append("")
+
+    # Check for missing v2.1 columns
+    ind_cols = actual["tables"].get("indicators", {}).get("columns", [])
+    missing = []
+    if "fred_code" not in ind_cols:
+        missing.append("indicators.fred_code")
+    if "category" not in ind_cols:
+        missing.append("indicators.category")
+
+    sys_cols = actual["tables"].get("systems", {}).get("columns", [])
+    if "system_name" not in sys_cols:
+        missing.append("systems.system_name")
+
+    if missing:
+        recommendations.append("MISSING v2.1 COLUMNS:")
+        recommendations.append(f"  - {', '.join(missing)}")
+        recommendations.append("  - Run: python scripts/migrate_to_v2.1.py")
 
     return recommendations
 
@@ -333,7 +352,7 @@ def main():
     show_fixes = "--fix" in sys.argv
 
     print("=" * 70)
-    print("   PRISM SCHEMA VALIDATOR - LANGUARD v2")
+    print("   PRISM SCHEMA VALIDATOR - v2.1")
     print("=" * 70)
 
     # Get database
@@ -353,7 +372,7 @@ def main():
     col_used, col_findings = validate_indicator_column(actual)
     for f in col_findings:
         print(f"   {f}")
-    if col_used not in ["indicator_name"]:
+    if col_used not in ["name"]:
         issues.append("Indicator column mismatch")
 
     # 2. Timeseries type
@@ -369,7 +388,7 @@ def main():
         print(f"   {f}")
 
     # 4. Missing columns
-    print_section("4. Missing LANGUARD v2 Columns")
+    print_section("4. Missing Schema v2.1 Columns")
     col_findings = validate_missing_columns(actual)
     if col_findings:
         for f in col_findings:
@@ -388,16 +407,16 @@ def main():
     print(f"   Files writing indicator_values:{refs['writes_indicator_values']}")
 
     # 6. Summary
-    print_section("6. SCHEMA COMPARISON")
+    print_section("6. SCHEMA v2.1 COMPLIANCE")
     print("""
    ┌─────────────────────┬──────────────────┬──────────────────┐
-   │ Feature             │ LANGUARD v2      │ Repo schema.sql  │
+   │ Feature             │ Schema v2.1      │ Your Database    │
    ├─────────────────────┼──────────────────┼──────────────────┤
-   │ Indicator column    │ indicator_name   │ name             │
-   │ timeseries          │ TABLE            │ VIEW             │
-   │ systems.system_name │ Present          │ Missing          │
-   │ indicators.fred_code│ Present          │ Missing          │
-   │ indicators.category │ Present          │ Missing          │
+   │ Indicator column    │ name             │ """ + ("name ✓" if col_used == "name" else col_used + " ✗").ljust(16) + """ │
+   │ timeseries type     │ VIEW             │ """ + ("VIEW ✓" if "timeseries" in actual["views"] else "TABLE ✗" if "timeseries" in actual["tables"] else "MISSING").ljust(16) + """ │
+   │ systems.system_name │ Required         │ """ + ("Present ✓" if "system_name" in actual["tables"].get("systems", {}).get("columns", []) else "Missing ✗").ljust(16) + """ │
+   │ indicators.fred_code│ Required         │ """ + ("Present ✓" if "fred_code" in actual["tables"].get("indicators", {}).get("columns", []) else "Missing ✗").ljust(16) + """ │
+   │ indicators.category │ Required         │ """ + ("Present ✓" if "category" in actual["tables"].get("indicators", {}).get("columns", []) else "Missing ✗").ljust(16) + """ │
    └─────────────────────┴──────────────────┴──────────────────┘
 """)
 
