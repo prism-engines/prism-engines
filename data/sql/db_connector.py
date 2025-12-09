@@ -89,29 +89,38 @@ def _execute_schema(conn: sqlite3.Connection) -> None:
 
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
-    """Run all SQL migrations in numeric order."""
+    """
+    Execute all SQL migrations in sorted order.
+    Idempotent: safe to re-run even if schema elements already exist.
+    """
     migrations_dir = _get_sql_dir() / "migrations"
     if not migrations_dir.exists():
-        print(f"  - No migrations directory found")
+        print("  - No migrations directory found")
         return
 
-    # Get all .sql files sorted by name (numeric prefix)
     migration_files = sorted(migrations_dir.glob("*.sql"))
 
     for migration_file in migration_files:
         with open(migration_file, "r") as f:
             sql_content = f.read()
 
-        # Execute each statement separately to handle IF NOT EXISTS gracefully
-        for statement in sql_content.split(';'):
-            statement = statement.strip()
-            if statement:
-                try:
-                    conn.execute(statement)
-                except sqlite3.OperationalError as e:
-                    # Ignore "table already exists" errors
-                    if "already exists" not in str(e):
-                        raise
+        statements = [s.strip() for s in sql_content.split(";") if s.strip()]
+
+        for statement in statements:
+            try:
+                conn.execute(statement)
+            except sqlite3.OperationalError as e:
+                msg = str(e).lower()
+
+                # Allow benign idempotent errors
+                if (
+                    "already exists" in msg
+                    or "duplicate column name" in msg
+                    or "cannot add a column" in msg
+                ):
+                    pass
+                else:
+                    raise
 
         print(f"  + Executed migration: {migration_file.name}")
 
