@@ -7,19 +7,19 @@ Optimized for Mac Mini 16GB RAM.
 
 Usage:
     # Python API
-    from start.temporal_runner_parallel import run_temporal_analysis, run_parallel
-
+    from start.temporal_runner import run_temporal_analysis, run_parallel
+    
     results = run_temporal_analysis(panel, resolution='monthly')
     results = run_parallel(panel)  # Parallel with all lenses
 
     # Quick start
-    from start.temporal_runner_parallel import quick_start
+    from start.temporal_runner import quick_start
     results, summary = quick_start(panel)
 
 CLI Usage:
-    python start/temporal_runner_parallel.py --resolution monthly --parallel
-    python start/temporal_runner_parallel.py --resolution weekly --lenses all
-    python start/temporal_runner_parallel.py --full  # All lenses, parallel
+    python start/temporal_runner.py --resolution monthly --parallel
+    python start/temporal_runner.py --resolution weekly --lenses all
+    python start/temporal_runner.py --full  # All lenses, parallel
 """
 
 import sys

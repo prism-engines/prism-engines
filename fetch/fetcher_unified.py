@@ -12,8 +12,8 @@ Usage:
     from fetch.fetcher_unified import PRISMFetcher
 
     fetcher = PRISMFetcher(
-        fred_api_key='YOUR_FRED_KEY',
-        tiingo_api_key='YOUR_TIINGO_KEY'
+        fred_api_key='3fd12c9d0fa4d7fd3c858b72251e3388',
+        tiingo_api_key='39a87d4f616a7432dbc92533eeed14c238f6d159'
     )
 
     # Fetch by panel

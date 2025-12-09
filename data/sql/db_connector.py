@@ -138,31 +138,40 @@ def init_database() -> None:
       - market_prices (DEPRECATED - backward compatibility)
       - econ_values (DEPRECATED - backward compatibility)
     """
-    import os
+import os
+from pathlib import Path
 
-    db_path = get_db_path()
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+db_path = get_db_path()
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    print(f"Initializing database at: {db_path}")
+print(f"Initializing database at: {db_path}")
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+# Detect whether this is a fresh database
+is_fresh_db = not Path(db_path).exists()
 
-    try:
-        # Enable WAL mode for better concurrency
-        conn.execute("PRAGMA journal_mode=WAL;")
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
 
-        # Execute main schema
-        _execute_schema(conn)
+try:
+    # Enable WAL mode for better concurrency
+    conn.execute("PRAGMA journal_mode=WAL;")
 
-        # Run all migrations
+    # Execute main schema (always safe)
+    _execute_schema(conn)
+
+    # Run migrations ONLY if the database already existed
+    if not is_fresh_db:
+        print("Running migrations on existing database…")
         _run_migrations(conn)
+    else:
+        print("Fresh database detected — skipping migrations.")
 
-        conn.commit()
-        print("Database initialized successfully!")
+    conn.commit()
+    print("Database initialized successfully!")
 
-    finally:
-        conn.close()
+finally:
+    conn.close()
+
 
 
 # =============================================================================
