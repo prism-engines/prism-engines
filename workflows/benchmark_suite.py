@@ -153,7 +153,7 @@ def load_benchmark_data(group_name: str) -> pd.DataFrame:
     """
     Load benchmark dataset from database.
 
-    Uses Schema v2 - indicator_values table.
+    Reads from timeseries table joined with indicators.
 
     Args:
         group_name: One of the BENCHMARK_GROUPS keys
@@ -163,15 +163,15 @@ def load_benchmark_data(group_name: str) -> pd.DataFrame:
     """
     conn = get_connection()
 
-    # Query benchmark indicators for this group from indicator_values
+    # Query benchmark indicators for this group from timeseries
     # Indicator names follow pattern: "{group_name}_{column}"
     query = """
-        SELECT iv.indicator_name, iv.date, iv.value
-        FROM indicator_values iv
-        JOIN indicators i ON iv.indicator_name = i.indicator_name
+        SELECT i.indicator_name, t.date, t.value
+        FROM timeseries t
+        JOIN indicators i ON t.indicator_id = i.id
         WHERE i.system = 'benchmark'
-          AND iv.indicator_name LIKE ?
-        ORDER BY iv.indicator_name, iv.date
+          AND i.indicator_name LIKE ?
+        ORDER BY i.indicator_name, t.date
     """
 
     df = pd.read_sql(query, conn, params=(f"{group_name}_%",))
@@ -228,13 +228,14 @@ def get_available_benchmark_groups() -> List[str]:
 # ANALYSIS ENGINE
 # =============================================================================
 
-def run_lenses_on_data(df: pd.DataFrame, lenses: List[str]) -> Dict[str, Any]:
+def run_lenses_on_data(df: pd.DataFrame, lenses: List[str], verbose: bool = False) -> Dict[str, Any]:
     """
     Run specified lenses on a DataFrame.
 
     Args:
         df: DataFrame with 'date' column and indicator columns
         lenses: List of lens names to run
+        verbose: Print detailed error messages
 
     Returns:
         Dictionary with lens results and rankings
@@ -255,6 +256,10 @@ def run_lenses_on_data(df: pd.DataFrame, lenses: List[str]) -> Dict[str, Any]:
                 "success": True,
             }
         except Exception as e:
+            if verbose:
+                import traceback
+                print(f"    [ERROR] Lens '{lens_name}' failed: {e}")
+                traceback.print_exc()
             results[lens_name] = {
                 "analysis": {},
                 "ranking": [],
@@ -359,13 +364,14 @@ def compute_lens_agreement(lens_rankings: Dict[str, List[Dict]]) -> float:
     return float(np.mean(taus)) if taus else 0.0
 
 
-def analyze_dataset(group_name: str, config: Dict) -> DatasetAnalysis:
+def analyze_dataset(group_name: str, config: Dict, verbose: bool = False) -> DatasetAnalysis:
     """
     Run full PRISM analysis on a benchmark dataset.
 
     Args:
         group_name: Benchmark group name
         config: Analysis configuration
+        verbose: Print detailed error messages
 
     Returns:
         DatasetAnalysis with all results
@@ -397,7 +403,7 @@ def analyze_dataset(group_name: str, config: Dict) -> DatasetAnalysis:
             return result
 
         # Run lenses
-        lens_results = run_lenses_on_data(df, config.get("lenses", ["pca", "magnitude"]))
+        lens_results = run_lenses_on_data(df, config.get("lenses", ["pca", "magnitude"]), verbose=verbose)
 
         # Extract rankings
         for lens_name, lr in lens_results.items():
@@ -837,7 +843,7 @@ def run_benchmark_suite(verbose: bool = True) -> BenchmarkSuiteResults:
             print(f"Analyzing: {group_name}...")
 
         # Run analysis
-        analysis = analyze_dataset(group_name, ANALYSIS_CONFIG)
+        analysis = analyze_dataset(group_name, ANALYSIS_CONFIG, verbose=verbose)
         results.results[group_name] = analysis
         results.datasets_analyzed += 1
 
