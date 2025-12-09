@@ -172,9 +172,14 @@ class NetworkLens(BaseLens):
         result = self.analyze(df, **kwargs)
         hub_scores = result["hub_scores"]
 
-        # Normalize
-        max_score = max(hub_scores.values()) if hub_scores else 1
-        normalized = {k: v / max_score for k, v in hub_scores.items()}
+        # Normalize with safe division guard
+        max_score = max(hub_scores.values()) if hub_scores else 0
+
+        # If no structure exists, return flat ranking (avoid division by zero)
+        if max_score == 0:
+            normalized = {k: 0.0 for k in hub_scores}
+        else:
+            normalized = {k: v / max_score for k, v in hub_scores.items()}
 
         ranking = pd.DataFrame([
             {"indicator": k, "score": v}
