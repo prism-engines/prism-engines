@@ -65,6 +65,8 @@ class WaveletLens(BaseLens):
 
         total_energy = {}
         dominant_scales = {}
+        dominant_periods = {}
+        significant_periods = set()  # All significant periods across columns
 
         for col in value_cols:
             series = data[col].values
@@ -89,8 +91,15 @@ class WaveletLens(BaseLens):
                 dominant_idx = np.argmax(energies)
                 if dominant_idx == 0:
                     dominant_scales[col] = "approx (long-term trend)"
+                    dominant_periods[col] = len(series)
                 else:
                     dominant_scales[col] = f"level_{dominant_idx} (scale ~{2**dominant_idx})"
+                    dominant_periods[col] = 2 ** dominant_idx
+                # Find ALL significant periods (>5% of max energy, excluding approx)
+                max_energy = max(energies)
+                for i, e in enumerate(energies):
+                    if i > 0 and e > max_energy * 0.01:  # Skip approx
+                        significant_periods.add(2 ** i)
 
         # Scale correlations (how correlated are indicators at each scale)
         scale_correlations = {}
@@ -107,6 +116,8 @@ class WaveletLens(BaseLens):
             "energy_by_scale": energy_by_scale,
             "total_energy": total_energy,
             "dominant_scales": dominant_scales,
+            "dominant_periods": dominant_periods,
+            "significant_periods": sorted(significant_periods),
             "scale_variability": scale_correlations,
             "n_indicators": len(value_cols),
         }
