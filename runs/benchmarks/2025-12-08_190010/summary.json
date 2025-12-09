@@ -1,0 +1,145 @@
+{
+  "timestamp": "2025-12-08_190010",
+  "datasets_analyzed": 6,
+  "total_runtime_seconds": 0.2755091190338135,
+  "summary_metrics": {
+    "mean_lens_agreement": 0.0,
+    "mean_mrf": 0.0,
+    "structure_detection_rate": 0.0,
+    "high_confidence_rate": 0.0
+  },
+  "results": {
+    "anomalies": {
+      "name": "anomalies",
+      "description": "Random spikes and outliers embedded in normal behavior",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.21260786056518555,
+      "success": false,
+      "error_message": "No data found for benchmark group: anomalies"
+    },
+    "clear_leader": {
+      "name": "clear_leader",
+      "description": "One dominant indicator with subordinate followers",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.012424945831298828,
+      "success": false,
+      "error_message": "No data found for benchmark group: clear_leader"
+    },
+    "clusters": {
+      "name": "clusters",
+      "description": "Three correlated clusters of indicators",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.01168203353881836,
+      "success": false,
+      "error_message": "No data found for benchmark group: clusters"
+    },
+    "periodic": {
+      "name": "periodic",
+      "description": "Sinusoidal signals with harmonics",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.01160287857055664,
+      "success": false,
+      "error_message": "No data found for benchmark group: periodic"
+    },
+    "pure_noise": {
+      "name": "pure_noise",
+      "description": "Pure white noise with no structure (null baseline)",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.011673212051391602,
+      "success": false,
+      "error_message": "No data found for benchmark group: pure_noise"
+    },
+    "two_regimes": {
+      "name": "two_regimes",
+      "description": "Two distinct market regimes with different correlation structures",
+      "n_indicators": 0,
+      "n_observations": 0,
+      "date_range": [
+        "",
+        ""
+      ],
+      "lens_rankings": {},
+      "lens_metrics": {},
+      "mrf_score": 0.0,
+      "lens_agreement": 0.0,
+      "pca_explained_variance": [],
+      "top_indicators": [],
+      "structure_detected": false,
+      "interpretation": "",
+      "confidence": "low",
+      "runtime_seconds": 0.011483907699584961,
+      "success": false,
+      "error_message": "No data found for benchmark group: two_regimes"
+    }
+  }
+}
