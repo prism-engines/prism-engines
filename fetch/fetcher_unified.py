@@ -276,11 +276,14 @@ class PRISMFetcher:
         start = start or self.start_date
         end = end or self.end_date
 
+        # Normalize ticker for Tiingo (remove .US suffix if present)
+        clean_ticker = ticker.replace('.US', '')
+
         try:
             if is_crypto:
-                df = self.tiingo.fetch_crypto(ticker, start_date=start, end_date=end)
+                df = self.tiingo.fetch_crypto(clean_ticker, start_date=start, end_date=end)
             else:
-                df = self.tiingo.fetch_single(ticker, start_date=start, end_date=end)
+                df = self.tiingo.fetch_single(clean_ticker, start_date=start, end_date=end)
 
             if df is not None and not df.empty:
                 # Extract the value column
