@@ -3,103 +3,60 @@ PRISM Engine - Stage 05: Core Engine (The Math)
 
 The heart of PRISM - multiple mathematical "lenses" for analyzing data.
 
-Each lens provides a different perspective:
-    - magnitude_lens: Simple vector magnitude analysis
-    - pca_lens: Principal Component Analysis
-    - granger_lens: Granger causality testing
-    - dmd_lens: Dynamic Mode Decomposition
-    - influence_lens: Influence/importance scoring
-    - mutual_info_lens: Mutual information analysis
-    - clustering_lens: Hierarchical clustering
-    - decomposition_lens: Time series decomposition
+Lenses are auto-discovered from engine_core/lenses/*_lens.py files.
+Convention: file {name}_lens.py contains class {Name}Lens
 
-Advanced lenses:
-    - wavelet_lens: Wavelet transform analysis
-    - network_lens: Network graph analysis
-    - regime_switching_lens: Regime detection
-    - anomaly_lens: Anomaly detection
-    - transfer_entropy_lens: Information flow
-    - tda_lens: Topological data analysis
+Available lenses (auto-discovered):
+    - magnitude: Simple vector magnitude analysis
+    - pca: Principal Component Analysis
+    - granger: Granger causality testing
+    - dmd: Dynamic Mode Decomposition
+    - influence: Influence/importance scoring
+    - mutual_info: Mutual information analysis
+    - clustering: Hierarchical clustering
+    - decomposition: Time series decomposition
+    - wavelet: Wavelet transform analysis
+    - network: Network graph analysis
+    - regime_switching: Regime detection
+    - anomaly: Anomaly detection
+    - transfer_entropy: Information flow
+    - tda: Topological data analysis
 """
 
+# Auto-discovered lens registry
 from .lenses import (
     BaseLens,
-    MagnitudeLens,
-    PCALens,
-    GrangerLens,
-    DMDLens,
-    InfluenceLens,
-    MutualInfoLens,
-    ClusteringLens,
-    DecompositionLens,
-    WaveletLens,
-    NetworkLens,
-    RegimeSwitchingLens,
-    AnomalyLens,
-    TransferEntropyLens,
-    TDALens,
+    LENS_CLASSES,
+    get_lens,
+    list_lenses,
 )
 
+# Orchestration components
 from .orchestration import (
     LensComparator,
     ConsensusEngine,
     IndicatorEngine,
 )
 
+# Re-export LENS_CLASSES as LENS_REGISTRY for backward compatibility
+LENS_REGISTRY = LENS_CLASSES
+
+# Dynamically expose lens classes at module level for backward compatibility
+# e.g., `from engine_core import PCALens` still works
+_module = __import__(__name__)
+for _name, _cls in LENS_CLASSES.items():
+    setattr(_module, _cls.__name__, _cls)
+
 __all__ = [
+    # Registry
+    'LENS_CLASSES',
+    'LENS_REGISTRY',
+    'get_lens',
+    'list_lenses',
     # Base
     'BaseLens',
-    # Basic lenses
-    'MagnitudeLens',
-    'PCALens',
-    'GrangerLens',
-    'DMDLens',
-    'InfluenceLens',
-    'MutualInfoLens',
-    'ClusteringLens',
-    'DecompositionLens',
-    # Advanced lenses
-    'WaveletLens',
-    'NetworkLens',
-    'RegimeSwitchingLens',
-    'AnomalyLens',
-    'TransferEntropyLens',
-    'TDALens',
     # Orchestration
     'LensComparator',
     'ConsensusEngine',
     'IndicatorEngine',
-]
-
-# Lens registry for dynamic loading
-LENS_REGISTRY = {
-    'magnitude': MagnitudeLens,
-    'pca': PCALens,
-    'granger': GrangerLens,
-    'dmd': DMDLens,
-    'influence': InfluenceLens,
-    'mutual_info': MutualInfoLens,
-    'clustering': ClusteringLens,
-    'decomposition': DecompositionLens,
-    'wavelet': WaveletLens,
-    'network': NetworkLens,
-    'regime': RegimeSwitchingLens,
-    'anomaly': AnomalyLens,
-    'transfer_entropy': TransferEntropyLens,
-    'tda': TDALens,
-}
-
-
-def get_lens(name: str) -> 'BaseLens':
-    """
-    Get a lens instance by name.
-
-    Args:
-        name: Lens name (e.g., 'pca', 'granger')
-
-    Returns:
-        Lens instance
-    """
-    if name not in LENS_REGISTRY:
-        raise ValueError(f"Unknown lens: {name}. Available: {list(LENS_REGISTRY.keys())}")
-    return LENS_REGISTRY[name]()
+] + [cls.__name__ for cls in LENS_CLASSES.values()]
