@@ -1,3 +1,289 @@
+# 🚧 PRISM Engine Roadmap
+
+*A forward-first view of ongoing development, challenges ahead, and open research problems.*
+
+---
+
+## 9. Fixed Broken Benchmark Signals  
+- Inverted SNR ratios repaired  
+- Leader variance corrected  
+- Noise-only sets no longer falsely indicate structure  
+- Rewrote benchmark generator with correct signal-to-noise architecture  
+
+
+# 🔮 FUTURE WORK
+
+Below is the **master list of work ahead**, organized into major engineering, research, and architecture categories.
+
+These are the tasks that define PRISM’s **next-stage evolution**.
+
+---
+
+## **10. Multi-Normalization Stack (MNS v1.0)**
+
+PRISM’s differentiator.
+We need to build the system that runs each lens across *multiple* normalization geometries simultaneously.
+
+Tasks:
+
+* Implement multi-geometry runs
+* Build comparison scoring system
+* Define consensus-selection logic
+* Add stability / robustness measurement
+* Integrate with temporal & structural lenses
+
+---
+
+## **11. MVF Integration (Market Vector Framework v2)**
+
+This includes the advanced geometric modeling you defined:
+
+Tasks:
+
+* Implement updated normalization weights
+* Add Stress Controls Block
+* Add MVSS metric (already defined conceptually)
+* Add divergence & correlation anomaly detection
+* Add regime confirmation dampener
+
+---
+
+## **12. Unified Data Panel Overhaul**
+
+Consolidate all sources into a clean, metadata-aware panel builder.
+
+Tasks:
+
+* Standardize transforms per indicator type
+* Finalize metadata schema
+* Add cross-source cleaning rules
+* Add NaN-handling engine
+* Ensure consistency through all PRISM lenses
+
+---
+
+## **13. Diagnostic & Reporting Dashboards**
+
+Needed for interpreting outcomes and performance.
+
+Tasks:
+
+* HTML / PDF report generation
+* Temporal comparative lens plots
+* Normalization geometry plots
+* Benchmark summaries
+* Lens-level stats & validation
+
+---
+
+## **14. Phase-Space Geometry Modules**
+
+The long-term “geometric” heart of PRISM.
+
+Tasks:
+
+* Theta/phi decomposition
+* Wave & harmonic modeling
+* Divergence mapping
+* Cross-lens geometric alignment
+* Indicator vibration/oscillation modeling
+
+---
+
+## **15. Engine Execution Modes**
+
+We need predictable run profiles.
+
+Tasks:
+
+* “Quick Mode” for intraday
+* “Deep Mode” for overnight analysis
+* Fix parallelization instability
+* Add resource-aware scheduling
+* Add deterministic run outputs
+
+---
+
+## **8. Reflective Error Handling**
+
+PRISM should be self-diagnosing.
+
+Tasks:
+
+* Structured error categories
+* Execution trace logs
+* Auto-generated debugging notes
+* Early misconfiguration warnings
+* External environment consistency checks
+
+---
+
+## **9. Expanded Research Data Integration**
+
+PRISM needs multi-domain capability.
+
+Tasks:
+
+* Climate data (ECMWF)
+* Ecology data (GBIF, DataONE)
+* Economic long-timescale datasets
+* Universal metadata layer for external domains
+* Domain-appropriate transforms & normalizers
+
+---
+
+## **8. PRISM Documentation & Identity**
+
+For collaborators, research release, or publishing.
+
+Tasks:
+
+* Full documentation set
+* Architecture diagrams
+* Contributor onboarding
+* Whitepaper / academic description
+* Versioning policy docs
+
+---
+
+# ✔️ PAST PROBLEMS SOLVED
+
+This section documents the **engineering and research milestones already completed**.
+This serves as the retrospective progress ledger.
+
+---
+
+## ~~**7. Solved the One-Dimensional Normalization Problem~~**
+
+Key accomplishments:
+
+* Implemented lens-specific transforms & normalizers
+* Added rolling, rank, robust, minmax, volatility normalization
+* Built full LensNormalizer orchestrator
+* Enabled type-aware default normalization based on indicator category
+* Removed legacy forced z-score dependency
+
+---
+
+## ~~**6. Stabilized Stationarity & Transform Flow**~~
+
+Fixed:
+
+* Lenses receiving non-stationary data
+* Mismatched transformation behavior across modules
+* Introduced standardized: returns, diffs, bps, YoY, pct change
+  Created stability across all lenses.
+
+---
+
+## ~~**5. Tamed Claude Code’s “Repo Rewrite Chaos”~~**
+
+Major workflow improvements:
+
+* Introduced DIAGNOSIS MODE (read-only)
+* Introduced FIX MODE (diff-based, restricted)
+* Removed multi-file cascading fixes
+* Added controlled sandbox branches
+* Prevented unwanted branch switching
+* Claude now writes only after explicit approval
+
+---
+
+## ~~**4. Secured Main Branch with Versioned Snapshots**~~
+
+Accomplished:
+
+* Created and locked `Prism_v1.0`
+* Added GitHub protection rules
+* Established durable versioning strategy
+* Main remains live, but releases are immutable
+  Creates scientific reproducibility.
+
+---
+
+## ~~**3. Fixed DB & Fetcher Foundation Issues**~~
+
+Resolved:
+
+* Broken DB initialization
+* Missing schema tables
+* Path inconsistencies
+* FRED & Yahoo fetcher issues
+* Established unified DB resolution system
+
+---
+
+## ~~**2. Improved Temporal Engine Consistency**~~
+
+Fixed:
+
+* Misaligned temporal windows
+* Parallelization overshooting
+* Inconsistent step behavior
+* Clarified engine runners and scripts
+
+---
+
+## ~~**1. Standardized Development Environments**~~
+
+Resolved:
+
+* Mac / Linux / Chromebook drift
+* Conflicting Python versions
+* Dependency mismatches
+  Now converged on Python 3.12 and standardized path behavior.
+
+---
+
+# 📘 PRISM ENGINE — PROJECT OVERVIEW
+
+*(Basic README content — placed intentionally at the bottom per your request)*
+
+---
+
+## 🎯 What Is PRISM?
+
+PRISM is a multi-lens, geometric, normalization-aware analytical engine for financial and complex-system data.
+Instead of relying on a single normalized dataset, PRISM studies:
+
+* multiple **transforms**
+* multiple **normalization geometries**
+* multiple **independent analytical lenses**
+* multiple **temporal resolutions**
+* multiple **indicator categories**
+
+…to reveal **structural coherence**, **regime shifts**, and **geometric alignment** in markets and other complex datasets.
+
+---
+
+## 🧱 Core Architecture
+
+* **Lens System** — modular analytical components
+* **LensNormalizer** — type-aware data preparation
+* **Transforms** — stationarity enforcement
+* **Normalizers** — geometry selection (zscore, rank, rolling, robust, etc.)
+* **Benchmarks** — synthetic structured vs noise datasets
+* **Temporal Analysis** — reversible, multi-resolution lens execution
+* **Panel Builder** — unified, metadata-driven data ingestion
+* **Versioning** — locked release branches (`Prism_v1.x`)
+
+---
+
+## 👥 Development Workflow
+
+* Active development on `main`
+* AI coding using `claude-sandbox`
+* Release snapshots as `Prism_v1.x`
+* Claude allowed to modify only after diffs approved
+* Locked branches ensure reproducibility
+
+---
+
+## 🧭 Mission Statement
+
+PRISM aims to translate *market structure, behavior, and oscillation patterns* into a unified geometric model — bridging macroeconomics, signals, normalization domains, and regime dynamics.
+
+---
 # Prism Engines
 **Translating liquidity, macro, and behavioral momentum into a unified 3-D model of market equilibrium — a behavioral geometry of cycles revealing when forces align, diverge, or break.**
 
