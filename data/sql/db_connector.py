@@ -690,7 +690,8 @@ def load_multiple_indicators(
 def load_all_indicators_wide(
     indicators: Optional[List[str]] = None,
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    ffill: bool = True
 ) -> pd.DataFrame:
     """
     Load indicators from indicator_values and pivot to wide format.
@@ -704,6 +705,8 @@ def load_all_indicators_wide(
         indicators: Optional list of indicator names to load (None = all)
         start_date: Optional start date filter (YYYY-MM-DD)
         end_date: Optional end date filter (YYYY-MM-DD)
+        ffill: Forward-fill missing values (default True). Essential for
+               monthly/quarterly economic data stored in daily format.
 
     Returns:
         Wide-format DataFrame with date index and indicator columns
@@ -775,6 +778,12 @@ def load_all_indicators_wide(
     df['date'] = pd.to_datetime(df['date'])
     df_wide = df.pivot(index='date', columns='indicator_name', values='value')
     df_wide = df_wide.sort_index()
+    
+    # Forward fill missing values
+    # Essential for monthly/quarterly data (CPI, GDP, etc.) stored sparsely in daily format
+    # January's CPI value should persist until February's release
+    if ffill:
+        df_wide = df_wide.ffill()
 
     return df_wide
 
@@ -925,4 +934,379 @@ __all__ = [
     "export_to_csv",
     # Migration
     "migrate_legacy_tables",
+    # Analysis results
+    "init_analysis_tables",
+    "save_analysis_run",
+    "get_analysis_runs",
+    "get_run_results",
+    "get_indicator_rankings",
 ]
+
+
+# =============================================================================
+# ANALYSIS RESULTS STORAGE
+# =============================================================================
+
+def init_analysis_tables() -> None:
+    """
+    Create tables for storing analysis results.
+    Safe to call multiple times (uses IF NOT EXISTS).
+    """
+    conn = get_connection()
+    
+    conn.executescript("""
+        -- Analysis run metadata
+        CREATE TABLE IF NOT EXISTS analysis_runs (
+            run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            start_date TEXT,
+            end_date TEXT,
+            n_indicators INTEGER,
+            n_rows INTEGER,
+            n_lenses INTEGER,
+            n_errors INTEGER,
+            config TEXT,  -- JSON
+            runtime_seconds REAL
+        );
+        
+        -- Per-lens results
+        CREATE TABLE IF NOT EXISTS lens_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER REFERENCES analysis_runs(run_id),
+            lens_name TEXT NOT NULL,
+            normalize_method TEXT,
+            result TEXT,  -- JSON
+            runtime_seconds REAL,
+            error TEXT,
+            UNIQUE(run_id, lens_name)
+        );
+        
+        -- Indicator rankings (denormalized for easy querying)
+        CREATE TABLE IF NOT EXISTS indicator_rankings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER REFERENCES analysis_runs(run_id),
+            indicator TEXT NOT NULL,
+            lens_name TEXT NOT NULL,
+            score REAL,
+            rank INTEGER,
+            UNIQUE(run_id, indicator, lens_name)
+        );
+        
+        -- Consensus rankings per run
+        CREATE TABLE IF NOT EXISTS consensus_rankings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER REFERENCES analysis_runs(run_id),
+            indicator TEXT NOT NULL,
+            mean_score REAL,
+            n_lenses INTEGER,
+            rank INTEGER,
+            UNIQUE(run_id, indicator)
+        );
+        
+        -- Indexes for common queries
+        CREATE INDEX IF NOT EXISTS idx_lens_results_run ON lens_results(run_id);
+        CREATE INDEX IF NOT EXISTS idx_indicator_rankings_run ON indicator_rankings(run_id);
+        CREATE INDEX IF NOT EXISTS idx_indicator_rankings_indicator ON indicator_rankings(indicator);
+        CREATE INDEX IF NOT EXISTS idx_consensus_rankings_run ON consensus_rankings(run_id);
+    """)
+    
+    conn.commit()
+    conn.close()
+
+
+def save_analysis_run(
+    start_date: str,
+    end_date: Optional[str],
+    n_indicators: int,
+    n_rows: int,
+    n_lenses: int,
+    n_errors: int,
+    config: Optional[Dict] = None,
+    runtime_seconds: Optional[float] = None,
+    lens_results: Optional[Dict[str, Dict]] = None,
+    lens_errors: Optional[Dict[str, str]] = None,
+    rankings: Optional[Dict[str, pd.DataFrame]] = None,
+    consensus: Optional[pd.DataFrame] = None,
+    normalize_methods: Optional[Dict[str, str]] = None,
+) -> int:
+    """
+    Save a complete analysis run to the database.
+    
+    Args:
+        start_date: Analysis start date
+        end_date: Analysis end date (None = today)
+        n_indicators: Number of indicators analyzed
+        n_rows: Number of data rows
+        n_lenses: Number of lenses run
+        n_errors: Number of lens errors
+        config: Configuration dict (will be JSON serialized)
+        runtime_seconds: Total runtime
+        lens_results: Dict of lens_name -> result dict
+        lens_errors: Dict of lens_name -> error string
+        rankings: Dict of lens_name -> DataFrame with indicator rankings
+        consensus: DataFrame with consensus rankings
+        normalize_methods: Dict of lens_name -> normalization method used
+    
+    Returns:
+        run_id of the saved run
+    """
+    import json
+    
+    conn = get_connection()
+    
+    # Ensure tables exist
+    init_analysis_tables()
+    
+    # Insert run metadata
+    cursor = conn.execute(
+        """
+        INSERT INTO analysis_runs 
+            (start_date, end_date, n_indicators, n_rows, n_lenses, n_errors, config, runtime_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            start_date,
+            end_date,
+            n_indicators,
+            n_rows,
+            n_lenses,
+            n_errors,
+            json.dumps(config) if config else None,
+            runtime_seconds
+        )
+    )
+    run_id = cursor.lastrowid
+    
+    # Helper to make objects JSON-serializable
+    def clean_for_json(obj):
+        import numpy as np
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.int64, np.float64, np.int32, np.float32)):
+            return float(obj)
+        elif isinstance(obj, pd.DataFrame):
+            return obj.to_dict('records')
+        elif isinstance(obj, pd.Series):
+            return obj.to_dict()
+        elif isinstance(obj, dict):
+            return {k: clean_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [clean_for_json(v) for v in obj]
+        return obj
+    
+    # Insert lens results
+    if lens_results:
+        for lens_name, result in lens_results.items():
+            norm_method = normalize_methods.get(lens_name) if normalize_methods else None
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO lens_results 
+                    (run_id, lens_name, normalize_method, result, error)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    lens_name,
+                    norm_method,
+                    json.dumps(clean_for_json(result)),
+                    None
+                )
+            )
+    
+    # Insert lens errors
+    if lens_errors:
+        for lens_name, error in lens_errors.items():
+            norm_method = normalize_methods.get(lens_name) if normalize_methods else None
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO lens_results 
+                    (run_id, lens_name, normalize_method, result, error)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    lens_name,
+                    norm_method,
+                    None,
+                    str(error)[:500]  # Truncate long errors
+                )
+            )
+    
+    # Insert per-lens rankings
+    if rankings:
+        for lens_name, ranking_df in rankings.items():
+            if isinstance(ranking_df, pd.DataFrame) and not ranking_df.empty:
+                # Add rank column if not present
+                if 'score' in ranking_df.columns:
+                    ranking_df = ranking_df.sort_values('score', ascending=False)
+                    ranking_df['rank'] = range(1, len(ranking_df) + 1)
+                    
+                    for idx, row in ranking_df.iterrows():
+                        indicator = idx if isinstance(idx, str) else str(idx)
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO indicator_rankings
+                                (run_id, indicator, lens_name, score, rank)
+                            VALUES (?, ?, ?, ?, ?)
+                            """,
+                            (
+                                run_id,
+                                indicator,
+                                lens_name,
+                                float(row.get('score', 0)),
+                                int(row.get('rank', 0))
+                            )
+                        )
+    
+    # Insert consensus rankings
+    if consensus is not None and not consensus.empty:
+        consensus = consensus.sort_values('mean_score', ascending=False)
+        for rank, (indicator, row) in enumerate(consensus.iterrows(), 1):
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO consensus_rankings
+                    (run_id, indicator, mean_score, n_lenses, rank)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    str(indicator),
+                    float(row.get('mean_score', 0)),
+                    int(row.get('n_lenses', 0)),
+                    rank
+                )
+            )
+    
+    conn.commit()
+    conn.close()
+    
+    return run_id
+
+
+def get_analysis_runs(limit: int = 10) -> pd.DataFrame:
+    """
+    Get recent analysis runs.
+    
+    Args:
+        limit: Max number of runs to return
+    
+    Returns:
+        DataFrame with run metadata
+    """
+    conn = get_connection()
+    df = pd.read_sql(
+        """
+        SELECT run_id, run_date, start_date, end_date, 
+               n_indicators, n_rows, n_lenses, n_errors, runtime_seconds
+        FROM analysis_runs
+        ORDER BY run_date DESC
+        LIMIT ?
+        """,
+        conn,
+        params=(limit,)
+    )
+    conn.close()
+    return df
+
+
+def get_run_results(run_id: int) -> Dict[str, Any]:
+    """
+    Get full results for a specific run.
+    
+    Args:
+        run_id: The run ID to retrieve
+    
+    Returns:
+        Dict with run metadata, lens results, and rankings
+    """
+    import json
+    
+    conn = get_connection()
+    
+    # Get run metadata
+    run_row = conn.execute(
+        "SELECT * FROM analysis_runs WHERE run_id = ?",
+        (run_id,)
+    ).fetchone()
+    
+    if not run_row:
+        conn.close()
+        return {}
+    
+    result = dict(run_row)
+    if result.get('config'):
+        try:
+            result['config'] = json.loads(result['config'])
+        except:
+            pass
+    
+    # Get lens results
+    lens_df = pd.read_sql(
+        "SELECT lens_name, normalize_method, result, error FROM lens_results WHERE run_id = ?",
+        conn,
+        params=(run_id,)
+    )
+    result['lens_results'] = {}
+    result['lens_errors'] = {}
+    for _, row in lens_df.iterrows():
+        if row['error']:
+            result['lens_errors'][row['lens_name']] = row['error']
+        elif row['result']:
+            try:
+                result['lens_results'][row['lens_name']] = json.loads(row['result'])
+            except:
+                pass
+    
+    # Get consensus rankings
+    consensus_df = pd.read_sql(
+        """
+        SELECT indicator, mean_score, n_lenses, rank
+        FROM consensus_rankings
+        WHERE run_id = ?
+        ORDER BY rank
+        """,
+        conn,
+        params=(run_id,)
+    )
+    result['consensus'] = consensus_df
+    
+    conn.close()
+    return result
+
+
+def get_indicator_rankings(
+    indicator: str,
+    limit: int = 10
+) -> pd.DataFrame:
+    """
+    Get ranking history for a specific indicator across runs.
+    
+    Args:
+        indicator: Indicator name to look up
+        limit: Max number of runs to return
+    
+    Returns:
+        DataFrame with ranking history
+    """
+    conn = get_connection()
+    df = pd.read_sql(
+        """
+        SELECT 
+            ar.run_id,
+            ar.run_date,
+            ar.start_date,
+            ar.end_date,
+            cr.mean_score,
+            cr.n_lenses,
+            cr.rank
+        FROM consensus_rankings cr
+        JOIN analysis_runs ar ON cr.run_id = ar.run_id
+        WHERE cr.indicator = ?
+        ORDER BY ar.run_date DESC
+        LIMIT ?
+        """,
+        conn,
+        params=(indicator, limit)
+    )
+    conn.close()
+    return df

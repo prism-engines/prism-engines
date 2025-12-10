@@ -1,0 +1,88 @@
+# =============================================================================
+# PRISM Configuration
+# =============================================================================
+# Edit this file to control all runners from one place.
+# Used by: benchmark.py, analyze.py, temporal.py
+
+# -----------------------------------------------------------------------------
+# Data Settings
+# -----------------------------------------------------------------------------
+data:
+  start_date: "2000-01-01"
+  end_date: null  # null = today
+  frequency: "D"  # D=daily, W=weekly, M=monthly
+  min_coverage: 0.7  # Minimum data coverage required (0-1)
+
+# -----------------------------------------------------------------------------
+# Database
+# -----------------------------------------------------------------------------
+database:
+  path: "~/prism_data/prism.db"
+  use_cache: true
+
+# -----------------------------------------------------------------------------
+# Benchmark Settings
+# -----------------------------------------------------------------------------
+benchmark:
+  output_dir: "data/benchmark"
+  regenerate_data: false  # Set true to recreate CSVs
+  verbose: true
+
+# -----------------------------------------------------------------------------
+# Analysis Settings
+# -----------------------------------------------------------------------------
+analysis:
+  output_dir: "output/analysis"
+  save_results: true
+  
+  # Lenses to run (comment out to skip)
+  lenses:
+    - granger
+    - regime
+    - clustering
+    - wavelet
+    - anomaly
+    - pca
+    - network
+    - transfer_entropy
+    - mutual_info
+    - magnitude
+    - decomposition
+    - dmd
+    - influence
+    - tda
+    # - temporal  # Excluded by default - use temporal.py
+  
+  # Lens-specific parameters
+  granger:
+    max_lag: 5
+    significance: 0.05
+  
+  regime:
+    n_regimes: 3
+  
+  wavelet:
+    wavelet: "db4"
+    significance_threshold: 0.01
+  
+  pca:
+    n_components: 5
+
+# -----------------------------------------------------------------------------
+# Temporal Settings (separate runner)
+# -----------------------------------------------------------------------------
+temporal:
+  output_dir: "output/temporal"
+  windows:
+    - 63   # ~3 months
+    - 126  # ~6 months
+    - 252  # ~1 year
+  step_size: 21  # ~1 month
+
+# -----------------------------------------------------------------------------
+# Output Settings
+# -----------------------------------------------------------------------------
+output:
+  format: "csv"  # csv, json, both
+  include_metadata: true
+  timestamp_files: false
