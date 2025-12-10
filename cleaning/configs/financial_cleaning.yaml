@@ -1,0 +1,80 @@
+# Financial Data Cleaning Configuration
+# Defines NaN strategies per indicator type
+
+strategies:
+  # Price data - use forward fill (last known price)
+  prices:
+    method: ffill
+    max_gap: 5  # days
+    fallback: linear
+
+  # Yield/rate data - linear interpolation
+  yields:
+    method: linear
+    max_gap: 3
+    fallback: ffill
+
+  # Volume data - missing volume = no trading
+  volume:
+    method: zero
+    max_gap: null
+
+  # Ratio/spread data - forward fill
+  ratios:
+    method: ffill
+    max_gap: 10
+    fallback: linear
+
+  # Economic indicators (monthly) - linear interpolation
+  macro:
+    method: linear
+    max_gap: 3
+    fallback: ffill
+
+  # Volatility indices - spline for smoothness
+  volatility:
+    method: spline
+    order: 3
+    max_gap: 5
+
+# Column-to-strategy mapping
+column_strategies:
+  # Indices and ETFs
+  "^gspc": prices
+  "^dji": prices
+  "^ixic": prices
+  "^rut": prices
+  "spy": prices
+  "xlf": prices
+  "xlk": prices
+  "xle": prices
+
+  # Volatility
+  "^vix": volatility
+
+  # Rates
+  "dff": yields
+  "dgs10": yields
+  "dgs2": yields
+  "t10y2y": ratios
+  "t10y3m": ratios
+
+  # Economic
+  "gdp": macro
+  "unrate": macro
+  "cpiaucsl": macro
+  "indpro": macro
+
+  # Default for unknown columns
+  default: ffill
+
+# Outlier handling
+outlier_config:
+  detection_method: iqr
+  iqr_multiplier: 3.0
+  action: flag  # 'flag', 'remove', 'cap'
+
+# Quality thresholds
+quality:
+  max_nan_pct: 10.0  # Max % NaN after cleaning
+  min_observations: 100  # Minimum rows required
