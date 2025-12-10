@@ -12,17 +12,23 @@ CREATE TABLE IF NOT EXISTS systems (
 -- INDICATORS TABLE
 -- Unified PRISM indicator registry (market, economy, benchmark, climate, etc.)
 ------------------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS indicators (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    system TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    system TEXT NOT NULL DEFAULT 'market',
     frequency TEXT NOT NULL DEFAULT 'daily',
-    source TEXT NOT NULL DEFAULT 'UNKNOWN',
+    source TEXT,
+    units TEXT,
     description TEXT,
     metadata TEXT,
-    FOREIGN KEY(system) REFERENCES systems(system),
-    UNIQUE(name, system)
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (system) REFERENCES systems(system)
 );
+
+CREATE INDEX IF NOT EXISTS idx_indicators_system ON indicators(system);
+CREATE INDEX IF NOT EXISTS idx_indicators_name ON indicators(name);
 
 ------------------------------------------------------------
 -- INDICATOR VALUES TABLE
