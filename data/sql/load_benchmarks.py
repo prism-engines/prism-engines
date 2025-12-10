@@ -4,18 +4,7 @@ PRISM Benchmark Dataset Loader
 
 Loads benchmark CSV datasets into the PRISM SQLite database for engine-validation testing.
 
-This module:
-  - Reads benchmark CSV files from data/benchmark/
-  - Creates indicator entries with system='benchmark'
-  - Inserts time series data into timeseries table
-  - Does NOT modify existing FRED or other indicators
-
-Usage:
-    from data.sql.load_benchmarks import load_all_benchmarks
-    load_all_benchmarks()
-
-Or via CLI:
-    python prism_run.py --load-benchmarks
+Works with Schema v2 (indicator_id + indicator_values table).
 """
 
 import sqlite3
@@ -25,12 +14,10 @@ import pandas as pd
 
 from .db_connector import get_connection
 
-
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-# Mapping from benchmark filename to shortname
 BENCHMARK_FILES = {
     "benchmark_01_clear_leader.csv": "clear_leader",
     "benchmark_02_two_regimes.csv": "two_regimes",
@@ -40,36 +27,19 @@ BENCHMARK_FILES = {
     "benchmark_06_pure_noise.csv": "pure_noise",
 }
 
-
 def _get_benchmark_dir() -> Path:
-    """Return the default benchmark directory path."""
     return Path(__file__).parent.parent / "benchmark"
-
 
 # =============================================================================
 # INDICATOR CREATION
 # =============================================================================
 
-def _create_benchmark_indicator(
-    conn: sqlite3.Connection,
-    indicator_name: str,
-    file_shortname: str,
-    column_name: str
-) -> str:
+def _create_benchmark_indicator(conn, indicator_name, file_shortname, column_name) -> int:
     """
-    Create an indicator entry for a benchmark column.
-
-    Uses Schema v2 - indicator_values table.
-
-    Args:
-        conn: Database connection
-        indicator_name: Unique indicator name (e.g., "clear_leader_A")
-        file_shortname: Benchmark file shortname (e.g., "clear_leader")
-        column_name: Column name from CSV (e.g., "A")
-
-    Returns:
-        The indicator name for indicator_values insertion
+    Create or update an indicator for a benchmark column.
+    Returns indicator_id (int).
     """
+
     description = f"Benchmark synthetic dataset - known structure ({file_shortname})"
     metadata = f'{{"benchmark_group": "{file_shortname}", "column": "{column_name}"}}'
 
@@ -77,112 +47,65 @@ def _create_benchmark_indicator(
         """
         INSERT INTO indicators (name, system, frequency, source, description, metadata)
         VALUES (?, 'benchmark', 'daily', 'BENCHMARK', ?, ?)
-        ON CONFLICT(name) DO UPDATE SET
-            system = 'benchmark',
-            frequency = 'daily',
-            source = 'BENCHMARK',
-            description = excluded.description,
-            metadata = excluded.metadata,
-            updated_at = CURRENT_TIMESTAMP
+        ON CONFLICT(name, system) DO UPDATE SET
+            frequency='daily',
+            source='BENCHMARK',
+            description=excluded.description,
+            metadata=excluded.metadata
         """,
-        (indicator_name, description, metadata)
+        (indicator_name, description, metadata),
     )
 
-    return indicator_name
+    row = conn.execute(
+        "SELECT id FROM indicators WHERE name=? AND system='benchmark'",
+        (indicator_name,),
+    ).fetchone()
 
+    return row["id"]
 
 # =============================================================================
-# INDICATOR_VALUES INSERTION (Schema v2)
+# VALUE INSERTION (Schema v2)
 # =============================================================================
 
-def _insert_benchmark_values(
-    conn: sqlite3.Connection,
-    indicator_name: str,
-    dates: List[str],
-    values: List[float]
-) -> int:
-    """
-    Insert time series data for a benchmark indicator into indicator_values.
-
-    Uses Schema v2 - indicator_values table.
-
-    Args:
-        conn: Database connection
-        indicator_name: Indicator name from indicators table
-        dates: List of dates (YYYY-MM-DD format)
-        values: List of values
-
-    Returns:
-        Number of rows inserted
-    """
+def _insert_benchmark_values(conn, indicator_id: int, dates: List[str], values: List[float]) -> int:
     rows_inserted = 0
 
     for date, value in zip(dates, values):
-        try:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO indicator_values
-                    (indicator_name, date, value, provenance, quality_flag)
-                VALUES (?, ?, ?, 'BENCHMARK', 'synthetic')
-                """,
-                (indicator_name, date, value)
-            )
-            rows_inserted += 1
-        except sqlite3.IntegrityError:
-            pass  # Skip duplicates
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO indicator_values (indicator_id, date, value)
+            VALUES (?, ?, ?)
+            """,
+            (indicator_id, date, value),
+        )
+        rows_inserted += 1
 
     return rows_inserted
-
 
 # =============================================================================
 # MAIN LOADER
 # =============================================================================
 
-def load_benchmark_file(
-    conn: sqlite3.Connection,
-    filepath: Path,
-    file_shortname: str,
-    verbose: bool = True
-) -> Tuple[int, int]:
-    """
-    Load a single benchmark CSV file into the database.
+def load_benchmark_file(conn, filepath: Path, file_shortname: str, verbose=True) -> Tuple[int, int]:
 
-    Uses Schema v2 - indicator_values table.
-
-    Args:
-        conn: Database connection
-        filepath: Path to the CSV file
-        file_shortname: Shortname for the benchmark (e.g., "clear_leader")
-        verbose: Print progress messages
-
-    Returns:
-        Tuple of (indicators_created, rows_inserted)
-    """
     if verbose:
         print(f"  Loading {filepath.name}...")
 
-    # Read CSV file
     df = pd.read_csv(filepath, index_col=0)
-
-    # Ensure index is parsed as dates and formatted as YYYY-MM-DD
-    df.index = pd.to_datetime(df.index).strftime('%Y-%m-%d')
+    df.index = pd.to_datetime(df.index).strftime("%Y-%m-%d")
     dates = df.index.tolist()
 
     indicators_created = 0
     total_rows = 0
 
-    # Process each column (A, B, C, D, E, F, etc.)
     for column in df.columns:
-        # Create indicator name: "{file_shortname}_{column}"
         indicator_name = f"{file_shortname}_{column}"
 
-        # Create indicator entry in indicators table
-        _create_benchmark_indicator(conn, indicator_name, file_shortname, column)
+        indicator_id = _create_benchmark_indicator(conn, indicator_name, file_shortname, column)
         indicators_created += 1
 
-        # Insert time series data into indicator_values
         values = df[column].tolist()
-        rows = _insert_benchmark_values(conn, indicator_name, dates, values)
+        rows = _insert_benchmark_values(conn, indicator_id, dates, values)
         total_rows += rows
 
         if verbose:
@@ -190,28 +113,9 @@ def load_benchmark_file(
 
     return indicators_created, total_rows
 
+def load_all_benchmarks(benchmark_dir=None, verbose=True) -> Dict[str, any]:
 
-def load_all_benchmarks(
-    benchmark_dir: Optional[str] = None,
-    verbose: bool = True
-) -> Dict[str, any]:
-    """
-    Loads all 6 benchmark CSV files into the PRISM SQLite database.
-
-    Overwrites no existing FRED indicators.
-    Creates indicators under system='benchmark'.
-
-    Args:
-        benchmark_dir: Path to benchmark directory (default: data/benchmark)
-        verbose: Print progress messages
-
-    Returns:
-        Dictionary with loading statistics
-    """
-    if benchmark_dir is None:
-        benchmark_path = _get_benchmark_dir()
-    else:
-        benchmark_path = Path(benchmark_dir)
+    benchmark_path = Path(benchmark_dir) if benchmark_dir else _get_benchmark_dir()
 
     if not benchmark_path.exists():
         raise FileNotFoundError(f"Benchmark directory not found: {benchmark_path}")
@@ -220,33 +124,24 @@ def load_all_benchmarks(
         print("=" * 60)
         print("PRISM Benchmark Loader")
         print("=" * 60)
-        print(f"Source: {benchmark_path}")
-        print()
+        print(f"Source: {benchmark_path}\n")
 
-    # Ensure 'benchmark' system exists (Schema v2: systems.system is primary key)
     conn = get_connection()
     conn.execute("INSERT OR IGNORE INTO systems(system) VALUES ('benchmark')")
 
-    stats = {
-        "files_loaded": 0,
-        "indicators_created": 0,
-        "rows_inserted": 0,
-        "errors": [],
-    }
+    stats = {"files_loaded": 0, "indicators_created": 0, "rows_inserted": 0, "errors": []}
 
-    # Load each benchmark file in a single transaction per file
     for filename, shortname in BENCHMARK_FILES.items():
         filepath = benchmark_path / filename
 
         if not filepath.exists():
-            error_msg = f"Missing file: {filename}"
-            stats["errors"].append(error_msg)
+            msg = f"Missing file: {filename}"
+            stats["errors"].append(msg)
             if verbose:
-                print(f"  [SKIP] {error_msg}")
+                print(f"  [SKIP] {msg}")
             continue
 
         try:
-            # Start transaction for this file
             indicators, rows = load_benchmark_file(conn, filepath, shortname, verbose)
             conn.commit()
 
@@ -256,97 +151,56 @@ def load_all_benchmarks(
 
         except Exception as e:
             conn.rollback()
-            error_msg = f"Error loading {filename}: {e}"
-            stats["errors"].append(error_msg)
+            msg = f"Error loading {filename}: {e}"
+            stats["errors"].append(msg)
             if verbose:
-                print(f"  [ERROR] {error_msg}")
+                print(f"  [ERROR] {msg}")
 
     conn.close()
 
     if verbose:
-        print()
-        print("=" * 60)
+        print("\n" + "=" * 60)
         print("BENCHMARK LOADING COMPLETE")
         print("=" * 60)
         print(f"  Files loaded:      {stats['files_loaded']}")
         print(f"  Indicators created: {stats['indicators_created']}")
         print(f"  Rows inserted:     {stats['rows_inserted']}")
         if stats["errors"]:
-            print(f"  Errors:            {len(stats['errors'])}")
-            for err in stats["errors"]:
-                print(f"    - {err}")
+            print(f"  Errors: {len(stats['errors'])}")
+            for e in stats["errors"]:
+                print(f"    - {e}")
         print("=" * 60)
 
     return stats
 
+# =============================================================================
+# CLEAR BENCHMARKS
+# =============================================================================
 
-def clear_benchmarks(verbose: bool = True) -> Dict[str, int]:
-    """
-    Remove all benchmark indicators and their data from the database.
-
-    This is useful for resetting benchmark data before re-loading.
-    Uses Schema v2 - indicator_values table.
-
-    Args:
-        verbose: Print progress messages
-
-    Returns:
-        Dictionary with deletion statistics
-    """
+def clear_benchmarks(verbose=True) -> Dict[str, int]:
     conn = get_connection()
 
-    stats = {
-        "indicators_deleted": 0,
-        "rows_deleted": 0,
-    }
+    rows = conn.execute("SELECT id FROM indicators WHERE system='benchmark'").fetchall()
+    indicator_ids = [r["id"] for r in rows]
 
-    # Get list of benchmark indicators (Schema v2.1: column is 'name')
-    rows = conn.execute(
-        "SELECT name FROM indicators WHERE system = 'benchmark'"
-    ).fetchall()
+    stats = {"indicators_deleted": len(indicator_ids), "rows_deleted": 0}
 
-    if not rows:
-        if verbose:
-            print("No benchmark indicators found to delete.")
-        conn.close()
-        return stats
-
-    indicator_names = [r[0] for r in rows]
-
-    if verbose:
-        print(f"Deleting {len(indicator_names)} benchmark indicators...")
-
-    # Delete time series data first from indicator_values (Schema v2)
-    for name in indicator_names:
-        result = conn.execute(
-            "DELETE FROM indicator_values WHERE indicator_name = ?",
-            (name,)
-        )
+    for ind_id in indicator_ids:
+        result = conn.execute("DELETE FROM indicator_values WHERE indicator_id=?", (ind_id,))
         stats["rows_deleted"] += result.rowcount
 
-    # Delete indicators
-    result = conn.execute(
-        "DELETE FROM indicators WHERE system = 'benchmark'"
-    )
-    stats["indicators_deleted"] = result.rowcount
-
+    conn.execute("DELETE FROM indicators WHERE system='benchmark'")
     conn.commit()
     conn.close()
 
     if verbose:
-        print(f"  Indicators deleted: {stats['indicators_deleted']}")
-        print(f"  Rows deleted:       {stats['rows_deleted']}")
+        print(f"Deleted {stats['indicators_deleted']} indicators and {stats['rows_deleted']} rows.")
 
     return stats
 
 
-# =============================================================================
-# CLI ENTRY POINT
-# =============================================================================
-
 if __name__ == "__main__":
     import sys
-
     if "--clear" in sys.argv:
         clear_benchmarks()
     else:
