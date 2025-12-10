@@ -442,8 +442,20 @@ class AnalysisRunner:
             try:
                 rankings = lens.rank_indicators(df_normalized)
                 if isinstance(rankings, pd.DataFrame):
+                    # Ensure index has indicator names
+                    if rankings.index.dtype == 'int64' and 'indicator' not in rankings.columns:
+                        # Index is integers, try to map to indicator names
+                        indicator_cols = [c for c in df_normalized.columns if c != 'date']
+                        if len(indicator_cols) == len(rankings):
+                            rankings.index = indicator_cols
                     self.rankings[name] = rankings
                 elif isinstance(rankings, pd.Series):
+                    # Convert Series to DataFrame, preserving index
+                    if rankings.index.dtype == 'int64':
+                        # Index is integers, try to map to indicator names
+                        indicator_cols = [c for c in df_normalized.columns if c != 'date']
+                        if len(indicator_cols) == len(rankings):
+                            rankings.index = indicator_cols
                     self.rankings[name] = rankings.to_frame(name='score')
             except:
                 pass

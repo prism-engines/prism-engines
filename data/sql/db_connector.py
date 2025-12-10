@@ -1136,13 +1136,26 @@ def save_analysis_run(
     if rankings:
         for lens_name, ranking_df in rankings.items():
             if isinstance(ranking_df, pd.DataFrame) and not ranking_df.empty:
+                # Make a copy to avoid modifying original
+                ranking_df = ranking_df.copy()
+                
                 # Add rank column if not present
                 if 'score' in ranking_df.columns:
                     ranking_df = ranking_df.sort_values('score', ascending=False)
                     ranking_df['rank'] = range(1, len(ranking_df) + 1)
                     
                     for idx, row in ranking_df.iterrows():
-                        indicator = idx if isinstance(idx, str) else str(idx)
+                        # Try to get indicator name from multiple sources
+                        if 'indicator' in ranking_df.columns:
+                            indicator = str(row['indicator'])
+                        elif isinstance(idx, str) and not idx.isdigit():
+                            indicator = idx
+                        elif hasattr(ranking_df.index, 'name') and ranking_df.index.name:
+                            indicator = str(idx)
+                        else:
+                            # Skip if we can't determine indicator name
+                            continue
+                        
                         conn.execute(
                             """
                             INSERT OR REPLACE INTO indicator_rankings
