@@ -8,7 +8,17 @@ Usage:
     python analyze.py                    # Run with config defaults
     python analyze.py --start 2020-01-01 # Override start date
     python analyze.py --lenses granger regime pca  # Run specific lenses
+    python analyze.py --weighted         # Use combined weights (default)
+    python analyze.py --weighted independence  # Use independence weights
+    python analyze.py --weighted cluster       # Use cluster-based weights
     python analyze.py --list             # List available lenses
+
+Weight Methods:
+    - unweighted (default): Simple average across all lenses
+    - independence: Weight by orthogonality (1/(1+avg_correlation))
+    - cluster: Equal weight per cluster, shared among members
+    - combined: Average of independence, cluster, and uniqueness weights
+    - accuracy: Weight by benchmark performance (future)
 
 Reads settings from: prism_config.yaml
 """
@@ -255,6 +265,92 @@ def get_lens(name: str):
     lens_class = getattr(module, info['class'])
     
     return lens_class()
+
+
+# -----------------------------------------------------------------------------
+# Lens Weights (Dynamic from Geometry)
+# -----------------------------------------------------------------------------
+
+def load_lens_weights(method: str = 'combined', run_id: Optional[int] = None) -> Dict[str, float]:
+    """
+    Load lens weights from the database (computed by lens_geometry.py).
+    
+    Args:
+        method: Weight method - 'independence', 'cluster', 'combined', or 'accuracy'
+        run_id: Specific run to load weights from (None = most recent)
+    
+    Returns:
+        Dict of lens_name -> weight, normalized to sum to 1
+    """
+    try:
+        from data.sql.db_connector import get_connection
+        conn = get_connection()
+        
+        if run_id is None:
+            # Get most recent geometry run
+            row = conn.execute(
+                """
+                SELECT run_id, weights FROM lens_weights 
+                WHERE method = ? 
+                ORDER BY id DESC LIMIT 1
+                """,
+                (method,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT run_id, weights FROM lens_weights WHERE run_id = ? AND method = ?",
+                (run_id, method)
+            ).fetchone()
+        
+        conn.close()
+        
+        if row:
+            weights = json.loads(row[1])
+            # Normalize to sum to 1
+            total = sum(weights.values())
+            if total > 0:
+                weights = {k: v/total for k, v in weights.items()}
+            print(f"   📊 Loaded {method} weights from run {row[0]}")
+            return weights
+        else:
+            print(f"   ⚠️  No {method} weights found in DB - using equal weights")
+            return {}
+            
+    except Exception as e:
+        print(f"   ⚠️  Could not load weights: {e}")
+        return {}
+
+
+def get_default_weights() -> Dict[str, float]:
+    """
+    Fallback weights based on lens geometry analysis.
+    Used if no weights in DB yet.
+    
+    From lens_geometry.py run on 2025-12-10:
+    - Granger is orthogonal to all other lenses
+    - clustering/network/pca/regime form a redundant cluster
+    """
+    # Combined weights from geometry analysis
+    weights = {
+        'granger': 1.714,
+        'mutual_info': 1.261,
+        'anomaly': 1.132,
+        'clustering': 1.098,
+        'decomposition': 1.070,
+        'magnitude': 0.943,
+        'dmd': 0.892,
+        'network': 0.873,
+        'influence': 0.849,
+        'regime': 0.824,
+        'transfer_entropy': 0.819,
+        'wavelet': 0.782,
+        'pca': 0.743,
+        'tda': 0.750,  # Estimated - not run in geometry yet
+    }
+    
+    # Normalize to sum to 1
+    total = sum(weights.values())
+    return {k: v/total for k, v in weights.items()}
 
 
 # -----------------------------------------------------------------------------
@@ -516,8 +612,17 @@ class AnalysisRunner:
                 cum = sum(variance[:3]) if len(variance) >= 3 else sum(variance)
                 print(f"       Top 3 components explain: {cum:.1%}")
     
-    def get_consensus_rankings(self) -> pd.DataFrame:
-        """Aggregate rankings across all lenses."""
+    def get_consensus_rankings(self, weights: Optional[Dict[str, float]] = None) -> pd.DataFrame:
+        """
+        Aggregate rankings across all lenses.
+        
+        Args:
+            weights: Optional dict of lens_name -> weight. If provided, 
+                    computes weighted consensus. Otherwise, simple average.
+        
+        Returns:
+            DataFrame with mean_score (or weighted_score), n_lenses, and per-lens scores
+        """
         if not self.rankings:
             return pd.DataFrame()
         
@@ -535,13 +640,47 @@ class AnalysisRunner:
             return pd.DataFrame()
         
         df = pd.DataFrame(all_scores).T
-        df['mean_score'] = df.mean(axis=1)
-        df['n_lenses'] = df.notna().sum(axis=1) - 1
-        df = df.sort_values('mean_score', ascending=False)
+        
+        # Get lens columns (exclude any metadata columns)
+        lens_cols = [c for c in df.columns if c in LENS_REGISTRY]
+        
+        # Normalize each lens's scores to [0, 1] for fair comparison
+        for col in lens_cols:
+            s = df[col]
+            if s.notna().any() and s.max() != s.min():
+                df[col] = (s - s.min()) / (s.max() - s.min())
+            elif s.notna().any():
+                df[col] = 0.5
+        
+        if weights:
+            # Weighted consensus
+            weighted_sum = pd.Series(0.0, index=df.index)
+            weight_sum = pd.Series(0.0, index=df.index)
+            
+            for lens in lens_cols:
+                if lens in weights:
+                    mask = df[lens].notna()
+                    weighted_sum[mask] += df.loc[mask, lens] * weights[lens]
+                    weight_sum[mask] += weights[lens]
+            
+            # Avoid division by zero
+            weight_sum = weight_sum.replace(0, np.nan)
+            df['weighted_score'] = weighted_sum / weight_sum
+            df['mean_score'] = df[lens_cols].mean(axis=1)  # Also keep unweighted
+        else:
+            # Simple average (unweighted)
+            df['mean_score'] = df[lens_cols].mean(axis=1)
+        
+        df['n_lenses'] = df[lens_cols].notna().sum(axis=1)
+        
+        # Sort by weighted score if available, else mean
+        sort_col = 'weighted_score' if 'weighted_score' in df.columns else 'mean_score'
+        df = df.sort_values(sort_col, ascending=False)
         
         return df
     
-    def save_results(self, output_dir: Path):
+    def save_results(self, output_dir: Path, weights: Optional[Dict[str, float]] = None, 
+                      weight_method: Optional[str] = None):
         """Save results to files."""
         output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -562,19 +701,27 @@ class AnalysisRunner:
                 return [clean_for_json(v) for v in obj]
             return obj
         
+        # Add weight info to results
+        results_to_save = {
+            'lens_results': self.results,
+            'weight_method': weight_method or 'unweighted',
+            'weights': weights or {},
+        }
+        
         results_path = output_dir / f'analysis_results_{timestamp}.json'
         with open(results_path, 'w') as f:
-            json.dump(clean_for_json(self.results), f, indent=2, default=str)
+            json.dump(clean_for_json(results_to_save), f, indent=2, default=str)
         print(f"\n   Saved results: {results_path}")
         
-        # Save consensus rankings
-        consensus = self.get_consensus_rankings()
+        # Save consensus rankings (with weights if provided)
+        consensus = self.get_consensus_rankings(weights)
         if not consensus.empty:
             rankings_path = output_dir / f'consensus_rankings_{timestamp}.csv'
             consensus.to_csv(rankings_path)
             print(f"   Saved rankings: {rankings_path}")
     
-    def print_summary(self):
+    def print_summary(self, weights: Optional[Dict[str, float]] = None, 
+                      weight_method: Optional[str] = None):
         """Print analysis summary."""
         print("\n" + "=" * 60)
         print("ANALYSIS SUMMARY")
@@ -589,13 +736,27 @@ class AnalysisRunner:
                 print(f"    - {name}: {error[:50]}...")
         
         # Consensus rankings
-        consensus = self.get_consensus_rankings()
+        consensus = self.get_consensus_rankings(weights)
         if not consensus.empty:
-            print("\n  Top 10 Indicators (Consensus):")
+            if weights and weight_method:
+                print(f"\n  Top 10 Indicators (Weighted Consensus - {weight_method}):")
+                score_col = 'weighted_score'
+            else:
+                print("\n  Top 10 Indicators (Consensus):")
+                score_col = 'mean_score'
+            
             for i, (indicator, row) in enumerate(consensus.head(10).iterrows()):
-                score = row.get('mean_score', 0)
+                score = row.get(score_col, row.get('mean_score', 0))
                 n = int(row.get('n_lenses', 0))
-                print(f"    {i+1}. {indicator}: {score:.3f} ({n} lenses)")
+                print(f"    {i+1:2}. {indicator}: {score:.3f} ({n} lenses)")
+            
+            # Also show unweighted if we're using weighted
+            if weights:
+                print("\n  (Unweighted comparison - top 5):")
+                unweighted = self.get_consensus_rankings(None)
+                for i, (indicator, row) in enumerate(unweighted.head(5).iterrows()):
+                    score = row.get('mean_score', 0)
+                    print(f"    {i+1:2}. {indicator}: {score:.3f}")
 
 
 # -----------------------------------------------------------------------------
@@ -612,6 +773,9 @@ def main():
     parser.add_argument('--no-save', action='store_true', help='Do not save results to files')
     parser.add_argument('--no-db', action='store_true', help='Do not save results to database')
     parser.add_argument('--quiet', '-q', action='store_true', help='Minimal output')
+    parser.add_argument('--weighted', '-w', nargs='?', const='combined', 
+                        choices=['independence', 'cluster', 'combined', 'accuracy'],
+                        help='Use weighted consensus (default: combined if flag given)')
     
     args = parser.parse_args()
     
@@ -670,10 +834,22 @@ def main():
     runner = AnalysisRunner(config)
     runner.run_all(df, lenses)
     
+    # Load weights if weighted mode requested
+    weights = None
+    weight_method = None
+    if args.weighted:
+        weight_method = args.weighted
+        print(f"\n📊 Loading {weight_method} weights...")
+        weights = load_lens_weights(weight_method)
+        if not weights:
+            # Fall back to defaults
+            print("   Using default weights from geometry analysis")
+            weights = get_default_weights()
+    
     # Save results
     if not args.no_save and config.get('analysis', {}).get('save_results', True):
         output_dir = Path(config.get('analysis', {}).get('output_dir', 'output/analysis'))
-        runner.save_results(output_dir)
+        runner.save_results(output_dir, weights=weights, weight_method=weight_method)
     
     # Save to database
     if not args.no_db:
@@ -690,6 +866,11 @@ def main():
             n_indicators = len([c for c in df.columns if c != 'date'])
             n_rows = len(df)
             
+            # Build config with weight info
+            run_config = config.copy()
+            run_config['weight_method'] = weight_method
+            run_config['weights'] = weights
+            
             run_id = save_analysis_run(
                 start_date=config.get('data', {}).get('start_date', '2000-01-01'),
                 end_date=config.get('data', {}).get('end_date'),
@@ -697,11 +878,11 @@ def main():
                 n_rows=n_rows,
                 n_lenses=len(runner.results),
                 n_errors=len(runner.errors),
-                config=config,
+                config=run_config,
                 lens_results=runner.results,
                 lens_errors=runner.errors,
                 rankings=runner.rankings,
-                consensus=runner.get_consensus_rankings(),
+                consensus=runner.get_consensus_rankings(weights),
                 normalize_methods=normalize_methods,
             )
             print(f"   💾 Saved to database: run_id={run_id}")
@@ -709,7 +890,7 @@ def main():
             print(f"   ⚠️  DB save failed: {e}")
     
     # Print summary
-    runner.print_summary()
+    runner.print_summary(weights=weights, weight_method=weight_method)
     
     print("\n✅ Analysis complete!")
     return 0

@@ -177,9 +177,12 @@ def save_lens_weights(run_id: int, weights: Dict[str, float], method: str) -> No
         )
     """)
     
+    # Convert numpy types to Python native types for JSON
+    clean_weights = {k: float(v) for k, v in weights.items()}
+    
     conn.execute(
         "INSERT OR REPLACE INTO lens_weights (run_id, method, weights) VALUES (?, ?, ?)",
-        (run_id, method, json.dumps(weights))
+        (run_id, method, json.dumps(clean_weights))
     )
     
     conn.commit()
@@ -701,6 +704,9 @@ def save_lens_geometry(
         )
     """)
     
+    # Convert numpy types to Python native for JSON
+    clean_clusters = {k: int(v) for k, v in clusters.items()}
+    
     # Insert/replace
     conn.execute(
         """
@@ -713,7 +719,7 @@ def save_lens_geometry(
             correlation.to_json(),
             agreement.to_json(),
             embedding.to_json(),
-            json.dumps(clusters),
+            json.dumps(clean_clusters),
             json.dumps(unique)
         )
     )
