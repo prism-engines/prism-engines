@@ -21,7 +21,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent if SCRIPT_DIR.name == 'start' else SCRIPT_DIR
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from data.sql.db_connector import (
+from data.duckdb_connector import (
     get_analysis_runs,
     get_run_results, 
     get_indicator_rankings,

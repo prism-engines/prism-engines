@@ -161,7 +161,7 @@ def print_lens_weights(weights: Dict[str, float], method: str):
 def save_lens_weights(run_id: int, weights: Dict[str, float], method: str) -> None:
     """Save lens weights to database."""
     import json
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     conn = get_connection()
     
@@ -202,7 +202,7 @@ def get_lens_rankings_matrix(run_id: int) -> Tuple[pd.DataFrame, List[str], List
         List of indicator names
         List of lens names
     """
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     conn = get_connection()
     
@@ -229,11 +229,11 @@ def get_lens_rankings_matrix(run_id: int) -> Tuple[pd.DataFrame, List[str], List
 
 def get_latest_run_id() -> Optional[int]:
     """Get the most recent run ID."""
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     conn = get_connection()
     row = conn.execute(
-        "SELECT run_id FROM analysis_runs ORDER BY run_date DESC LIMIT 1"
+        "SELECT id as run_id FROM analysis_runs ORDER BY run_time DESC LIMIT 1"
     ).fetchone()
     conn.close()
     
@@ -389,7 +389,7 @@ def compute_weighted_consensus(run_id: int, weights: Dict[str, float]) -> pd.Dat
     Instead of simple average, weight each lens's contribution
     by its independence/uniqueness.
     """
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     conn = get_connection()
     
@@ -438,23 +438,23 @@ def compute_weighted_consensus(run_id: int, weights: Dict[str, float]) -> pd.Dat
         'n_lenses': matrix.notna().sum(axis=1),
     })
     result = result.sort_values('weighted_score', ascending=False)
-    result['rank'] = range(1, len(result) + 1)
+    result['consensus_rank'] = range(1, len(result) + 1)
     
     return result
 
 
 def print_weighted_vs_unweighted(run_id: int, weights: Dict[str, float]):
     """Compare weighted vs unweighted consensus."""
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     # Get unweighted consensus
     conn = get_connection()
     unweighted = pd.read_sql(
         """
-        SELECT indicator, mean_score, rank
+        SELECT indicator, consensus_score, consensus_rank
         FROM consensus_rankings
         WHERE run_id = ?
-        ORDER BY rank
+        ORDER BY consensus_rank
         """,
         conn,
         params=(run_id,)
@@ -476,14 +476,14 @@ def print_weighted_vs_unweighted(run_id: int, weights: Dict[str, float]):
     # Compare top 15
     for i in range(min(15, len(unweighted))):
         uw_indicator = unweighted.iloc[i]['indicator']
-        uw_rank = int(unweighted.iloc[i]['rank'])
+        uw_rank = int(unweighted.iloc[i]['consensus_rank'])
         
         w_indicator = weighted.index[i]
         w_rank = i + 1
         
         # Find where unweighted indicator lands in weighted
         if uw_indicator in weighted.index:
-            new_rank = weighted.loc[uw_indicator, 'rank']
+            new_rank = weighted.loc[uw_indicator, 'consensus_rank']
             change = uw_rank - new_rank
             change_str = f"+{int(change)}" if change > 0 else str(int(change)) if change < 0 else "="
         else:
@@ -685,7 +685,7 @@ def save_lens_geometry(
 ) -> None:
     """Save lens geometry analysis to database."""
     import json
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     conn = get_connection()
     

@@ -102,7 +102,7 @@ NAMED_PERIODS = {
 def load_data(start_date: str = '2000-01-01', end_date: Optional[str] = None,
               coverage_threshold: float = 0.7) -> pd.DataFrame:
     """Load and filter indicator data."""
-    from data.sql.db_connector import load_all_indicators_wide
+    from data.duckdb_connector import load_all_indicators_wide
     
     df = load_all_indicators_wide(start_date=start_date, end_date=end_date, ffill=True)
     
@@ -379,7 +379,7 @@ def main():
     # Save to database
     if not args.no_db:
         try:
-            from data.sql.db_connector import save_analysis_run
+            from data.duckdb_connector import save_analysis_run
             
             run_id = save_analysis_run(
                 start_date=start_date,

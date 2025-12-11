@@ -283,7 +283,7 @@ def load_lens_weights(method: str = 'combined', run_id: Optional[int] = None) ->
         Dict of lens_name -> weight, normalized to sum to 1
     """
     try:
-        from data.sql.db_connector import get_connection
+        from data.duckdb_connector import get_connection
         conn = get_connection()
         
         if run_id is None:
@@ -410,7 +410,7 @@ def load_data(config: dict) -> pd.DataFrame:
     
     # Try database first
     try:
-        from data.sql.db_connector import load_all_indicators_wide
+        from data.duckdb_connector import load_all_indicators_wide
         df = load_all_indicators_wide(start_date=start_date, end_date=end_date)
         
         if not df.empty:
@@ -854,7 +854,7 @@ def main():
     # Save to database
     if not args.no_db:
         try:
-            from data.sql.db_connector import save_analysis_run
+            from data.duckdb_connector import save_analysis_run
             
             # Gather normalize methods
             normalize_methods = {
@@ -887,7 +887,7 @@ def main():
             )
             print(f"   💾 Saved to database: run_id={run_id}")
         except Exception as e:
-            print(f"   ⚠️  DB save failed: {e}")
+            import traceback; print(f"   ⚠️  DB save failed:"); traceback.print_exc()
     
     # Print summary
     runner.print_summary(weights=weights, weight_method=weight_method)

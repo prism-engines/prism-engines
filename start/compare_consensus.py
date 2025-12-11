@@ -34,10 +34,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 def get_latest_run_id() -> Optional[int]:
     """Get most recent analysis run ID."""
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     conn = get_connection()
     row = conn.execute(
-        "SELECT run_id FROM analysis_runs ORDER BY run_date DESC LIMIT 1"
+        "SELECT id as run_id FROM analysis_runs ORDER BY run_time DESC LIMIT 1"
     ).fetchone()
     conn.close()
     return row[0] if row else None
@@ -45,7 +45,7 @@ def get_latest_run_id() -> Optional[int]:
 
 def load_lens_rankings(run_id: int) -> pd.DataFrame:
     """Load per-lens rankings as wide matrix."""
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     conn = get_connection()
     
     df = pd.read_sql(
@@ -70,7 +70,7 @@ def load_lens_rankings(run_id: int) -> pd.DataFrame:
 def load_weights(run_id: int, method: str = 'combined') -> Dict[str, float]:
     """Load lens weights from database, with fallback to defaults."""
     import json
-    from data.sql.db_connector import get_connection
+    from data.duckdb_connector import get_connection
     
     try:
         conn = get_connection()

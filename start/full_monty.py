@@ -163,7 +163,7 @@ def run_full_analysis(config: dict, perf: PerformanceLog) -> Dict[str, Any]:
         
         # Save to DB
         try:
-            from data.sql.db_connector import save_analysis_run
+            from data.duckdb_connector import save_analysis_run
             
             normalize_methods = {
                 name: LENS_REGISTRY.get(name, {}).get('normalize', 'none')
@@ -203,7 +203,7 @@ def run_full_analysis(config: dict, perf: PerformanceLog) -> Dict[str, Any]:
 def run_historical_periods(config: dict, perf: PerformanceLog) -> Dict[str, Any]:
     """Run analysis on each historical period."""
     from analyze import AnalysisRunner, load_data, preprocess_data, normalize_date_column, LENS_REGISTRY
-    from data.sql.db_connector import save_analysis_run
+    from data.duckdb_connector import save_analysis_run
     
     print("\n" + "=" * 60)
     print("📅 HISTORICAL PERIOD ANALYSIS")

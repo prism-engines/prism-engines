@@ -72,7 +72,7 @@ def load_data(config: dict) -> pd.DataFrame:
     
     # Try database first
     try:
-        from data.sql.db_connector import load_all_indicators_wide
+        from data.duckdb_connector import load_all_indicators_wide
         df = load_all_indicators_wide(start_date=start_date, end_date=end_date)
         
         if not df.empty:

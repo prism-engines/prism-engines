@@ -111,7 +111,7 @@ def fetch_all_indicators(
     Returns:
         Number of indicators successfully fetched.
     """
-    from data.sql.db_connector import add_indicator, write_dataframe
+    from data.duckdb_connector import add_indicator, write_dataframe
     import pandas as pd
 
     # Group by source
@@ -307,7 +307,7 @@ def load_panel(indicator_names: List[str]) -> "pd.DataFrame":
     Returns:
         Wide-format DataFrame with date index and indicator columns
     """
-    from data.sql.db_connector import load_all_indicators_wide
+    from data.duckdb_connector import load_all_indicators_wide
 
     return load_all_indicators_wide(indicator_names)
 
@@ -374,7 +374,7 @@ def main() -> int:
 
         # Step 2: Initialize DB
         step_header(2, "INITIALIZE DATABASE")
-        from data.sql.db_connector import init_database
+        from data.duckdb_connector import init_database
         from data.sql.db_path import get_db_path
 
         db_path = get_db_path()
