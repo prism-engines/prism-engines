@@ -122,3 +122,4 @@ claude_sandbox/*.zip
 
 # Generated benchmark outputs
 runs/
+claude_db_and_fetcher/data/sql/db_path.py
