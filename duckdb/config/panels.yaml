@@ -1,0 +1,3 @@
+market:
+  path: data/raw/market
+  pattern: '*.csv'
