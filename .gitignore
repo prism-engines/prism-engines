@@ -1,48 +1,52 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+*.pyc
+*.pyo
+*.pyd
 *.egg-info/
-.installed.cfg
-*.egg
 
 # Virtual environments
 venv/
-ENV/
-env/
 .venv/
+env/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
+# Data & outputs
+data/*.duckdb
+reports/
+results/
+visualization/
+archive/
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# OS
+# OS / editor
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
-# Project specific
-output/
-*.png
+# Scratch / accidental
+Downloads/
+tmp/
+scratch/
+
+# Test caches
+.pytest_cache/
+
+# Runtime artifacts
+data/
+results/
+reports/
+visualization/
+archive/
+Downloads/
+
+# Python junk
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Environments
+venv/
+.venv/
+env/

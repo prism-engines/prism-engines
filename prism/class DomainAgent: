@@ -1,0 +1,26 @@
+class DomainAgent:
+    """Base class for domain data agents."""
+    
+    domain: str  # "finance", "climate", "epi"
+    sources: List[str]
+    
+    def discover(self) -> List[Indicator]:
+        """Find available indicators."""
+        pass
+    
+    def fetch(self, indicator_id: str) -> pd.DataFrame:
+        """Fetch single indicator."""
+        pass
+    
+    def fetch_all(self, delay: float = 1.0) -> Dict[str, pd.DataFrame]:
+        """Fetch all indicators with rate limiting."""
+        pass
+    
+    def validate(self, df: pd.DataFrame) -> bool:
+        """Check data quality."""
+        pass
+    
+    def to_unified_schema(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert to standard schema."""
+        # date | domain | indicator_id | value
+        pass

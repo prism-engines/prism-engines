@@ -1,0 +1,638 @@
+# PRISM Indicator Registry - Full Economic Portfolio
+# ~100 indicators across macro, rates, equity, commodities, sectors
+
+indicators:
+  # ============================================================
+  # FRED - ECONOMIC INDICATORS (Monthly)
+  # ============================================================
+  
+  # GDP & Output
+  - id: GDP
+    source: fred
+    name: "Gross Domestic Product"
+    category: economic
+    frequency: quarterly
+
+  - id: GDPC1
+    source: fred
+    name: "Real GDP"
+    category: economic
+    frequency: quarterly
+
+  - id: INDPRO
+    source: fred
+    name: "Industrial Production"
+    category: economic
+    frequency: monthly
+
+  - id: CAPACITY
+    source: fred
+    name: "Capacity Utilization"
+    category: economic
+    frequency: monthly
+
+  # Employment
+  - id: UNRATE
+    source: fred
+    name: "Unemployment Rate"
+    category: employment
+    frequency: monthly
+
+  - id: PAYEMS
+    source: fred
+    name: "Nonfarm Payrolls"
+    category: employment
+    frequency: monthly
+
+  - id: ICSA
+    source: fred
+    name: "Initial Jobless Claims"
+    category: employment
+    frequency: weekly
+
+  - id: CCSA
+    source: fred
+    name: "Continued Claims"
+    category: employment
+    frequency: weekly
+
+  - id: JTSJOL
+    source: fred
+    name: "Job Openings"
+    category: employment
+    frequency: monthly
+
+  # Inflation
+  - id: CPIAUCSL
+    source: fred
+    name: "CPI All Urban"
+    category: inflation
+    frequency: monthly
+
+  - id: CPILFESL
+    source: fred
+    name: "Core CPI"
+    category: inflation
+    frequency: monthly
+
+  - id: PCEPI
+    source: fred
+    name: "PCE Price Index"
+    category: inflation
+    frequency: monthly
+
+  - id: PCEPILFE
+    source: fred
+    name: "Core PCE"
+    category: inflation
+    frequency: monthly
+
+  - id: PPIFIS
+    source: fred
+    name: "PPI Final Demand"
+    category: inflation
+    frequency: monthly
+
+  - id: T5YIE
+    source: fred
+    name: "5Y Breakeven Inflation"
+    category: inflation
+    frequency: daily
+
+  - id: T10YIE
+    source: fred
+    name: "10Y Breakeven Inflation"
+    category: inflation
+    frequency: daily
+
+  # Housing
+  - id: HOUST
+    source: fred
+    name: "Housing Starts"
+    category: housing
+    frequency: monthly
+
+  - id: PERMIT
+    source: fred
+    name: "Building Permits"
+    category: housing
+    frequency: monthly
+
+  - id: CSUSHPISA
+    source: fred
+    name: "Case-Shiller Home Price"
+    category: housing
+    frequency: monthly
+
+  - id: MORTGAGE30US
+    source: fred
+    name: "30Y Mortgage Rate"
+    category: housing
+    frequency: weekly
+
+  - id: EXHOSLUSM495S
+    source: fred
+    name: "Existing Home Sales"
+    category: housing
+    frequency: monthly
+
+  # Consumer
+  - id: RSXFS
+    source: fred
+    name: "Retail Sales ex Food"
+    category: consumer
+    frequency: monthly
+
+  - id: UMCSENT
+    source: fred
+    name: "U Michigan Sentiment"
+    category: consumer
+    frequency: monthly
+
+  - id: PCE
+    source: fred
+    name: "Personal Consumption"
+    category: consumer
+    frequency: monthly
+
+  - id: PSAVERT
+    source: fred
+    name: "Personal Savings Rate"
+    category: consumer
+    frequency: monthly
+
+  # Manufacturing & Business
+  - id: DGORDER
+    source: fred
+    name: "Durable Goods Orders"
+    category: manufacturing
+    frequency: monthly
+
+  - id: NEWORDER
+    source: fred
+    name: "New Orders"
+    category: manufacturing
+    frequency: monthly
+
+  - id: MNFCTRIRSA
+    source: fred
+    name: "Manufacturing Inventories"
+    category: manufacturing
+    frequency: monthly
+
+  - id: ISMPMI
+    source: fred  
+    name: "ISM Manufacturing PMI"
+    category: manufacturing
+    frequency: monthly
+
+  # Trade
+  - id: BOPGSTB
+    source: fred
+    name: "Trade Balance"
+    category: trade
+    frequency: monthly
+
+  - id: IMPGS
+    source: fred
+    name: "Imports of Goods/Services"
+    category: trade
+    frequency: monthly
+
+  - id: EXPGS
+    source: fred
+    name: "Exports of Goods/Services"
+    category: trade
+    frequency: monthly
+
+  # ============================================================
+  # FRED - RATES & CREDIT (Daily)
+  # ============================================================
+  
+  # Treasury Yields
+  - id: DFF
+    source: fred
+    name: "Fed Funds Rate"
+    category: rates
+    frequency: daily
+
+  - id: DTB3
+    source: fred
+    name: "3-Month T-Bill"
+    category: rates
+    frequency: daily
+
+  - id: DGS1
+    source: fred
+    name: "1-Year Treasury"
+    category: rates
+    frequency: daily
+
+  - id: DGS2
+    source: fred
+    name: "2-Year Treasury"
+    category: rates
+    frequency: daily
+
+  - id: DGS5
+    source: fred
+    name: "5-Year Treasury"
+    category: rates
+    frequency: daily
+
+  - id: DGS10
+    source: fred
+    name: "10-Year Treasury"
+    category: rates
+    frequency: daily
+
+  - id: DGS20
+    source: fred
+    name: "20-Year Treasury"
+    category: rates
+    frequency: daily
+
+  - id: DGS30
+    source: fred
+    name: "30-Year Treasury"
+    category: rates
+    frequency: daily
+
+  # Spreads
+  - id: T10Y2Y
+    source: fred
+    name: "10Y-2Y Spread"
+    category: spreads
+    frequency: daily
+
+  - id: T10Y3M
+    source: fred
+    name: "10Y-3M Spread"
+    category: spreads
+    frequency: daily
+
+  - id: T10YFF
+    source: fred
+    name: "10Y-Fed Funds Spread"
+    category: spreads
+    frequency: daily
+
+  # Credit Spreads
+  - id: BAMLC0A0CM
+    source: fred
+    name: "IG Corporate Spread"
+    category: credit
+    frequency: daily
+
+  - id: BAMLH0A0HYM2
+    source: fred
+    name: "HY Corporate Spread"
+    category: credit
+    frequency: daily
+
+  - id: TEDRATE
+    source: fred
+    name: "TED Spread"
+    category: credit
+    frequency: daily
+
+  # ============================================================
+  # FRED - FINANCIAL CONDITIONS
+  # ============================================================
+  
+  - id: NFCI
+    source: fred
+    name: "Chicago Fed Financial Conditions"
+    category: financial_conditions
+    frequency: weekly
+
+  - id: STLFSI4
+    source: fred
+    name: "St Louis Financial Stress"
+    category: financial_conditions
+    frequency: weekly
+
+  - id: VIXCLS
+    source: fred
+    name: "VIX"
+    category: volatility
+    frequency: daily
+
+  # ============================================================
+  # FRED - MONEY & BANKING
+  # ============================================================
+  
+  - id: M2SL
+    source: fred
+    name: "M2 Money Stock"
+    category: money
+    frequency: monthly
+
+  - id: WALCL
+    source: fred
+    name: "Fed Balance Sheet"
+    category: money
+    frequency: weekly
+
+  - id: TOTRESNS
+    source: fred
+    name: "Total Reserves"
+    category: money
+    frequency: monthly
+
+  - id: BUSLOANS
+    source: fred
+    name: "Commercial Loans"
+    category: credit
+    frequency: monthly
+
+  - id: DRTSCILM
+    source: fred
+    name: "Loan Delinquency Rate"
+    category: credit
+    frequency: quarterly
+
+  # ============================================================
+  # FRED - COMMODITIES
+  # ============================================================
+  
+  - id: DCOILWTICO
+    source: fred
+    name: "WTI Crude Oil"
+    category: commodity
+    frequency: daily
+
+  - id: DCOILBRENTEU
+    source: fred
+    name: "Brent Crude Oil"
+    category: commodity
+    frequency: daily
+
+  - id: DHHNGSP
+    source: fred
+    name: "Natural Gas"
+    category: commodity
+    frequency: daily
+
+  - id: GOLDAMGBD228NLBM
+    source: fred
+    name: "Gold London Fix"
+    category: commodity
+    frequency: daily
+
+  # ============================================================
+  # FRED - FX
+  # ============================================================
+  
+  - id: DTWEXBGS
+    source: fred
+    name: "Trade Weighted USD Broad"
+    category: fx
+    frequency: daily
+
+  - id: DEXUSEU
+    source: fred
+    name: "USD/EUR"
+    category: fx
+    frequency: daily
+
+  - id: DEXJPUS
+    source: fred
+    name: "JPY/USD"
+    category: fx
+    frequency: daily
+
+  - id: DEXUSUK
+    source: fred
+    name: "USD/GBP"
+    category: fx
+    frequency: daily
+
+  # ============================================================
+  # FRED - MARKET INDEXES
+  # ============================================================
+  
+  - id: SP500
+    source: fred
+    name: "S&P 500"
+    category: equity
+    frequency: daily
+
+  - id: NASDAQCOM
+    source: fred
+    name: "NASDAQ Composite"
+    category: equity
+    frequency: daily
+
+  - id: DJIA
+    source: fred
+    name: "Dow Jones Industrial"
+    category: equity
+    frequency: daily
+
+  - id: WILL5000INDFC
+    source: fred
+    name: "Wilshire 5000"
+    category: equity
+    frequency: daily
+
+  # ============================================================
+  # TIINGO - SECTOR ETFs (Daily)
+  # ============================================================
+  
+  - id: SPY
+    source: tiingo
+    name: "S&P 500 ETF"
+    category: equity
+
+  - id: QQQ
+    source: tiingo
+    name: "NASDAQ 100 ETF"
+    category: equity
+
+  - id: IWM
+    source: tiingo
+    name: "Russell 2000 ETF"
+    category: equity
+
+  - id: DIA
+    source: tiingo
+    name: "Dow Jones ETF"
+    category: equity
+
+  # Sectors
+  - id: XLF
+    source: tiingo
+    name: "Financials Sector"
+    category: sector
+
+  - id: XLK
+    source: tiingo
+    name: "Technology Sector"
+    category: sector
+
+  - id: XLE
+    source: tiingo
+    name: "Energy Sector"
+    category: sector
+
+  - id: XLV
+    source: tiingo
+    name: "Healthcare Sector"
+    category: sector
+
+  - id: XLI
+    source: tiingo
+    name: "Industrials Sector"
+    category: sector
+
+  - id: XLP
+    source: tiingo
+    name: "Consumer Staples"
+    category: sector
+
+  - id: XLY
+    source: tiingo
+    name: "Consumer Discretionary"
+    category: sector
+
+  - id: XLU
+    source: tiingo
+    name: "Utilities Sector"
+    category: sector
+
+  - id: XLB
+    source: tiingo
+    name: "Materials Sector"
+    category: sector
+
+  - id: XLRE
+    source: tiingo
+    name: "Real Estate Sector"
+    category: sector
+
+  - id: XLC
+    source: tiingo
+    name: "Communications Sector"
+    category: sector
+
+  # ============================================================
+  # TIINGO - FIXED INCOME ETFs
+  # ============================================================
+  
+  - id: AGG
+    source: tiingo
+    name: "Aggregate Bond ETF"
+    category: bonds
+
+  - id: TLT
+    source: tiingo
+    name: "20+ Year Treasury ETF"
+    category: bonds
+
+  - id: IEF
+    source: tiingo
+    name: "7-10 Year Treasury ETF"
+    category: bonds
+
+  - id: SHY
+    source: tiingo
+    name: "1-3 Year Treasury ETF"
+    category: bonds
+
+  - id: LQD
+    source: tiingo
+    name: "IG Corporate Bond ETF"
+    category: bonds
+
+  - id: HYG
+    source: tiingo
+    name: "HY Corporate Bond ETF"
+    category: bonds
+
+  - id: TIP
+    source: tiingo
+    name: "TIPS ETF"
+    category: bonds
+
+  # ============================================================
+  # TIINGO - COMMODITY ETFs
+  # ============================================================
+  
+  - id: GLD
+    source: tiingo
+    name: "Gold ETF"
+    category: commodity
+
+  - id: SLV
+    source: tiingo
+    name: "Silver ETF"
+    category: commodity
+
+  - id: USO
+    source: tiingo
+    name: "Oil ETF"
+    category: commodity
+
+  - id: UNG
+    source: tiingo
+    name: "Natural Gas ETF"
+    category: commodity
+
+  - id: DBA
+    source: tiingo
+    name: "Agriculture ETF"
+    category: commodity
+
+  - id: DBC
+    source: tiingo
+    name: "Commodities ETF"
+    category: commodity
+
+  # ============================================================
+  # TIINGO - INTERNATIONAL
+  # ============================================================
+  
+  - id: EFA
+    source: tiingo
+    name: "EAFE ETF"
+    category: international
+
+  - id: EEM
+    source: tiingo
+    name: "Emerging Markets ETF"
+    category: international
+
+  - id: FXI
+    source: tiingo
+    name: "China Large Cap ETF"
+    category: international
+
+  - id: EWJ
+    source: tiingo
+    name: "Japan ETF"
+    category: international
+
+  - id: EWG
+    source: tiingo
+    name: "Germany ETF"
+    category: international
+
+  - id: EWU
+    source: tiingo
+    name: "UK ETF"
+    category: international
+
+  # ============================================================
+  # TIINGO - VOLATILITY & ALTERNATIVES
+  # ============================================================
+  
+  - id: VXX
+    source: tiingo
+    name: "VIX Short-Term Futures"
+    category: volatility
+
+  - id: VIXY
+    source: tiingo
+    name: "VIX Short-Term ETF"
+    category: volatility

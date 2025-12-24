@@ -1,0 +1,177 @@
+# PRISM Agent Configuration
+# Engine Admission Control Spec Implementation
+
+# =============================================================================
+# Spec Defaults (Section References)
+# =============================================================================
+defaults:
+  weight_cap: 0.25                    # Spec D2: Max weight per engine
+  stability_threshold: 0.6            # Spec C3: Min stability for consensus
+  null_p_threshold: 0.05              # Spec B3: p-value threshold
+  null_effect_size_threshold: 2.0     # Spec B3: Effect size threshold
+  missing_rate_multivariate: 0.05     # Spec A3: Max missing for multivariate
+  missing_rate_univariate: 0.10       # Spec A3: Max missing for univariate
+  min_contributing_engines: 2         # Min engines for valid consensus
+  n_null_surrogates: 100              # Number of surrogates for null test
+  n_stability_resamples: 50           # Number of resamples for stability
+
+# =============================================================================
+# Global Settings
+# =============================================================================
+global:
+  logging_verbosity: info             # debug, info, warning, error
+  audit_trail_enabled: true
+  window_id_format: "w_%Y%m%d_%H%M%S"
+
+# =============================================================================
+# Agent-Specific Configurations
+# =============================================================================
+agents:
+  # ---------------------------------------------------------------------------
+  # Data Quality Agent (Spec Section A)
+  # ---------------------------------------------------------------------------
+  data_quality:
+    enabled: true
+    thresholds:
+      # Spec A3: Missing data thresholds
+      missing_rate_multivariate: 0.05   # Max 5% for multivariate analysis
+      missing_rate_univariate: 0.10     # Max 10% for univariate analysis
+      # Outlier detection
+      outlier_zscore: 3.0               # Z-score threshold for outliers
+      min_data_points: 30               # Minimum observations required
+    missing_policies:
+      - forward_fill                    # Acceptable methods
+      - linear_interpolation
+      - locf                            # Last observation carried forward
+    outlier_policies:
+      - winsorize
+      - trim
+      - robust_zscore
+    scaling_methods:
+      - zscore
+      - robust                          # Median/IQR scaling
+      - rank                            # Rank transformation
+      - none
+    safety_levels:
+      safe: 0                           # 0-1 flags = safe
+      questionable: 2                   # 2 flags = questionable
+      # 3+ flags = unsafe
+
+  # ---------------------------------------------------------------------------
+  # Geometry Diagnostic Agent
+  # ---------------------------------------------------------------------------
+  geometry_diagnostic:
+    enabled: true
+    thresholds:
+      latent_flow_min: 0.4              # Min score for latent flow detection
+      oscillator_min: 0.4               # Min score for oscillator detection
+      reflexive_min: 0.4                # Min score for reflexive detection
+      noise_max: 0.6                    # Max noise before downweighting all
+
+  # ---------------------------------------------------------------------------
+  # Routing Agent (integrates with prism_engine_gates.py)
+  # ---------------------------------------------------------------------------
+  routing:
+    enabled: true
+    thresholds:
+      min_weight: 0.05                  # Engines below this are suppressed
+      downweight_factor: 0.5            # Multiplier for downweighted engines
+    # Domain-specific engine defaults
+    domain_defaults:
+      finance:
+        allowed: [pca, correlation, entropy, wavelets, hmm, dmd, copula, rolling_beta]
+        suppressed: [sir, granger]
+      climate:
+        allowed: [pca, correlation, entropy, wavelets, hmm, dmd, granger]
+        suppressed: [sir, copula, rolling_beta]
+      epidemiology:
+        allowed: [pca, correlation, entropy, wavelets, hmm, dmd, granger, sir]
+        suppressed: [copula, rolling_beta]
+
+  # ---------------------------------------------------------------------------
+  # Stability Agent (Spec Sections B, C, D)
+  # ---------------------------------------------------------------------------
+  stability:
+    enabled: true
+    # Spec B: Null Calibration
+    null_calibration:
+      n_surrogates: 100                 # Number of phase-randomized surrogates
+      p_threshold: 0.05                 # Spec B3
+      effect_size_threshold: 2.0        # Spec B3
+      surrogate_method: phase_randomize # Options: phase_randomize, shuffle, aaft
+    # Spec C: Stability Scoring
+    stability_scoring:
+      method: bootstrap                 # Options: bootstrap, subsample, temporal
+      n_resamples: 50
+      threshold: 0.6                    # Spec C3: Min for consensus
+      cv_max: 0.3                       # Max coefficient of variation
+    # Spec D: Weight Computation
+    weight_computation:
+      weight_cap: 0.25                  # Spec D2: Max per engine
+      benchmark_default: 0.8            # Default benchmark score
+      domain_fit_default: 1.0           # Default domain fit
+    thresholds:
+      trustworthiness_min: 0.60         # Minimum trust score
+      artifact_penalty: 0.20            # Weight reduction per artifact
+      max_artifacts: 3                  # Max artifacts before suppression
+
+  # ---------------------------------------------------------------------------
+  # Blind Spot Agent
+  # ---------------------------------------------------------------------------
+  blind_spot:
+    enabled: true
+    thresholds:
+      coverage_min: 0.70                # Minimum feature coverage
+      disagreement_threshold: 0.40      # Engine disagreement threshold
+    sensitivity:
+      enabled: true
+      max_weight_shift: 0.20            # Flag if leave-one-out shifts > 20%
+    escalation_triggers:
+      - high_disagreement
+      - low_coverage
+      - regime_boundary
+      - missing_expected_features
+      - high_residual_autocorr
+
+  # ---------------------------------------------------------------------------
+  # Synthesis Agent (future)
+  # ---------------------------------------------------------------------------
+  synthesis:
+    enabled: false                      # Placeholder for future implementation
+
+# =============================================================================
+# Pipeline Configuration
+# =============================================================================
+pipeline:
+  default_order:
+    - data_quality
+    - geometry_diagnostic
+    - engine_routing
+    # engines execute here (external)
+    - engine_stability
+    - blind_spot_detection
+    # synthesis is final (future)
+
+# =============================================================================
+# Consensus Report Configuration (Spec Section H)
+# =============================================================================
+consensus:
+  min_engines: 2                        # Minimum engines for valid consensus
+  weight_cap: 0.25                      # Spec D2
+  sensitivity_analysis: true            # Include leave-one-out analysis
+  include_excluded: true                # Include excluded engines in report
+
+# =============================================================================
+# Engine Gate Overrides (optional, normally use prism_engine_gates.py)
+# =============================================================================
+engine_gates:
+  # Override min_window for specific engines
+  min_window_overrides:
+    hmm: 126
+    copula: 252
+    sir: 84
+  # Override normalization requirements
+  normalization_overrides:
+    pca: robust
+    correlation: rank
+    entropy: none
