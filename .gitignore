@@ -30,3 +30,23 @@ scratch/
 
 # Test caches
 .pytest_cache/
+
+# Runtime artifacts
+data/
+results/
+reports/
+visualization/
+archive/
+Downloads/
+
+# Python junk
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Environments
+venv/
+.venv/
+env/

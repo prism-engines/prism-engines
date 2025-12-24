@@ -1,7 +1,0 @@
-# Data Directory
-
-This directory contains the DuckDB database file.
-
-**Do not commit database files to version control.**
-
-The database will be created automatically when you first run the fetch system.

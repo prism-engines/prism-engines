@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prism-engines"
+version = "0.0.1"
+description = "PRISM: a geometric, engine-based state-space analysis framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+authors = [
+  { name = "PRISM Engines" }
+]
+
+dependencies = [
+  "numpy",
+  "pandas",
+]
+
+[project.urls]
+Homepage = "https://github.com/prism-engines/prism-engines"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["prism*"]
