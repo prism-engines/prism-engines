@@ -1,0 +1,650 @@
+# PRISM Expanded Indicator Registry
+# 100+ indicators across multiple categories
+
+indicators:
+  # ============================================================
+  # INTEREST RATES & YIELDS
+  # ============================================================
+  - id: DGS1MO
+    source: fred
+    name: 1-Month Treasury
+    category: rates
+    
+  - id: DGS3MO
+    source: fred
+    name: 3-Month Treasury
+    category: rates
+    
+  - id: DGS6MO
+    source: fred
+    name: 6-Month Treasury
+    category: rates
+    
+  - id: DGS1
+    source: fred
+    name: 1-Year Treasury
+    category: rates
+    
+  - id: DGS2
+    source: fred
+    name: 2-Year Treasury
+    category: rates
+    
+  - id: DGS5
+    source: fred
+    name: 5-Year Treasury
+    category: rates
+    
+  - id: DGS7
+    source: fred
+    name: 7-Year Treasury
+    category: rates
+    
+  - id: DGS10
+    source: fred
+    name: 10-Year Treasury
+    category: rates
+    
+  - id: DGS20
+    source: fred
+    name: 20-Year Treasury
+    category: rates
+    
+  - id: DGS30
+    source: fred
+    name: 30-Year Treasury
+    category: rates
+    
+  - id: DFF
+    source: fred
+    name: Fed Funds Rate
+    category: rates
+    
+  - id: DPRIME
+    source: fred
+    name: Prime Rate
+    category: rates
+
+  # ============================================================
+  # SPREADS
+  # ============================================================
+  - id: T10Y2Y
+    source: fred
+    name: 10Y-2Y Spread
+    category: spreads
+    
+  - id: T10Y3M
+    source: fred
+    name: 10Y-3M Spread
+    category: spreads
+    
+  - id: T10YFF
+    source: fred
+    name: 10Y-FF Spread
+    category: spreads
+    
+  - id: BAA10Y
+    source: fred
+    name: BAA-10Y Spread
+    category: spreads
+    
+  - id: AAA10Y
+    source: fred
+    name: AAA-10Y Spread
+    category: spreads
+    
+  - id: BAMLH0A0HYM2
+    source: fred
+    name: High Yield Spread
+    category: spreads
+    
+  - id: BAMLC0A4CBBB
+    source: fred
+    name: BBB Corporate Spread
+    category: spreads
+    
+  - id: TEDRATE
+    source: fred
+    name: TED Spread
+    category: spreads
+
+  # ============================================================
+  # VOLATILITY & RISK
+  # ============================================================
+  - id: VIXCLS
+    source: fred
+    name: VIX
+    category: volatility
+    
+  - id: VXVCLS
+    source: fred
+    name: VIX of VIX
+    category: volatility
+
+  # ============================================================
+  # EQUITY INDICES (FRED)
+  # ============================================================
+  - id: SP500
+    source: fred
+    name: S&P 500
+    category: equity
+    
+  - id: DJIA
+    source: fred
+    name: Dow Jones
+    category: equity
+    
+  - id: NASDAQ100
+    source: fred
+    name: NASDAQ 100
+    category: equity
+    
+  - id: WILL5000IND
+    source: fred
+    name: Wilshire 5000
+    category: equity
+
+  # ============================================================
+  # EMPLOYMENT
+  # ============================================================
+  - id: UNRATE
+    source: fred
+    name: Unemployment Rate
+    category: employment
+    
+  - id: PAYEMS
+    source: fred
+    name: Nonfarm Payrolls
+    category: employment
+    
+  - id: ICSA
+    source: fred
+    name: Initial Claims
+    category: employment
+    
+  - id: CCSA
+    source: fred
+    name: Continued Claims
+    category: employment
+    
+  - id: U6RATE
+    source: fred
+    name: U6 Unemployment
+    category: employment
+    
+  - id: CIVPART
+    source: fred
+    name: Labor Force Participation
+    category: employment
+    
+  - id: EMRATIO
+    source: fred
+    name: Employment-Population Ratio
+    category: employment
+    
+  - id: AWHAETP
+    source: fred
+    name: Average Weekly Hours
+    category: employment
+
+  # ============================================================
+  # INFLATION
+  # ============================================================
+  - id: CPIAUCSL
+    source: fred
+    name: CPI All Items
+    category: inflation
+    
+  - id: CPILFESL
+    source: fred
+    name: Core CPI
+    category: inflation
+    
+  - id: PCEPI
+    source: fred
+    name: PCE Price Index
+    category: inflation
+    
+  - id: PCEPILFE
+    source: fred
+    name: Core PCE
+    category: inflation
+    
+  - id: T5YIE
+    source: fred
+    name: 5Y Breakeven Inflation
+    category: inflation
+    
+  - id: T10YIE
+    source: fred
+    name: 10Y Breakeven Inflation
+    category: inflation
+    
+  - id: MICH
+    source: fred
+    name: Michigan Inflation Expectations
+    category: inflation
+
+  # ============================================================
+  # GDP & OUTPUT
+  # ============================================================
+  - id: GDP
+    source: fred
+    name: GDP
+    category: output
+    
+  - id: GDPC1
+    source: fred
+    name: Real GDP
+    category: output
+    
+  - id: INDPRO
+    source: fred
+    name: Industrial Production
+    category: output
+    
+  - id: TCU
+    source: fred
+    name: Capacity Utilization
+    category: output
+    
+  - id: DGORDER
+    source: fred
+    name: Durable Goods Orders
+    category: output
+
+  # ============================================================
+  # CONSUMER
+  # ============================================================
+  - id: UMCSENT
+    source: fred
+    name: Michigan Consumer Sentiment
+    category: consumer
+    
+  - id: RSAFS
+    source: fred
+    name: Retail Sales
+    category: consumer
+    
+  - id: PCE
+    source: fred
+    name: Personal Consumption
+    category: consumer
+    
+  - id: PSAVERT
+    source: fred
+    name: Personal Savings Rate
+    category: consumer
+    
+  - id: TOTALSL
+    source: fred
+    name: Consumer Credit
+    category: consumer
+
+  # ============================================================
+  # HOUSING
+  # ============================================================
+  - id: HOUST
+    source: fred
+    name: Housing Starts
+    category: housing
+    
+  - id: PERMIT
+    source: fred
+    name: Building Permits
+    category: housing
+    
+  - id: HSN1F
+    source: fred
+    name: New Home Sales
+    category: housing
+    
+  - id: EXHOSLUSM495S
+    source: fred
+    name: Existing Home Sales
+    category: housing
+    
+  - id: CSUSHPISA
+    source: fred
+    name: Case-Shiller Home Price
+    category: housing
+    
+  - id: MORTGAGE30US
+    source: fred
+    name: 30Y Mortgage Rate
+    category: housing
+
+  # ============================================================
+  # MONEY & CREDIT
+  # ============================================================
+  - id: M1SL
+    source: fred
+    name: M1 Money Supply
+    category: money
+    
+  - id: M2SL
+    source: fred
+    name: M2 Money Supply
+    category: money
+    
+  - id: WALCL
+    source: fred
+    name: Fed Balance Sheet
+    category: money
+    
+  - id: TOTRESNS
+    source: fred
+    name: Total Reserves
+    category: money
+    
+  - id: BUSLOANS
+    source: fred
+    name: Commercial Loans
+    category: money
+
+  # ============================================================
+  # FINANCIAL CONDITIONS
+  # ============================================================
+  - id: NFCI
+    source: fred
+    name: Chicago Fed Financial Conditions
+    category: conditions
+    
+  - id: STLFSI4
+    source: fred
+    name: St Louis Financial Stress
+    category: conditions
+    
+  - id: KCFSI
+    source: fred
+    name: Kansas City Financial Stress
+    category: conditions
+
+  # ============================================================
+  # INTERNATIONAL
+  # ============================================================
+  - id: DTWEXBGS
+    source: fred
+    name: Trade Weighted Dollar
+    category: international
+    
+  - id: DEXUSEU
+    source: fred
+    name: USD/EUR
+    category: international
+    
+  - id: DEXJPUS
+    source: fred
+    name: JPY/USD
+    category: international
+    
+  - id: DEXUSUK
+    source: fred
+    name: USD/GBP
+    category: international
+    
+  - id: DEXCHUS
+    source: fred
+    name: CNY/USD
+    category: international
+
+  # ============================================================
+  # COMMODITIES (FRED)
+  # ============================================================
+  - id: DCOILWTICO
+    source: fred
+    name: WTI Crude
+    category: commodities
+    
+  - id: DCOILBRENTEU
+    source: fred
+    name: Brent Crude
+    category: commodities
+    
+  - id: DHHNGSP
+    source: fred
+    name: Natural Gas
+    category: commodities
+    
+  - id: GOLDAMGBD228NLBM
+    source: fred
+    name: Gold Price
+    category: commodities
+
+  # ============================================================
+  # SECTOR ETFs (TIINGO)
+  # ============================================================
+  - id: SPY
+    source: tiingo
+    name: S&P 500 ETF
+    category: equity_etf
+    
+  - id: QQQ
+    source: tiingo
+    name: NASDAQ 100 ETF
+    category: equity_etf
+    
+  - id: IWM
+    source: tiingo
+    name: Russell 2000 ETF
+    category: equity_etf
+    
+  - id: DIA
+    source: tiingo
+    name: Dow Jones ETF
+    category: equity_etf
+    
+  - id: XLK
+    source: tiingo
+    name: Technology
+    category: sector_etf
+    
+  - id: XLF
+    source: tiingo
+    name: Financials
+    category: sector_etf
+    
+  - id: XLE
+    source: tiingo
+    name: Energy
+    category: sector_etf
+    
+  - id: XLV
+    source: tiingo
+    name: Healthcare
+    category: sector_etf
+    
+  - id: XLI
+    source: tiingo
+    name: Industrials
+    category: sector_etf
+    
+  - id: XLP
+    source: tiingo
+    name: Consumer Staples
+    category: sector_etf
+    
+  - id: XLY
+    source: tiingo
+    name: Consumer Discretionary
+    category: sector_etf
+    
+  - id: XLU
+    source: tiingo
+    name: Utilities
+    category: sector_etf
+    
+  - id: XLB
+    source: tiingo
+    name: Materials
+    category: sector_etf
+    
+  - id: XLRE
+    source: tiingo
+    name: Real Estate
+    category: sector_etf
+    
+  - id: XLC
+    source: tiingo
+    name: Communications
+    category: sector_etf
+
+  # ============================================================
+  # BOND ETFs (TIINGO)
+  # ============================================================
+  - id: AGG
+    source: tiingo
+    name: Aggregate Bond
+    category: bond_etf
+    
+  - id: BND
+    source: tiingo
+    name: Total Bond
+    category: bond_etf
+    
+  - id: TLT
+    source: tiingo
+    name: 20+ Year Treasury
+    category: bond_etf
+    
+  - id: IEF
+    source: tiingo
+    name: 7-10 Year Treasury
+    category: bond_etf
+    
+  - id: SHY
+    source: tiingo
+    name: 1-3 Year Treasury
+    category: bond_etf
+    
+  - id: LQD
+    source: tiingo
+    name: Investment Grade Corporate
+    category: bond_etf
+    
+  - id: HYG
+    source: tiingo
+    name: High Yield Corporate
+    category: bond_etf
+    
+  - id: TIP
+    source: tiingo
+    name: TIPS
+    category: bond_etf
+
+  # ============================================================
+  # COMMODITY ETFs (TIINGO)
+  # ============================================================
+  - id: GLD
+    source: tiingo
+    name: Gold
+    category: commodity_etf
+    
+  - id: SLV
+    source: tiingo
+    name: Silver
+    category: commodity_etf
+    
+  - id: USO
+    source: tiingo
+    name: Oil
+    category: commodity_etf
+    
+  - id: UNG
+    source: tiingo
+    name: Natural Gas
+    category: commodity_etf
+    
+  - id: DBA
+    source: tiingo
+    name: Agriculture
+    category: commodity_etf
+    
+  - id: DBB
+    source: tiingo
+    name: Base Metals
+    category: commodity_etf
+
+  # ============================================================
+  # INTERNATIONAL ETFs (TIINGO)
+  # ============================================================
+  - id: EFA
+    source: tiingo
+    name: EAFE (Developed ex-US)
+    category: international_etf
+    
+  - id: EEM
+    source: tiingo
+    name: Emerging Markets
+    category: international_etf
+    
+  - id: FXI
+    source: tiingo
+    name: China
+    category: international_etf
+    
+  - id: EWJ
+    source: tiingo
+    name: Japan
+    category: international_etf
+    
+  - id: EWG
+    source: tiingo
+    name: Germany
+    category: international_etf
+    
+  - id: EWU
+    source: tiingo
+    name: United Kingdom
+    category: international_etf
+    
+  - id: EWZ
+    source: tiingo
+    name: Brazil
+    category: international_etf
+    
+  - id: INDA
+    source: tiingo
+    name: India
+    category: international_etf
+
+  # ============================================================
+  # FACTOR ETFs (TIINGO)
+  # ============================================================
+  - id: MTUM
+    source: tiingo
+    name: Momentum
+    category: factor_etf
+    
+  - id: VLUE
+    source: tiingo
+    name: Value
+    category: factor_etf
+    
+  - id: QUAL
+    source: tiingo
+    name: Quality
+    category: factor_etf
+    
+  - id: SIZE
+    source: tiingo
+    name: Size
+    category: factor_etf
+    
+  - id: USMV
+    source: tiingo
+    name: Min Volatility
+    category: factor_etf
+
+  # ============================================================
+  # VOLATILITY ETFs (TIINGO)
+  # ============================================================
+  - id: VXX
+    source: tiingo
+    name: VIX Short-Term Futures
+    category: volatility_etf
+    
+  - id: VIXY
+    source: tiingo
+    name: VIX Short-Term
+    category: volatility_etf

@@ -1,0 +1,71 @@
+# MultiViewGeometryAgent Configuration
+# Agent: agent_multiview_geometry.py
+# Purpose: View-aware geometry score adjustments
+#
+# All values here are the EXACT defaults from the hardcoded VIEW_SCORE_ADJUSTMENTS dict.
+# Changing these values WILL change agent behavior.
+
+# View score adjustments
+# These reflect structural properties of each data transformation.
+# v3 geometry agent was designed for LEVEL data - other views need rebalancing.
+#
+# Format: view_type -> geometry -> adjustment_multiplier
+# - Values > 1.0 boost that geometry's score
+# - Values < 1.0 demote that geometry's score
+# - Values = 1.0 leave unchanged
+
+view_score_adjustments:
+  level:
+    # Level view: v3 designed for this, all compete fairly
+    latent_flow: 1.0
+    coupled_oscillator: 1.0
+    reflexive_stochastic: 1.0
+    pure_noise: 1.0
+
+  returns:
+    # Returns are stationary by construction
+    # Latent_flow diagnostics (saturation, S-curve) are structurally inapplicable
+    latent_flow: 0.2           # Strongly demote - inapplicable
+    coupled_oscillator: 0.5    # Demote - differencing obscures cycles
+    reflexive_stochastic: 1.2  # Boost slightly - this is where reflexivity shows
+    pure_noise: 1.0            # Fair baseline
+
+  volatility:
+    # Volatility is second-order structure
+    # Reflexive patterns (clustering, persistence) are primary signal
+    latent_flow: 0.4           # Demote
+    coupled_oscillator: 0.7    # Slightly demote
+    reflexive_stochastic: 1.3  # Boost - vol clustering is reflexive signature
+    pure_noise: 1.0            # Fair baseline
+
+  deviation:
+    # Deviation from MA is mean-reverting by construction
+    # Oscillator patterns should dominate
+    latent_flow: 0.3           # Demote - can't accumulate around mean
+    coupled_oscillator: 1.4    # Boost - mean reversion is oscillatory
+    reflexive_stochastic: 0.8  # Slight demote
+    pure_noise: 1.0            # Fair baseline
+
+  anomaly:
+    # Climate anomalies - similar to deviation
+    latent_flow: 0.5
+    coupled_oscillator: 1.2
+    reflexive_stochastic: 0.9
+    pure_noise: 1.0
+
+  incidence:
+    # Epidemiology incidence (new cases)
+    # Latent_flow still applicable (epidemic curves)
+    latent_flow: 1.0
+    coupled_oscillator: 0.8
+    reflexive_stochastic: 1.1
+    pure_noise: 1.0
+
+# View weights for consensus arbitration
+view_weights:
+  level: 0.30
+  returns: 0.35
+  volatility: 0.25
+  deviation: 0.30
+  anomaly: 0.30
+  incidence: 0.35

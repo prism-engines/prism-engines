@@ -1,0 +1,559 @@
+# =============================================================================
+# PRISM DICTIONARY
+# =============================================================================
+# 
+# A reference guide to the mathematical concepts, PRISM terminology, and
+# domain translations used throughout the framework.
+#
+# Organization:
+#   1. Core PRISM Concepts
+#   2. The 23 Mathematical Lenses
+#   3. Statistical & Mathematical Terms
+#   4. Geometric Concepts
+#   5. PRISM Architecture
+#   6. Domain Translations
+#   7. Key Findings & Patterns
+#
+# =============================================================================
+
+
+# =============================================================================
+# 1. CORE PRISM CONCEPTS
+# =============================================================================
+
+PRISM:
+  full_name: "Progressive Regime Identification through Structural Mathematics"
+  what_it_is: |
+    A framework that applies multiple mathematical methods (lenses) to 
+    time series data and assembles the results into a unified geometric
+    representation. Instead of asking "what does correlation see?" it asks
+    "what do 23 different mathematical frameworks see, and where do they
+    agree or disagree?"
+  
+  the_insight: |
+    Different math reveals different structure. Correlation might say two 
+    things move together, but entropy might say they have different complexity.
+    PRISM assembles all perspectives into one picture.
+
+Lens:
+  what_it_is: |
+    A mathematical method that reveals one aspect of the data. Like looking
+    at something through different colored glasses - each lens shows you
+    something the others miss.
+  
+  example: |
+    Correlation lens: "SPY and QQQ move together"
+    Hurst lens: "SPY is more mean-reverting than QQQ"
+    Entropy lens: "QQQ is more complex/unpredictable"
+    
+    Same data, three different truths.
+  
+  count: 23 (in full PRISM implementation)
+
+State_Vector:
+  what_it_is: |
+    A 7-component summary of an indicator's current behavior, assembled
+    from multiple lens measurements.
+  
+  components:
+    - Geometry: Shape and position in state space
+    - Memory: How much past affects present (Hurst, autocorrelation)
+    - Complexity: Disorder and unpredictability (entropy)
+    - Periodicity: Cyclical patterns (wavelets, spectral)
+    - Tails: Extreme event behavior (kurtosis)
+    - Structure: Clustering and relationships
+    - Resistance: Stability under perturbation
+  
+  analogy: |
+    Like a blood panel for your data. Instead of one number, you get
+    a profile across multiple dimensions.
+
+Hidden_Mass:
+  what_it_is: |
+    Structure or influence that exists but isn't visible in simple metrics.
+    Indicators that are connected or influential in ways that correlation
+    alone doesn't reveal.
+  
+  example: |
+    VIX might have low correlation to SPY in normal times, but during
+    stress it becomes the dominant force. That latent influence is
+    "hidden mass" - it's there, just not visible until conditions change.
+  
+  analogy: |
+    Dark matter in physics. You can't see it directly, but you can see
+    its gravitational effects on things around it.
+
+Regime:
+  what_it_is: |
+    A period where the system's geometric structure is stable. When the
+    structure changes significantly, that's a regime change.
+  
+  examples:
+    - "Bull market" vs "Bear market"
+    - "Pre-COVID" vs "COVID" vs "Post-COVID"
+    - "Normal seismicity" vs "Aftershock sequence"
+  
+  detection: |
+    PRISM detects regime changes by watching for shifts in cluster structure,
+    correlation levels, or effective dimensionality.
+
+
+# =============================================================================
+# 2. THE 23 MATHEMATICAL LENSES (Derived Phase Engines)
+# =============================================================================
+
+# --- Correlation & Relationship Lenses ---
+
+Correlation:
+  what_it_measures: "Do two things move together?"
+  range: "-1 (opposite) to +1 (together)"
+  limitation: "Doesn't tell you WHY they move together or if the relationship is stable"
+  analogy: "Noticing two people always arrive at parties together. Doesn't tell you if they're married, carpooling, or stalking each other."
+
+Cross_Correlation:
+  what_it_measures: "Do two things move together, with a time lag?"
+  reveals: "Lead-lag relationships. Does A predict B?"
+  example: "Does VIX spike before SPY drops, or after?"
+
+Granger_Causality:
+  what_it_measures: "Does knowing A's past help predict B's future?"
+  important_note: "Not actual causation - just predictive relationship"
+  example: "Do bond movements Granger-cause equity movements? (Sometimes yes, sometimes no)"
+
+Cointegration:
+  what_it_measures: "Do two things wander together in the long run, even if they diverge short-term?"
+  analogy: "A drunk walking their dog. Both wander randomly, but the leash keeps them together over time."
+  use: "Pairs trading, long-term relationship detection"
+
+Transfer_Entropy:
+  what_it_measures: "How much information flows from A to B?"
+  vs_correlation: "Correlation is symmetric. Transfer entropy has direction."
+  example: "Information flows from Fed announcements to bond markets, not the reverse."
+
+Mutual_Information:
+  what_it_measures: "How much do A and B share in common (nonlinearly)?"
+  vs_correlation: "Captures nonlinear relationships that correlation misses"
+  example: "VIX and SPY have a nonlinear relationship - MI catches it, correlation underestimates it."
+
+# --- Memory & Persistence Lenses ---
+
+Hurst_Exponent:
+  what_it_measures: "Is the series trending, mean-reverting, or random?"
+  range:
+    - "H < 0.5: Mean-reverting (what goes up tends to come down)"
+    - "H = 0.5: Random walk (past doesn't predict future)"
+    - "H > 0.5: Trending (what goes up tends to keep going)"
+  example: "VIX has low Hurst (mean-reverts). Market indices have high Hurst (trend)."
+  analogy: "H < 0.5: Rubber band. H > 0.5: Snowball rolling downhill."
+
+Autocorrelation:
+  what_it_measures: "How much does today depend on yesterday?"
+  interpretation: "High autocorrelation = strong memory. Low = each day is fresh."
+  use: "Detecting persistence, checking for trends"
+
+# --- Complexity & Disorder Lenses ---
+
+Entropy:
+  what_it_measures: "How unpredictable or disordered is the series?"
+  types:
+    Shannon_Entropy: "Classic information theory measure"
+    Permutation_Entropy: "Based on ordinal patterns"
+    Spectral_Entropy: "Disorder in frequency domain"
+    Sample_Entropy: "Complexity accounting for self-similarity"
+  interpretation:
+    - "High entropy: Unpredictable, complex, noisy"
+    - "Low entropy: Predictable, structured, patterned"
+  analogy: "Shuffled deck (high entropy) vs sorted deck (low entropy)"
+
+Lyapunov_Exponent:
+  what_it_measures: "How fast do nearby trajectories diverge?"
+  interpretation:
+    - "Positive: Chaotic - small changes lead to wildly different outcomes"
+    - "Zero: Stable - predictable dynamics"
+    - "Negative: Converging - system returns to equilibrium"
+  analogy: "Weather is chaotic (positive Lyapunov) - small changes cascade. Pendulum is stable (negative) - returns to center."
+
+# --- Pattern & Cycle Lenses ---
+
+Wavelet:
+  what_it_measures: "What frequencies/cycles exist, and when do they appear?"
+  vs_fourier: "Fourier tells you WHAT frequencies exist. Wavelets tell you WHAT and WHEN."
+  use: "Detecting cycles that come and go, multi-scale pattern analysis"
+  analogy: "Sheet music vs just knowing what notes are in a song. Wavelets show you the notes AND when they're played."
+  
+  scales: |
+    Different wavelet scales capture different cycle lengths:
+    - Small scale: Daily/weekly patterns
+    - Medium scale: Monthly/quarterly cycles
+    - Large scale: Multi-year trends
+
+Spectral_Analysis:
+  what_it_measures: "What frequencies dominate the signal?"
+  output: "Power spectrum - which cycles are strongest"
+  example: "Markets might show 4-year presidential cycle, annual seasonality, weekly patterns"
+
+DMD:
+  full_name: "Dynamic Mode Decomposition"
+  what_it_measures: "What are the dominant patterns and how do they evolve?"
+  use: "Extracting the 'modes' that drive system behavior"
+  origin: "Fluid dynamics - used to analyze turbulence"
+
+# --- Distribution & Tail Lenses ---
+
+GARCH:
+  full_name: "Generalized Autoregressive Conditional Heteroskedasticity"
+  what_it_measures: "How does volatility cluster and evolve?"
+  insight: "Volatility is not constant - high vol follows high vol, low follows low"
+  use: "Risk modeling, volatility forecasting"
+  analogy: "Storms come in clusters. So does market volatility."
+
+Kurtosis:
+  what_it_measures: "How fat are the tails? How often do extreme events happen?"
+  interpretation:
+    - "High kurtosis: Fat tails - extremes more common than normal distribution suggests"
+    - "Low kurtosis: Thin tails - extremes are rare"
+  example: "Market returns have high kurtosis - crashes and melt-ups happen more than 'normal' suggests"
+  analogy: "Normal distribution says 'once in a million years.' Fat tails say 'see you next Tuesday.'"
+
+Copula:
+  what_it_measures: "How are the tails of two distributions related?"
+  vs_correlation: "Correlation measures average co-movement. Copula measures tail co-movement."
+  insight: "Things that seem uncorrelated on normal days might crash together"
+  example: "Stocks and bonds: uncorrelated usually, but in 2008 both tails hit simultaneously"
+
+# --- Structure & Clustering Lenses ---
+
+PCA:
+  full_name: "Principal Component Analysis"
+  what_it_measures: "What are the main drivers? How many independent dimensions exist?"
+  outputs:
+    - "PC1: The dominant factor (market beta, pandemic signal, etc.)"
+    - "PC2, PC3...: Secondary independent factors"
+    - "Effective dimension: How many truly independent things are moving"
+  use: "Factor extraction, dimensionality reduction"
+  analogy: "If 10 stocks all move with the market, the 'effective dimension' is 1, not 10"
+
+Clustering:
+  what_it_measures: "What groups naturally form in the data?"
+  methods:
+    - "K-means: Force into K groups"
+    - "Hierarchical: Build tree of similarities"
+    - "DBSCAN: Find dense regions"
+    - "Spectral: Use eigenvalues of similarity matrix"
+  use: "Finding cohorts, identifying regimes"
+
+Network_Analysis:
+  what_it_measures: "How are indicators connected when viewed as a graph?"
+  metrics:
+    - "Density: How connected is everything?"
+    - "Centrality: What's most influential?"
+    - "Modularity: Are there distinct communities?"
+  analogy: "Social network for indicators. Who's connected to who? Who's the hub?"
+
+# --- Dynamics & Recurrence Lenses ---
+
+RQA:
+  full_name: "Recurrence Quantification Analysis"
+  what_it_measures: "How often does the system return to previous states?"
+  outputs:
+    - "Recurrence rate: How often states repeat"
+    - "Determinism: How predictable are the patterns"
+    - "Laminarity: How much time in stable states"
+  use: "Detecting regime changes, identifying stability"
+  analogy: "Does your life feel like Groundhog Day? High recurrence. Constant novelty? Low recurrence."
+
+DTW:
+  full_name: "Dynamic Time Warping"
+  what_it_measures: "How similar are two series, allowing for time stretching?"
+  vs_correlation: "Correlation requires same timing. DTW allows flexible alignment."
+  use: "Finding similar patterns that occur at different speeds"
+  example: "This selloff looks like 2008, just faster"
+
+Rolling_Beta:
+  what_it_measures: "How does sensitivity to a benchmark change over time?"
+  insight: "Beta isn't constant - an asset's relationship to the market evolves"
+  example: "Tech had high beta in 2020, lower in 2022 as rates dominated"
+
+
+# =============================================================================
+# 3. STATISTICAL & MATHEMATICAL TERMS
+# =============================================================================
+
+Stationarity:
+  what_it_means: "Statistical properties don't change over time"
+  why_it_matters: "Most statistical methods assume stationarity. Finance violates this constantly."
+  example: "VIX at 15 means something different than VIX at 80. The 'rules' change."
+
+Heteroskedasticity:
+  what_it_means: "Variance changes over time"
+  in_english: "Sometimes volatile, sometimes calm"
+  why_it_matters: "Standard statistics assume constant variance. Markets don't comply."
+
+Eigenvalue:
+  what_it_means: "How much variance a principal component explains"
+  use: "Eigenvalue gap tells you how many real factors exist"
+  analogy: "The 'importance score' of each independent dimension"
+
+Covariance_Matrix:
+  what_it_means: "Grid showing how every pair of variables moves together"
+  size: "N indicators = N×N matrix"
+  issue: "With many indicators, this matrix is huge and noisy"
+
+Correlation_Matrix:
+  what_it_means: "Normalized covariance - scaled to -1 to +1"
+  use: "Easier to interpret than covariance"
+
+Manifold:
+  what_it_means: "A curved surface in high-dimensional space"
+  intuition: |
+    Your indicators don't actually live in 50 independent dimensions.
+    They live on a lower-dimensional surface (manifold) embedded in 
+    that space. Finding the manifold = finding the true structure.
+  example: "The Earth's surface is a 2D manifold in 3D space"
+
+Topology:
+  what_it_means: "Study of shapes and their properties that survive stretching"
+  in_PRISM: "The 'shape' of relationships between indicators"
+  example: "Do clusters merge? Split? That's topological change."
+
+
+# =============================================================================
+# 4. GEOMETRIC CONCEPTS
+# =============================================================================
+
+Effective_Dimension:
+  what_it_means: "How many truly independent things are moving?"
+  calculation: "Usually from PCA - how many eigenvalues are significant"
+  interpretation:
+    - "High effective dimension: Many independent drivers"
+    - "Low effective dimension: Everything moves together"
+  example: |
+    60 indicators but effective dimension of 3 = three things driving everything
+    
+Orthogonal_Factor_Dynamics:
+  what_it_means: "The behavior that remains after removing the dominant factor"
+  why_it_matters: |
+    The obvious signal (PC1) often masks hidden structure. Remove it
+    and you see what's really going on underneath.
+  example: |
+    COVID: Raw correlation 0.86 → countries synchronized
+    After PC1 removal: correlation -0.10 → countries actually diverging
+  synonym: "Latent geometry", "Substrate structure", "Factor-adjusted dynamics"
+
+Cluster_Merging:
+  what_it_means: "Previously separate groups start moving together"
+  when_it_happens: "Crisis, regime change, contagion"
+  example: "Stocks and bonds: usually 2 clusters. In 2022 rate shock: 1 cluster"
+
+Hidden_Mass_Accumulation:
+  what_it_means: "Build-up of invisible structural stress"
+  detection: "Orthogonal dynamics show tension before it's visible in price"
+  analogy: "Tectonic plate pressure before an earthquake"
+
+Geometric_Signature:
+  what_it_means: "The characteristic shape/pattern of a particular type of event"
+  use: "Compare current geometry to historical events"
+  example: |
+    2008 signature: Cascading correlation, slow build
+    COVID signature: Simultaneous shock, immediate correlation spike
+    Different geometry = different crisis type
+
+State_Space:
+  what_it_means: "The abstract space where each indicator's state vector lives"
+  dimensions: "As many as your state vector has components (7 in PRISM)"
+  movement: "Regime changes = movement through state space"
+
+Centroid:
+  what_it_means: "The center of a cluster"
+  use: "Represents the 'average' indicator in that group"
+  in_hierarchical: "Clusters act as single mass at distance (centroid represents them)"
+
+
+# =============================================================================
+# 5. PRISM ARCHITECTURE
+# =============================================================================
+
+# --- Phases ---
+
+Data_Phase:
+  what_it_does: "Fetch and clean raw data"
+  output: "Time series in native sampling frequency"
+  rule: "NO transformation, NO normalization - raw data only"
+
+Derived_Phase:
+  what_it_does: "Apply all 23 lenses to the data"
+  output: "Measurements from each mathematical engine"
+  rule: "Derived may be loud; only Structure may judge"
+
+Structure_Phase:
+  what_it_does: "Assemble measurements into geometric representations"
+  output: "State vectors, clusters, system geometry"
+  rule: "This is where interpretation begins"
+
+Binding_Phase:
+  what_it_does: "Final attachment of geometry to specific contexts"
+  output: "Actionable characterizations"
+
+# --- Agents ---
+
+Agent:
+  what_it_is: |
+    A decision-making component that applies domain knowledge to 
+    interpret or route data. Agents are the "judgment" layer.
+  
+  types:
+    Math_Suitability_Agent: "Decides which lenses are appropriate for which data"
+    Geometry_Signature_Agent: "Detects intrinsic data properties before engine selection"
+    Cohort_Discovery_Agent: "Finds natural groupings"
+    Data_Quality_Agent: "Validates data before processing"
+    Routing_Agent: "Directs flow through the pipeline"
+
+Engine:
+  what_it_is: "A mathematical computation unit (one lens)"
+  vs_agent: "Engines compute. Agents decide."
+  example: "Hurst engine calculates H. Agent decides if Hurst is appropriate for this data."
+
+# --- Data Structures ---
+
+Indicator:
+  what_it_is: "A single time series (price, rate, count, etc.)"
+  examples: "SPY, GDP, USA_CASES, SAN_ANDREAS_COUNT"
+
+Cohort:
+  what_it_is: "A group of indicators that belong together structurally"
+  discovery: "Emergent - found by the math, not defined by humans"
+  example: "Bond ETFs form a cohort. Equity sectors form another."
+
+Window:
+  what_it_is: "A time slice for analysis"
+  rolling: "Move window through time to watch geometry evolve"
+  parameters:
+    - "Window size: How much history to include"
+    - "Step size: How far to move between windows"
+
+
+# =============================================================================
+# 6. DOMAIN TRANSLATIONS
+# =============================================================================
+
+Finance_to_Seismology:
+  indicator: "Fault zone / Region"
+  daily_return: "Daily earthquake count or energy release"
+  volatility: "Magnitude variance"
+  correlation: "Cross-fault triggering"
+  regime_change: "Aftershock sequence onset"
+  hidden_mass: "Stress accumulation before rupture"
+  crisis: "Major earthquake"
+
+Finance_to_Epidemiology:
+  indicator: "Country / Region"
+  daily_return: "Daily new cases or deaths"
+  volatility: "Case count variance"
+  correlation: "Cross-country synchronization"
+  regime_change: "Wave onset / variant emergence"
+  hidden_mass: "Latent spread before detection"
+  crisis: "Pandemic wave"
+
+Universal_Concepts:
+  - "Regime detection works across all domains"
+  - "Correlation structure reveals coupling"
+  - "Orthogonal dynamics reveal hidden divergence"
+  - "Cluster behavior indicates system state"
+
+
+# =============================================================================
+# 7. KEY FINDINGS & PATTERNS
+# =============================================================================
+
+Correlated_But_Different:
+  meaning: "Two things move together but have different underlying dynamics"
+  detection: "High correlation + divergent lens measurements (Hurst, entropy)"
+  example: "TLT and IEF during rate shock: correlated but different duration dynamics"
+  implication: "Surface similarity masks structural divergence"
+
+Uncorrelated_But_Similar:
+  meaning: "Two things don't move together but have similar dynamics"
+  detection: "Low correlation + similar lens measurements"
+  example: "VIX and UNRATE: don't move together but both mean-revert"
+  implication: "Would behave similarly under the right conditions"
+
+Regime_Detection:
+  how_it_works: |
+    Watch for changes in:
+    - Cluster count (merging/splitting)
+    - Correlation level (spiking/collapsing)
+    - Effective dimension (collapsing/expanding)
+  seismology_result: "0 regime changes (stable physics)"
+  epidemiology_result: "12+ regime changes (volatile behavior)"
+
+Factor_Dominance:
+  meaning: "How much of the system is explained by PC1?"
+  equities: "~75% market factor"
+  bonds: "~60% rate factor"
+  seismology: "Low (regions are independent)"
+  after_removal: "Hidden dimensions emerge"
+
+The_60_40_Death:
+  finding: |
+    Stock-bond correlation flipped positive in 2020-2023.
+    The 60/40 portfolio relies on negative correlation.
+    When that assumption broke, 60/40 failed.
+  geometric_signature: "Cluster merge in bond-equity space"
+
+Mask_Effect:
+  meaning: "Dominant factor hides true structure"
+  example: |
+    COVID correlation 0.86 → "countries synchronized"
+    Remove PC1 → correlation -0.10 → "countries diverging underneath"
+  lesson: "Always check orthogonal factor dynamics"
+
+
+# =============================================================================
+# QUICK REFERENCE: THE PRISM WORKFLOW
+# =============================================================================
+
+Workflow_Summary:
+  step_1: "Ingest data (raw, native frequency)"
+  step_2: "Apply 23 lenses (derived phase)"
+  step_3: "Assemble into geometry (structure phase)"
+  step_4: "Detect regimes, clusters, hidden mass"
+  step_5: "Compare across time (rolling windows)"
+  step_6: "Compare across domains (seismology vs epi vs finance)"
+  step_7: "Report findings in language no one at compliance understands"
+
+
+# =============================================================================
+# GLOSSARY: ONE-LINER DEFINITIONS
+# =============================================================================
+
+Glossary:
+  autocorrelation: "How much today depends on yesterday"
+  centroid: "Center of a cluster"
+  cohort: "Natural grouping of indicators"
+  copula: "Tail dependency structure"
+  correlation: "Do two things move together? (-1 to +1)"
+  covariance: "Unstandardized correlation"
+  determinism: "How predictable the patterns are"
+  eigenvalue: "Importance of a principal component"
+  effective_dimension: "How many truly independent drivers exist"
+  entropy: "Disorder/unpredictability"
+  GARCH: "Volatility clustering model"
+  Granger_causality: "Does A's past predict B's future?"
+  hidden_mass: "Invisible structural influence"
+  Hurst: "Trending (>0.5) vs mean-reverting (<0.5)"
+  kurtosis: "Fat tails / extreme events"
+  latent: "Hidden, underlying"
+  lens: "Mathematical perspective on data"
+  Lyapunov: "Chaos measure - how fast paths diverge"
+  manifold: "Lower-dimensional surface in high-dimensional space"
+  orthogonal: "Perpendicular to / independent of"
+  PC1: "First principal component - dominant factor"
+  regime: "Stable structural period"
+  recurrence: "How often system returns to previous states"
+  residual: "What's left after removing something"
+  spectral: "Frequency-domain analysis"
+  stationarity: "Statistical properties constant over time"
+  state_vector: "Multi-dimensional summary of indicator behavior"
+  substrate: "Underlying structure"
+  topology: "Study of shapes and connectivity"
+  wavelet: "Time-frequency analysis (what cycles, when

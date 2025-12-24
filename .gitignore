@@ -1,124 +1,32 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+*.pyc
+*.pyo
+*.pyd
 *.egg-info/
-.installed.cfg
-*.egg
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Data directories (raw and clean data)
-02_data_raw/
-04_data_clean/
-06_output/
-__pycache__/
-*.pyc
-prism-mac-venv/
-_legacy_backup/
-__pycache__/
-*.pyc
-prism-mac-venv/
-_legacy_backup/
-
-# ===== PRISM CLEANUP (added by cleanup script) =====
 # Virtual environments
-_legacy_backup/
-_cleanup_backup*/
-*venv*/
 venv/
 .venv/
 env/
 
-# Output files - generated
-output/
-*.csv
-*.png  
-*.db
-*.log
-overnight.log
+# Data & outputs
+data/*.duckdb
+reports/
+results/
+visualization/
+archive/
 
-# Large data
-prism_data/
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-
-# Mac
+# OS / editor
 .DS_Store
-**/.DS_Store
-
-# IDE
-.idea/
+Thumbs.db
 .vscode/
-*.swp
+.idea/
 
-# Temp/patch files
-*.diff
-*.patch
-*_PATCHED.py
-claude_sandbox/phase8_12_extracted/
-claude_sandbox/*.md
-claude_sandbox/*.zip
+# Scratch / accidental
+Downloads/
+tmp/
+scratch/
 
-# Generated benchmark outputs
-runs/
+# Test caches
+.pytest_cache/
