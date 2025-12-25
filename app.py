@@ -35,9 +35,11 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("Options")
-    remove_pc1 = st.checkbox(
-        "Remove Global Forcing (PC1)",
-        help="Remove the dominant shared mode to reveal hidden structure"
+    pc1_mode = st.radio(
+        "Global Forcing (PC1)",
+        ["Keep", "Auto-detect", "Always remove"],
+        index=1,  # Default to Auto-detect
+        help="Auto-detect removes PC1 when global forcing > 50%"
     )
 
     st.markdown("---")
@@ -116,26 +118,37 @@ if df is not None and len(df.columns) >= 2:
 
     st.markdown("---")
 
-    # Apply PC1 removal if selected
-    if remove_pc1:
-        st.info("🔄 **Global Forcing Removed** - Analyzing residual structure after removing PC1")
-        df_analysis = remove_pc1_from_data(df)
-    else:
-        df_analysis = df
-
-    st.header("📊 Analysis Results")
-
     # Import prism_engines
     try:
         import prism_engines as prism
-        results = prism.run(df_analysis)
-
-        # Also run on original for comparison if PC1 removed
-        if remove_pc1:
-            results_original = prism.run(df)
     except ImportError:
         st.error("prism-engines not installed. Run: pip install prism-engines")
         st.stop()
+
+    # First run on original data to check GFM
+    results_original = prism.run(df)
+    original_gfm = results_original["pca"].metrics['global_forcing_metric']
+
+    # Determine whether to remove PC1
+    remove_pc1 = False
+    if pc1_mode == "Always remove":
+        remove_pc1 = True
+    elif pc1_mode == "Auto-detect" and original_gfm > 0.5:
+        remove_pc1 = True
+
+    # Apply PC1 removal if needed
+    if remove_pc1:
+        if pc1_mode == "Auto-detect":
+            st.info(f"🔄 **Global Forcing Detected** ({original_gfm:.0%}) - Automatically analyzing residual structure")
+        else:
+            st.info("🔄 **Global Forcing Removed** - Analyzing residual structure after removing PC1")
+        df_analysis = remove_pc1_from_data(df)
+        results = prism.run(df_analysis)
+    else:
+        df_analysis = df
+        results = results_original
+
+    st.header("📊 Analysis Results")
 
     # Create tabs for different views
     tab1, tab2, tab3, tab4 = st.tabs(["Summary", "Correlation", "PCA", "Persistence"])
