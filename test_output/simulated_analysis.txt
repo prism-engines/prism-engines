@@ -1,0 +1,26 @@
+============================================================
+PRISM ENGINES ANALYSIS REPORT
+============================================================
+
+Data: (200, 6) (6 series)
+Range: 2023-01-01 00:00:00 to 2023-07-19 00:00:00
+
+--- CORRELATION ---
+  correlation_matrix: [6x6 matrix]
+  mean_abs_correlation: 0.4434
+  max_correlation: {'pair': ('QQQ', 'IWM'), 'value': 0.8982780477123936}
+  min_correlation: {'pair': ('IWM', 'VIX'), 'value': 0.006635503808560471}
+
+--- PCA ---
+  explained_variance_ratio: [0.620, 0.171, 0.166, 0.022, 0.018]
+  effective_dimension: 3
+  pc1_loadings: {6 items}
+  global_forcing_metric: 0.6199
+  cumulative_variance: [0.620, 0.791, 0.957, 0.978, 0.996]
+
+--- HURST ---
+  hurst_exponents: {6 items}
+  mean_hurst: 0.9380
+  persistence_classification: {6 items}
+
+============================================================

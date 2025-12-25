@@ -1,0 +1,26 @@
+============================================================
+PRISM ENGINES ANALYSIS REPORT
+============================================================
+
+Data: (30, 5) (5 series)
+Range: 2024-01-01 00:00:00 to 2024-02-09 00:00:00
+
+--- CORRELATION ---
+  correlation_matrix: [5x5 matrix]
+  mean_abs_correlation: 0.9996
+  max_correlation: {'pair': ('GOOGL', 'AMZN'), 'value': 0.9999009533187361}
+  min_correlation: {'pair': ('AAPL', 'META'), 'value': 0.9991716804486794}
+
+--- PCA ---
+  explained_variance_ratio: [1.000, 0.000, 0.000, 0.000, 0.000]
+  effective_dimension: 1
+  pc1_loadings: {'AAPL': 0.4472434889447986, 'GOOGL': 0.44724585121984806, 'MSFT': 0.44722895992848255, 'AMZN': 0.4472483899089087, 'META': 0.4471012696115882}
+  global_forcing_metric: 0.9996
+  cumulative_variance: [1.000, 1.000, 1.000, 1.000, 1.000]
+
+--- HURST ---
+  hurst_exponents: {'AAPL': 1.0, 'GOOGL': 1.0, 'MSFT': 1.0, 'AMZN': 1.0, 'META': 1.0}
+  mean_hurst: 1.0000
+  persistence_classification: {'AAPL': 'persistent', 'GOOGL': 'persistent', 'MSFT': 'persistent', 'AMZN': 'persistent', 'META': 'persistent'}
+
+============================================================
