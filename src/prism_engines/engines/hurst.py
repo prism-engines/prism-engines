@@ -70,8 +70,13 @@ class HurstEngine(BaseEngine):
     def _compute_hurst(self, series: np.ndarray) -> float:
         """
         Compute Hurst exponent using R/S analysis.
+
+        Note: R/S analysis should be done on returns (differences),
+        not on price levels, to get meaningful Hurst values.
         """
-        n = len(series)
+        # Convert to returns (first differences) for proper R/S analysis
+        returns = np.diff(series)
+        n = len(returns)
         max_k = min(n // 2, 100)
 
         if max_k < 8:
@@ -87,7 +92,7 @@ class HurstEngine(BaseEngine):
 
             rs_list = []
             for i in range(n_segments):
-                segment = series[i * size : (i + 1) * size]
+                segment = returns[i * size : (i + 1) * size]
                 mean = np.mean(segment)
                 devs = segment - mean
                 cumsum = np.cumsum(devs)
