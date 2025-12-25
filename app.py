@@ -34,11 +34,40 @@ with st.sidebar:
     """)
 
     st.markdown("---")
+    st.header("Options")
+    remove_pc1 = st.checkbox(
+        "Remove Global Forcing (PC1)",
+        help="Remove the dominant shared mode to reveal hidden structure"
+    )
+
+    st.markdown("---")
     st.markdown("**CSV Format**")
     st.code("date,series1,series2,...\n2024-01-01,100,200,...", language="text")
 
     st.markdown("---")
     st.markdown("[GitHub](https://github.com/prism-engines/prism-engines) · [Docs](#)")
+
+
+def remove_pc1_from_data(df):
+    """Remove PC1 (global forcing) from the data."""
+    from sklearn.decomposition import PCA
+
+    X = df.values
+    X_centered = X - X.mean(axis=0)
+    X_std = X_centered / (X_centered.std(axis=0) + 1e-10)
+
+    pca = PCA()
+    pca.fit(X_std)
+
+    # Project onto PC1 and subtract
+    pc1 = pca.components_[0]
+    scores = X_std @ pc1
+    X_residual = X_std - np.outer(scores, pc1)
+
+    # Rescale back
+    X_residual = X_residual * X_centered.std(axis=0) + X.mean(axis=0)
+
+    return pd.DataFrame(X_residual, index=df.index, columns=df.columns)
 
 # Main content
 col1, col2 = st.columns([2, 1])
@@ -86,12 +115,24 @@ elif uploaded_file is not None:
 if df is not None and len(df.columns) >= 2:
 
     st.markdown("---")
+
+    # Apply PC1 removal if selected
+    if remove_pc1:
+        st.info("🔄 **Global Forcing Removed** - Analyzing residual structure after removing PC1")
+        df_analysis = remove_pc1_from_data(df)
+    else:
+        df_analysis = df
+
     st.header("📊 Analysis Results")
 
     # Import prism_engines
     try:
         import prism_engines as prism
-        results = prism.run(df)
+        results = prism.run(df_analysis)
+
+        # Also run on original for comparison if PC1 removed
+        if remove_pc1:
+            results_original = prism.run(df)
     except ImportError:
         st.error("prism-engines not installed. Run: pip install prism-engines")
         st.stop()
